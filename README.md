@@ -58,17 +58,22 @@ alternatively, parameters can also be passed via the commandline
   nextflow run main.nf [options]
   Options:
   --mode set to 'prod'
-  --genomefasta Abosolute path to reference genome fasta file
+  --genomefasta Absolute path to reference genome fasta file
   --genomename Name of reference genome
   --probename Name of probe
   --targetdesign Absolute path to target file of the probe
   --markercharacter Character used to replace target marker in probe sequence
   ```
 Note the format of the target design table should be a tab delimited file with the following columns;
-1. ID #The unique ID for each probe 
-2. Probe Sequence #The sequence of each probe
-3. Target.bp  #Target position of bp in the probe sequence
-4. Target.base #Details about the Targetted base
+
+
+| Column | Description |
+| -- | -- |
+| 1. ID  | The unique ID for each probe  |
+| 2. Probe Sequence  | The sequence of each probe |
+| 3. Target.bp   | Target position of bp in the probe sequence |
+| 4. Target.base  | Details about the Targetted base |
+
 
 See [*example target design table*](Data/AVRGRDC_Pulses_v1_20006795X370754_A2_Chickpea-target-new-format.tsv)
 
