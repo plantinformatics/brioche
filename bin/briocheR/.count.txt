@@ -1,0 +1,1 @@
+5000 /group/sequencing/assembly/Chisanga/Brioche_Runs/Eucalyptus/EUChip60K.MarkerList/blastoutput_temp.txt
