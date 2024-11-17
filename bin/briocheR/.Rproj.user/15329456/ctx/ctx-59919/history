@@ -1,3 +1,0 @@
-Sys.getenv("HOME")
-library(briocheR)
-addSNPdetails("SNPcoordinates/","SNPcoordinates/EUChip60K_samtools_coordinates_mapped.tsv",probe.name = "EUChip60K",genome.name = "EGLOBX46",keep.dups = F)
