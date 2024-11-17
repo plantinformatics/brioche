@@ -1,0 +1,20 @@
+Sys.getenv("HOME")
+blast.file<-"/group/sequencing/assembly/Chisanga/Brioche_Runs/Eucalyptus/blas_dir/Eucalyptus_blastbq"
+target <- "~/Projects/brioche/Scripts/Eucalyptus/Original/Affy4MSet_EucalyptusMarkerSubmitTagged.MarkerList_updated.fasta_markers.tsv"
+library(briocheR)
+processBlastResults(blast.file,targets = target,istarget3primeend = F)
+blast.file<-"/group/sequencing/assembly/Chisanga/Brioche_Runs/Eucalyptus/blas_dir/Eucalyptus_blastab"
+blast.file<-"/group/sequencing/assembly/Chisanga/Brioche_Runs/Eucalyptus/blas_dir/Eucalyptus_blastab2"
+processBlastResults(blast.file,targets = target,istarget3primeend = F)
+library(briocheR)
+processBlastResults(blast.file,targets = target,istarget3primeend = F)
+library(briocheR)
+library(briocheR)
+processBlastResults(blast.file,targets = target,istarget3primeend = F)
+warnings()
+library(briocheR)
+processBlastResults(blast.file,targets = target,istarget3primeend = F)
+library(briocheR)
+processBlastResults(blast.file,targets = target,istarget3primeend = F)
+processBlastResults(blast.file,targets = target,istarget3primeend = F)
+library(briocheR)

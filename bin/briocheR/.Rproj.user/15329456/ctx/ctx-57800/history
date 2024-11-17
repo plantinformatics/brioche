@@ -1,0 +1,7 @@
+Sys.getenv("HOME")
+library(briocheR)
+history()
+blast.file<-"/group/sequencing/assembly/Chisanga/Brioche_Runs/Eucalyptus/EUChip60K.MarkerList/blastoutput_temp.txt"
+processBlastResults(blast.file = blast.file,targets = "~/Projects/brioche/Scripts/Eucalyptus/Original/EUChip60K.MarkerList_updated.fasta_markers.tsv",chunk_size = 104,istarget3primeend = F)
+processBlastResults(blast.file = blast.file,targets = "~/Projects/brioche/Scripts/Eucalyptus/Original/EUChip60K.MarkerList_updated.fasta_markers.tsv",chunk_size = 104,istarget3primeend = F)
+library(briocheR)

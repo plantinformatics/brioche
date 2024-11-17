@@ -1,0 +1,10 @@
+Package: briocheR
+Type: Package
+Title: Tool for annotating markers to the reference genome
+Version: 0.1.0
+Author: David Chisanga
+Maintainer: The package maintainer <david.chisanga@agriculture.vic.gov.au>
+Description: briocheR is a package for quickly annotating SNP markers to the reference genome.
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true

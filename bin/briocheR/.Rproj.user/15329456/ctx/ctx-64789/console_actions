@@ -1,0 +1,20 @@
+{
+    "type": [
+        0,
+        1,
+        0,
+        1,
+        2,
+        3,
+        2
+    ],
+    "data": [
+        "> ",
+        "library(briocheR)",
+        "> ",
+        "data<-processBlastResults(blast.file,targets = \"~/Projects/brioche/Scripts/Eucalyptus/Original/EUChip60K.MarkerList_updated.fasta_markers.tsv\",chunk_size = 500,istarget3primeend = F)",
+        "[1] 48\n",
+        "Error in checkCluster(cl) : not a valid cluster\n",
+        "\nRestarting R session...\n\n"
+    ]
+}

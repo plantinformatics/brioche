@@ -1,0 +1,333 @@
+
+#' @title Check input data
+#' @description This function is used to process and check for input details
+#' @author David Chisanga
+#' @param blast.file path to the blast output file
+#' @keywords blast, alignment
+#' @examples
+#'
+#' @return Returns a named list
+#'
+#'
+getTarget <- function(targets) {
+  #Check if targets file has been provided
+  if (targets != "none" || targets != "" || !is.null(targets))
+  {
+    #Table with a list of targets ordered as ID;Target.chromosome;TargetPosition;TargetSNP
+    if (file.exists(targets))
+    {
+      if (grepl("RDS$", targets, ignore.case = T))
+        targets <- readRDS(targets)
+      else
+      {
+        targets <- read.table(targets,
+                              stringsAsFactors = F,
+                              header = F)
+        if ("ID" %in% targets[1,])
+        {
+          colnames(targets) <- targets[1,]
+          targets <- targets[-1,]
+        }
+        else
+        {
+          colnames(targets) <-
+            c("ID", "Target.Chr", "Target.bp", "Targetted.SNP")
+        }
+      }
+      if (nrow(targets) > 0)
+      {
+        target.provided = T
+      }
+      else{
+        stop("Targets file provided has null content, check file and try again")
+      }
+    } else {
+      stop(paste0("Targets file was not found at ", targets))
+    }
+  }
+  else
+    targets <- NULL
+  return(targets)
+}
+
+if ("blastfile" %in% names(args.list))
+{
+  blast.file <- args.list$blastfile
+  if (is.na(blast.file))
+    stop(
+      "Results from blast not found. Make sure that the blast step ran successfully before running this step!"
+    )
+} else {
+  stop(
+    "Results from blast not found. Make sure that the blast step ran successfully before running this step!"
+  )
+}
+
+
+#' @title Check input data
+#' @description This function is used to process and check for input details
+#' @author David Chisanga
+#' @param blast.data Data frame, large data frame of the output from a blast run
+#' @param target data frame or null value, manifest data with annotation information
+#' @param target.provided logical value to indicate if target file is provided
+#' @keywords blast, alignment
+#' @examples
+#'
+#' @return Returns a named list
+#'
+#'
+processXTBlast <-
+  function(blast.data,
+           target,
+           istarget3primeend,
+           extendable.site.bps,
+           min.matchbp) {
+    #Include hybridisation information
+
+    blast.data$Hybridize <-
+      ifelse(
+        as.numeric(blast.data$qend) == as.numeric(blast.data$qlen) &
+          as.numeric(blast.data$length) >= min.matchbp,
+        "Yes",
+        "No"
+      )
+
+    #Get the number of matching bases from the 3 prime end of the probe if target is provided
+    if (!is.null(target))
+    {
+      blast.data$Identical_nts_from_3prime_end <-
+        gsub(".*_",
+             "",
+             gsub("([A-Z][A-Z])|([A-Z]-)|(-[A-Z])", "_", blast.data$btop))
+
+
+      #Check if there are no mismatches in at least 3bps from the 3 prime end of the probe
+      blast.data$No_missmatch3bp <- unlist(sapply(as.numeric(
+        as.numeric(blast.data$Identical_nts_from_3prime_end)
+      ), function(x)
+        if (x >= extendable.site.bps)
+          return("Yes")
+      else
+        return(".")),
+      use.names = F)
+
+      #If the number of matching bps from the 3prime end is  more
+      blast.data$ExtendableSite <-
+        unlist(sapply(blast.data$Identical_nts_from_3prime_end, function(x) {
+          if (as.numeric(x) >= extendable.site.bps)
+            return("Yes")
+          else
+            return(".")
+        }),
+        use.names = F)
+    }
+
+    #Get position of SNPs to be used in samtools to get basepairs
+    if (istarget3primeend)
+    {
+      pos <-
+        ifelse(
+          blast.data$sstrand == "plus",
+          as.numeric(blast.data$send) + 1,
+          as.numeric(blast.data$send) - 1
+        )
+    } else{
+      pos <- "."
+    }
+    blast.data$SNPpos <- pos
+
+  }
+
+
+
+
+#' @title Process alignment results from blast
+#' @description This function is used to process and format the blast output
+#' @author David Chisanga
+#' @param blast.file path to the blast output file
+#' @param min.matchbp minimum length of HSP to be considered fully Hybridize
+#' @param target table with target annotation
+#' @param outfmt vector of format specifiers from the supported format specifiers for 6,7 and 10 in blastn's 'outfmt' parameter
+#' @param path.2save.coords path where SNP coordinates to get base in reference genome using samtools are to be saved
+#' @param extendable.site.bps number of matching base pairs from the 3 prime end for a probe to be considered as extendable
+#' @param istarget3primeend logical value showing if target is on the 3' prime end
+#' @param marker.type String indicating the type/technogy
+#' @keywords blast, alignment
+#' @export
+#' @examples
+#'
+#' @return Returns a data frame of processed blast results
+#'
+#'
+processBlastResults <- function(blast.file,
+                                min.matchbp = 40,
+                                path.2save.coords = "SNPcoordinates",
+                                extendable.site.bps = 3,
+                                marker.type,
+                                targets = NULL,
+                                outfmt = c(
+                                  "qaccver",
+                                  "saccver",
+                                  "pident",
+                                  "qlen",
+                                  "length",
+                                  "mismatch",
+                                  "gapopen",
+                                  "qstart",
+                                  "qend",
+                                  "sstart",
+                                  "send",
+                                  "evalue",
+                                  "bitscore",
+                                  "btop",
+                                  "qseq",
+                                  "sseq",
+                                  "sstrand"
+                                ),
+                                istarget3primeend = T)
+{
+  #Check if blast file has been provided
+  if (!file.exists(blast.file))
+    stop(paste0("Path to blast output file (", blast.file, ") is not valid!"))
+
+  #Read blast file to a dataframe
+  blast_out <- read.table(
+    file = blast.file,
+    row.names = NULL,
+    strip.white = T,
+    fill = T,
+    sep = "\t"
+  )
+
+  #Rename the columns to use the blast output format used
+  colnames(blast_out) <- outfmt
+
+  #Check target file
+  targets <- getTarget(targets)
+  target.provided <- !is.null(targets)
+
+  #Check the “Blast trace-back operations” (BTOP) string which describes the alignment produced by BLAST.
+  blast_out <- as.data.frame(t(apply(blast_out, 1, function(x) {
+    #Split the btop string to check for SNPs or other variant types
+    z <-
+      strsplit(gsub("([A-Z][A-Z])|([A-Z]-)|(-[A-Z])", "_", x[["btop"]]), "_")[[1]]
+    #Specify
+    zz.type <-
+      strsplit(gsub("[0-9]", "", gsub(
+        "([A-Z]-)|(-[A-Z])", "G",
+        gsub("([A-Z][A-Z])", "m", x[["btop"]])
+      )), split = "")[[1]]
+    z[z == ""] <- 0
+    z <- as.numeric(z) + 1
+    zz.type <- paste0(zz.type, collapse = ";")
+    z <- cumsum(z[-length(z)])
+    if (length(z) == 0) {
+      z <- "-"
+      SNPorGAPpos_Ref <- "-"
+    } else {
+      SNPorGAPpos_Ref <- sapply(z, function(xx)
+      {
+        xx <- ifelse(x[["sstrand"]] == "plus",
+                     as.numeric(x[["send"]]) + xx,
+                     as.numeric(x[["send"]]) - xx)
+        paste0(x[["saccver"]], ":", xx, "-", xx)
+      }, simplify = T, USE.NAMES = F)
+      SNPorGAPpos_Ref <- paste0(SNPorGAPpos_Ref, collapse = ";")
+    }
+    if (zz.type == "")
+      zz.type <- "-"
+
+    x[["SNPorGap"]] <- zz.type
+    x[["SNPorGap_pos"]] <- paste0(z, collapse = ";")
+    x[["SNPorGAPpos_Ref"]] <- SNPorGAPpos_Ref
+    return(x)
+  })))
+
+  if (tolower(marker.type) == "xt")
+  {
+    blast_out <-
+      processXTBlast(
+        blast.data = blast_out,
+        target = targets,
+        istarget3primeend = istarget3primeend,
+        min.matchbp = min.matchbp
+      )
+  }
+  else{
+    stop("No specific technology type has been selected, should be one of the following; 'XT', ")
+  }
+
+
+  #Add SNP coordinates to be passed to samtools
+  blast_out$SNP_position <- with(blast_out, paste0(saccver,
+                                                   ":",
+                                                   SNPpos,
+                                                   "-",
+                                                   SNPpos))
+
+  if (target.provided)
+  {
+    #Include target information if available
+    targets <- targets[!duplicated(targets),]
+    chr.saccver <- blast_out$saccver[1]
+    chr.saccver <- grepl("chr", chr.saccver, ignore.case = T)
+    chr.qaccver <-
+      with(targets, any(grepl("chr", Target.Chr, ignore.case = T)))
+
+    target <-
+      with(targets, split(Targetted.SNP, ID))
+    blast_out$Target <- as.character(target[blast_out$qaccver])
+    blast_out$ClusterA_NT <-
+      gsub("\\[|\\]|/[ACTG]", "", blast_out$Target)
+    blast_out$ClusterB_NT <-
+      gsub("[ACTG]/|\\[|\\]", "", blast_out$Target)
+
+    #Include target chromosome information from the probe design matrix
+    target.chr <- with(targets, split(Target.Chr, ID))
+    blast_out$Target.Chr <-
+      as.character(target.chr[blast_out$qaccver])
+
+    #Include target chromosome information from the probe design matrix
+    target.bp <- with(targets, split(Target.bp, ID))
+    blast_out$Target.bp <-
+      as.character(target.bp[blast_out$qaccver])
+  }
+
+  #Reorder results
+  blast_out[order(
+    blast_out$Hybridize,
+    blast_out$pident,
+    blast_out$qaccver,
+    decreasing = c(T, T, F),
+    method = "radix"
+  ),]
+
+  if (!file.exists(path.2save.coords))
+    dir.create(path.2save.coords, recursive = T)
+  #Save SNP coordinates to a tab delimited file
+  cat("\nSNP coordinates saved in", path.2save.coords, "\n")
+  write.table(
+    subset(blast_out, SNP_position != ".")$SNP_position,
+    file = paste0(
+      path.2save.coords,
+      "/",
+      marker.type,
+      "_samtools_marker_positions.txt"
+    ),
+    quote = F,
+    sep = "\t",
+    col.names = F,
+    row.names = F
+  )
+
+  saveRDS(
+    blast_out,
+    file = paste0(
+      path2BlastOut,
+      "/",
+      marker.type,
+      "_processed_blast_results.RDS"
+    )
+  )
+  return(blast_out)
+}

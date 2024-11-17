@@ -1,0 +1,19 @@
+Package: briocheR
+Type: Package
+Title: Tool for annotating markers to the reference genome
+Version: 0.1.2
+Authors@R: person("David Chisanga", role = c("aut", "cre"), email = "david.chisanga@agriculture.vic.gov.au")
+Description: briocheR is a package for quickly annotating markers to the reference genome.
+License: CC
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.2.3
+Depends:
+  R (>= 3.6),
+  data.table,
+  tidyr,
+  dplyr,
+  magrittr
+
+  
+

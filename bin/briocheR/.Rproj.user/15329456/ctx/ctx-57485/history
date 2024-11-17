@@ -1,0 +1,8 @@
+Sys.getenv("HOME")
+library(briocheR)
+blast.file<-"/group/sequencing/assembly/Chisanga/Brioche_Runs/Eucalyptus/blas_dir/Eucalyptus_blastab2"
+targets<-"~/Projects/brioche/Scripts/Eucalyptus/Original/Affy4MSet_EucalyptusMarkerSubmitTagged.MarkerList_updated.fasta_markers.tsv"
+processBlastResults(blast.file,targets = targets,istarget3primeend = F)
+library(briocheR)
+warnings()
+processBlastResults(blast.file,targets = targets,istarget3primeend = F)
