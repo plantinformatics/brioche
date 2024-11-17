@@ -1,8 +1,0 @@
-data<-processBlastResults(blast.file,targets = "~/Projects/brioche/Scripts/Eucalyptus/Original/EUChip60K.MarkerList_updated.fasta_markers.tsv",chunk_size = 500)
-data<-processBlastResults(blast.file,targets = "~/Projects/brioche/Scripts/Eucalyptus/Original/EUChip60K.MarkerList_updated.fasta_markers.tsv",chunk_size = 500,istarget3primeend = F)
-?parallel::parLapply
-library(briocheR)
-data<-processBlastResults(blast.file,targets = "~/Projects/brioche/Scripts/Eucalyptus/Original/EUChip60K.MarkerList_updated.fasta_markers.tsv",chunk_size = 500,istarget3primeend = F)
-?parallel::makeCluster
-library(briocheR)
-data<-processBlastResults(blast.file,targets = "~/Projects/brioche/Scripts/Eucalyptus/Original/EUChip60K.MarkerList_updated.fasta_markers.tsv",chunk_size = 500,istarget3primeend = F)
