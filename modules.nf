@@ -146,6 +146,9 @@ process SPLIT_REFGENOME{
             echo "No chromosomes found in fasta file"
             exit 1
         fi
+    elif [[ ! -z "${params.restrict2chrom}" ]]
+    then
+        samtools faidx $refgenome "${params.restrict2chrom}" > "${params.restrict2chrom}-split.fasta"
     else
             ln -s ${refgenome} ${genomefasta}
     fi
