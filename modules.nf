@@ -9,7 +9,6 @@ process BUILD_TARGET {
     output:
         tuple path("target.table"),
               path("target.fasta")
-
     script:
         mincols = 4
         """
@@ -121,7 +120,7 @@ process SPLIT_REFGENOME{
     dict=\$(echo ${refgenome}|sed -e "s/.[^.]*\$/.dict/")
     if [[ ! -e "\${dict}" ]]
     then
-        picard CreateSequenceDictionary -R ${refgenome} -O \${dict}
+        picard -Xms4g -Xmx10g CreateSequenceDictionary -R ${refgenome} -O \${dict}
     else
         echo "Dictionary file found"
     fi
@@ -161,7 +160,7 @@ process SPLIT_REFGENOME{
 }
 
 /*
- * Step2: Process to Run blast of the probes provided against reference genome
+ * Step2: Process to run blast of the probes provided against reference genome
  */
 process RUN_BLAST {
   tag "${file(blastdb).baseName}"
@@ -273,7 +272,6 @@ process ADD_MARKERINFO{
     mv "${probename}_with_${genomename}_mapping.tsv" ${mappings}
     """
 }
-
 /*
 Step5: Process to merge individual mapping results into a single file
 */
