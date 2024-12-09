@@ -4,7 +4,7 @@
 \alias{getPositionsFromBTOP}
 \title{Function to get variant positions from blast btop}
 \usage{
-getPositionsFromBTOP(btop)
+getPositionsFromBTOP(btop, qstart)
 }
 \arguments{
 \item{btop}{String btop value}

@@ -238,7 +238,7 @@ getVariantsFromBTOP <- function(btop) {
 #' @examples
 #' getPositionsFromBTOP("4A-40-AGC25TA5")
 #' @export
-getPositionsFromBTOP <- function(btop)
+getPositionsFromBTOP <- function(btop,qstart)
 {
   #get variant positions
   patt <- "_1_"
@@ -280,7 +280,7 @@ getPositionsFromBTOP <- function(btop)
     positions <- strsplit(gsub("(_)+", "_", positions), "_")[[1]]
 
     if (length(positions) > 0)
-      return(cumsum(as.numeric(positions)))
+      return(cumsum(as.numeric(positions))-as.numeric(qstart))
     else
     {
       return(".")
@@ -418,7 +418,7 @@ processBlastResults <- function(blast.file,
 
     for (i in 1:nrow(data)) {
       variantinfo <- getVariantsFromBTOP(data$btop[i])
-      var_position <- getPositionsFromBTOP(data$btop[i])
+      var_position <- getPositionsFromBTOP(data$btop[i],data$qstart[i])
       var_type <- variantinfo$type
       variants <- variantinfo$vars
 
