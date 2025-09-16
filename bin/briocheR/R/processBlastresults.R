@@ -378,14 +378,13 @@ processBlastResults <- function(blast.file,
                   by.y = "ID",
                   all.x = TRUE)
     # Extract SNP Clusters - using stringr for better readability
-    if(!require(stringr)) {
-      install.packages("stringr")
-      library(stringr)
-    }
+snp_col <- if ("Target.base" %in% names(data)) "Target.base" else
+           if ("Targeted.SNP" %in% names(data)) "Targeted.SNP" else
+           stop("Neither 'Target.base' nor 'Targeted.SNP' present after merge().")
 
-    data$ClusterA_NT <- str_remove_all(data$Target.base, "\\[|\\]|/[ACTG]")
-    data$ClusterB_NT <- str_remove_all(data$Target.base, "[ACTG]/|\\[|\\]")
-    # Extract SNP Clusters
+# Use fully qualified calls — no library() needed
+data$ClusterA_NT <- stringr::str_remove_all(as.character(data[[snp_col]]), "\\[|\\]|/[ACTG]")
+data$ClusterB_NT <- stringr::str_remove_all(as.character(data[[snp_col]]), "[ACTG]/|\\[|\\]")    # Extract SNP Clusters
     # data$ClusterA_NT <- gsub("\\[|\\]|/[ACTG]",
     #                          "",
     #                          data$Target.base,
@@ -504,13 +503,9 @@ processBlastResults <- function(blast.file,
     }
 
     # Filter and Arrange - using dplyr for better readability
-    if(!require(dplyr)) {
-      install.packages("dplyr")
-      library(dplyr)
-    }
-    data <- data %>%
-      filter(SNP.Refpos != "." & !is.na(SNPpos)) %>%
-      arrange(desc(Coverage), desc(pident), qaccver)
+    data <- data |>
+      dplyr::filter(SNP.Refpos != "." & !is.na(SNPpos)) |>
+      dplyr::arrange(dplyr::desc(Coverage), dplyr::desc(pident), qaccver)
 
     # Save Results
     if (!dir.exists(path.2save.coords))
@@ -537,5 +532,3 @@ processBlastResults <- function(blast.file,
     warning(w)
   })
 }
-
-

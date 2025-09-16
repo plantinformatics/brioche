@@ -76,21 +76,32 @@ process BUILD_BLASTDb {
         val "${blastdatabase}"
   script:
   fastadir=new File("${refgenome}").getParent()
-  blastdb=fastadir+"/BLAST/"
+  blastsubdir=new File(fastadir+"/BLAST/")
+
+  // Check: if FASTA dir not writable or BLAST subdir exists but not writable ? fallback
+  if( !new File(fastadir).canWrite() || (blastsubdir.exists() && !blastsubdir.canWrite()) )
+  {
+      System.err.println("Error: No write access to ${fastadir}/BLAST; falling back to ${projectDir}/BLAST")
+      blastdb=new File("${projectDir}/BLAST").toString()
+  }
+  else
+  {
+      blastdb=blastsubdir.toString()
+  }
+
   blastdatabase="${file(fasta).getName()}".replaceAll("-split.*","")
   refgenomename="${file(refgenome).getName()}"
-  if(new File(fastadir).canWrite())
+
+  if(blastdatabase!=refgenomename)
   {
-    if(blastdatabase!=refgenomename)
-    {
-        blastdb=new File(blastdb+"/brioche-blastdb/").toString()
-    }
-    if(!new File(blastdb).exists())
-    {
-        new File(blastdb).mkdirs()
-    }
-    blastdatabase=blastdb.toString()+"/"+blastdatabase
+      blastdb=new File(blastdb+"/brioche-blastdb/").toString()
   }
+  if(!new File(blastdb).exists())
+  {
+      new File(blastdb).mkdirs()
+  }
+  blastdatabase=blastdb.toString()+"/"+blastdatabase
+
   """
   #check if blastdb exists
   if [[ ! -e "${blastdatabase}.ndb" ]]
@@ -99,7 +110,8 @@ process BUILD_BLASTDb {
     makeblastdb -in $fasta -out ${blastdatabase} -dbtype "nucl" -title "${params.genomename}"
   fi
   """
-} 
+}
+ 
 
 process SPLIT_REFGENOME{
     tag "${file(refgenome).baseName}"
