@@ -66,110 +66,132 @@ process BUILD_TARGET {
         """
 }
 
+process PREP_REFGENOME {
+  input:
+    path ref_in
+
+  output:
+    path "ref_full.fa"
+
+  """
+  if [[ "${ref_in}" == *.gz ]] || gzip -t "${ref_in}" &>/dev/null; then
+    gzip -dc "${ref_in}" > ref_full.fa
+  else
+    ln -sf "${ref_in}" ref_full.fa
+  fi
+  """
+}
+
 process BUILD_BLASTDb {
   tag "${file(fasta).baseName.replaceAll('-split','')}"
   label 'large'
   input:
-    val fasta
-    val refgenome
+    path fasta
+    val  ref_origin
   output:
-        val "${blastdatabase}"
+    val "${blastdatabase}"
+
   script:
-  fastadir=new File("${refgenome}").getParent()
-  blastsubdir=new File(fastadir+"/BLAST/")
+  fastadir    = new File("${ref_origin}").getParent()
+  blastsubdir = new File(fastadir + "/BLAST/")
 
-  // Check: if FASTA dir not writable or BLAST subdir exists but not writable ? fallback
-  if( !new File(fastadir).canWrite() || (blastsubdir.exists() && !blastsubdir.canWrite()) )
-  {
-      System.err.println("Error: No write access to ${fastadir}/BLAST; falling back to ${projectDir}/BLAST")
-      blastdb=new File("${projectDir}/BLAST").toString()
-  }
-  else
-  {
-      blastdb=blastsubdir.toString()
+  if( !new File(fastadir).canWrite() || (blastsubdir.exists() && !blastsubdir.canWrite()) ) {
+    System.err.println("Error: No write access to ${fastadir}/BLAST; falling back to ${projectDir}/BLAST")
+    blastdb = new File("${projectDir}/BLAST").toString()
+  } else {
+    blastdb = blastsubdir.toString()
   }
 
-  blastdatabase="${file(fasta).getName()}".replaceAll("-split.*","")
-  refgenomename="${file(refgenome).getName()}"
+  blastdatabase = "${file(fasta).getName()}".replaceAll("-split.*","")
+  refgenomename = "${new File(ref_origin).getName()}"
 
-  if(blastdatabase!=refgenomename)
-  {
-      blastdb=new File(blastdb+"/brioche-blastdb/").toString()
+  if( blastdatabase != refgenomename ) {
+    blastdb = new File(blastdb + "/brioche-blastdb/").toString()
   }
-  if(!new File(blastdb).exists())
-  {
-      new File(blastdb).mkdirs()
+  if( !new File(blastdb).exists() ) {
+    new File(blastdb).mkdirs()
   }
-  blastdatabase=blastdb.toString()+"/"+blastdatabase
+  blastdatabase = blastdb.toString() + "/" + blastdatabase
 
   """
-  #check if blastdb exists
-  if [[ ! -e "${blastdatabase}.ndb" ]]
-  then
-    echo creating database
-    makeblastdb -in $fasta -out ${blastdatabase} -dbtype "nucl" -title "${params.genomename}"
+  set -euo pipefail
+  if [[ ! -e "${blastdatabase}.ndb" ]]; then
+    echo "creating database for ${fasta} -> ${blastdatabase}"
+    makeblastdb -in "${fasta}" -out "${blastdatabase}" -dbtype nucl -title "${params.genomename}"
   fi
   """
 }
+
  
+process SPLIT_REFGENOME {
+  tag "${file(refgenome).baseName}"
+  input:
+    path refgenome
+    val  resultsdir
+    val  chromstoexclude
+    val  buildblastdbonly
+  output:
+    path "*-split.fasta"
 
-process SPLIT_REFGENOME{
-    tag "${file(refgenome).baseName}"
-    input:
-        val refgenome
-        val resultsdir
-        val chromstoexclude
-        val buildblastdbonly
-    output:
-        path "*split.fasta"
-    script:
-    path2briocheR=params.pathtobriocher
-    genomefasta="${file(refgenome).getName()}-split.fasta"
-    """
-    mkdir -p ${resultsdir}
+  // Pre-compute a few safe strings in Groovy
+  script:
+  def excl       = (chromstoexclude ?: '').replace(',', '|')   // "a,b,c" -> "a|b|c"
+  def restrict   = params.restrict2chrom ?: ''
+  def buildonly  = (buildblastdbonly instanceof Boolean ? buildblastdbonly : "${buildblastdbonly}".toBoolean()).toString()
+  def path2briocheR = params.pathtobriocher
+  def genomefasta   = "${file(refgenome).getName()}-split.fasta"
 
-    #Check if reference dictionary exists, if not, build one
-    dict=\$(echo ${refgenome}|sed -e "s/.[^.]*\$/.dict/")
-    if [[ ! -e "\${dict}" ]]
-    then
-        picard -Xms4g -Xmx10g CreateSequenceDictionary -R ${refgenome} -O \${dict}
+  """
+  set -euo pipefail
+
+  mkdir -p "${resultsdir}"
+
+  # Use the staged input directly (no self-symlink)
+  REF="${refgenome}"
+
+  # Dictionary next to REF using bash param expansion (note the backslashes)
+  dict="\${REF%.*}.dict"
+  if [[ ! -e "\${dict}" ]]; then
+    picard -Xms4g -Xmx10g CreateSequenceDictionary -R "\${REF}" -O "\${dict}"
+  else
+    echo "Dictionary file found"
+  fi
+
+  # Optional exclusion pattern from Groovy
+  exclude_array="DC"
+  if [[ -n "${excl}" ]]; then
+    exclude_array="${excl}"
+  fi
+
+  # List contigs and decide whether to split
+  chromosomes="\$(grep '@SQ' "\${dict}" | cut -f2 | sed -e 's/SN://g' | grep -v -P "^\${exclude_array}" || true)"
+  split="\$(echo "\${chromosomes}" | awk -v maxchrom=30 '{print (NF <= maxchrom && NF>0) ? "yes" : "no"}')"
+
+  if [[ "\${split}" == "yes" && "${buildonly}" == "false" ]]; then
+    if [[ -n "\${chromosomes}" ]]; then
+      for chr in \${chromosomes}; do
+        samtools faidx "\${REF}" "\$chr" > "\${chr}-split.fasta"
+      done
     else
-        echo "Dictionary file found"
+      echo "No chromosomes found in fasta file"
+      exit 1
     fi
+  elif [[ -n "${restrict}" ]]; then
+    samtools faidx "\${REF}" "${restrict}" > "${restrict}-split.fasta"
+  else
+    # No split: expose a single *-split.fasta pointing at REF
+    ln -sf "\${REF}" "${genomefasta}"
+  fi
 
-    exclude_array="DC"
-    if [[ ! -z "${chromstoexclude}" ]];
-    then
-        exclude_array=\$(echo ${chromstoexclude}|sed 's/,/|/g')
-    fi
-
-    chromosomes=\$(grep "@SQ" \${dict}|cut -f2|sed -e "s/SN://g"|grep -v -P "^\${exclude_array}")
-    split=\$(echo \${chromosomes}|awk -v maxchrom=30 'NF > maxchrom {print "no"}; NF < maxchrom {print "yes"}')
-    if [[ "\${split}" == "yees" && "$buildblastdbonly" == "false" ]];
-    then
-        if [[ ! -z "\${chromosomes}" ]];
-        then
-            for chr in \${chromosomes};
-            do
-                samtools faidx $refgenome "\$chr" > "\${chr}-split.fasta"
-            done
-        else
-            echo "No chromosomes found in fasta file"
-            exit 1
-        fi
-    elif [[ ! -z "${params.restrict2chrom}" ]]
-    then
-        samtools faidx $refgenome "${params.restrict2chrom}" > "${params.restrict2chrom}-split.fasta"
-    else
-            ln -s ${refgenome} ${genomefasta}
-    fi
-    echo "Try and install briocheR that has been updated"
-    #install briocheR if not installed
-    Rscript -e "if(!require('briocheR')){
-                install.packages('${path2briocheR}',repos=NULL);
-                print('BriocheR installed')}"
-    """
+  # Install local briocheR tarball if needed
+  Rscript -e "if(!require('briocheR')){
+    install.packages('${path2briocheR}', repos=NULL);
+    print('BriocheR installed')
+  }"
+  """
 }
+
+
 
 /*
  * Step2: Process to run blast of the probes provided against reference genome
