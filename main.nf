@@ -28,6 +28,7 @@ $params.loginfo
  */
 include {
   BUILD_TARGET;
+  PREP_REFGENOME;
   BUILD_BLASTDb;
   RUN_BLAST;
   PROCESS_BLAST_RESULTS;
@@ -43,21 +44,22 @@ include {
 
 workflow {
     // Part 1: Build blast DB
+    PREP_REFGENOME( params.genomefasta )
     SPLIT_REFGENOME(
-        params.genomefasta,
+        PREP_REFGENOME.out, 
         params.resultsdirectory,
         params.chromstoexclude,
         params.buildblastdbonly
     )
-    BUILD_BLASTDb(
-        SPLIT_REFGENOME.out.flatten(),
+    BUILD_BLASTDb( 
+        SPLIT_REFGENOME.out,
         params.genomefasta
     )
     if(!params.buildblastdbonly)
     {
-         BUILD_TARGET(params.targetdesign)
-         probefasta=BUILD_TARGET.out.map{it->it[1]}
-         targettable=BUILD_TARGET.out.map{it->it[0]}
+        BUILD_TARGET( params.targetdesign )
+        probefasta=BUILD_TARGET.out.map{it->it[1]}
+        targettable=BUILD_TARGET.out.map{it->it[0]}
           //Part 2: Run blast on probe fasta
           RUN_BLAST(
             probefasta,
@@ -65,13 +67,13 @@ workflow {
             params.blastoutformat
           )
 
-          //Part 2: Process the output from blast
+          //Part 2: Process the output from blasta
           PROCESS_BLAST_RESULTS(
                     RUN_BLAST.out.flatten(),
                     targettable,
                     params.minlength,
                     params.extendablebps,
-                    params.genomefasta,
+                    PREP_REFGENOME.out,
                     params.blastoutformat,
                     params.istarget3primeend,
                     params.markercharacter)
