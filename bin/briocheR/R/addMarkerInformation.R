@@ -136,6 +136,7 @@ addSNPdetails <-
     #Read samtools output file with the coordinates of the markers on the reference genome
     ref <- read.delim(reference.bases, header = F)
 
+
     #Check the file type that the blast results are saved in
     if ((!class(blast.path) %in% c("data.frame", "matrix", "data.table")))
       if (!file.exists(blast.path))

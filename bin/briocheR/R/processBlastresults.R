@@ -382,7 +382,7 @@ snp_col <- if ("Target.base" %in% names(data)) "Target.base" else
            if ("Targeted.SNP" %in% names(data)) "Targeted.SNP" else
            stop("Neither 'Target.base' nor 'Targeted.SNP' present after merge().")
 
-# Use fully qualified calls — no library() needed
+# Use fully qualified calls ? no library() needed
 data$ClusterA_NT <- stringr::str_remove_all(as.character(data[[snp_col]]), "\\[|\\]|/[ACTG]")
 data$ClusterB_NT <- stringr::str_remove_all(as.character(data[[snp_col]]), "[ACTG]/|\\[|\\]")    # Extract SNP Clusters
     # data$ClusterA_NT <- gsub("\\[|\\]|/[ACTG]",
@@ -397,15 +397,92 @@ data$ClusterB_NT <- stringr::str_remove_all(as.character(data[[snp_col]]), "[ACT
     #                          ignore.case = TRUE)
 
     # Calculate SNP Position
-    calculateSNPpos <- function(x) {
-      targetbp <- as.numeric(x[["Target.bp"]]) - as.numeric(x[["qstart"]])
-      pos <- as.numeric(x[["sstart"]]) + targetbp
-      if (x[["sstrand"]] == "minus")
-        pos <- as.numeric(x[["sstart"]]) - targetbp
-      return(pos)
+# Map a single row's Target.bp (query coordinate) to subject coordinate
+calculateSNPpos <- function(qstart, qend, sstart, send, sstrand, qseq, sseq, target_bp) {
+  qstart   <- as.integer(qstart)
+  qend     <- as.integer(qend)
+  sstart   <- as.integer(sstart)
+  send     <- as.integer(send)
+  target_bp<- as.integer(target_bp)
+  
+  # normalise strand check (accepts "plus"/"minus" any case)
+  is_plus  <- !is.na(sstrand) && grepl("^\\s*plus\\s*$", sstrand, ignore.case = TRUE)
+  
+  # subject "first aligned" genomic coordinate depends on strand/order
+  s_first  <- if (is_plus) min(sstart, send) else max(sstart, send)
+  
+  # k = 1-based index of the query base *within this HSP* (counting only non-gaps in qseq)
+  k <- target_bp - qstart + 1L
+  
+  # Precompute non-gap columns in qseq
+  q_cols_m <- stringi::stri_locate_all_regex(qseq, "[^-]")[[1L]]
+  q_cols   <- if (is.null(dim(q_cols_m))) integer(0) else q_cols_m[,1L]
+  q_len    <- length(q_cols)  # number of aligned query bases in this HSP
+  
+  # Fast boundary cases relative to the alignment on the query:
+  if (k == 0L) {
+    # SNP is immediately BEFORE qstart
+    return(if (is_plus) s_first - 1L else s_first + 1L)
+  }
+  if (k == q_len + 1L) {
+    # SNP is immediately AFTER qend
+    s_len <- stringi::stri_count_regex(sseq, "[^-]")  # aligned subject length (non-gaps)
+    return(if (is_plus) s_first + s_len else s_first - s_len)
+  }
+  
+  # If Target.bp lies outside this HSP (beyond the Â±1 boundary), we can't map it here. This is strict, maybe its best to incorporate something else her
+  # something that conveys some information about SNP position approximation. 
+  if (k < 1L || k > q_len) return(NA_integer_)
+  
+  # Alignment column of the k-th non-gap in qseq
+  col_idx <- q_cols[k]
+  
+  # Subject bases consumed up to that column (non-gaps in sseq up to col_idx)
+  s_bases <- stringi::stri_count_regex(stringi::stri_sub(sseq, 1L, col_idx), "[^-]")
+  
+  # Convert to genomic subject coordinate
+  if (is_plus) {
+    pos <- s_first + s_bases - 1L
+  } else {
+    pos <- s_first - s_bases + 1L
+  }
+  
+  # target bp is found somewhere not on the periphery of the marker. Need to count the number of gaps within a target region. for qseq, adjust sseq region by gaps
+  # Count sseq region gaps and apply q and s gaps to absolute reference position. I can't test this with the avaliable data so will need to come back to it with new 
+  # dataset
+  if (k > 1L && k < q_len) {
+    # alignment column of the k-th non-gap in qseq
+    col_idx <- stringi::stri_locate_all_regex(qseq, "[^-]")[[1L]][,1L][k]
+    
+    # gaps up to that column
+    q_gaps <- stringi::stri_count_fixed(stringi::stri_sub(qseq, 1L, col_idx), "-")
+    s_gaps <- stringi::stri_count_fixed(stringi::stri_sub(sseq, 1L, col_idx), "-")
+    
+    # use offset inside HSP: (k - 1L)
+    if (is_plus) {
+      pos <- s_first + (k - 1L) + q_gaps - s_gaps
+    } else {
+      pos <- s_first - (k - 1L) - q_gaps + s_gaps
     }
-    data$SNPpos <- sapply(1:nrow(data), function(i)
-      calculateSNPpos(data[i, ]))
+  }
+  
+  pos
+}
+
+# Vectorized across rows; creates/overwrites data$SNPpos
+data$SNPpos <- mapply(
+  calculateSNPpos,
+  qstart    = data$qstart,
+  qend      = data$qend,
+  sstart    = data$sstart,
+  send      = data$send,
+  sstrand   = data$sstrand,
+  qseq      = data$qseq,
+  sseq      = data$sseq,
+  target_bp = data$Target.bp,
+  USE.NAMES = FALSE
+)
+
     cat("Finished calculating SNP position\n",
         file = "logger.log",
         append = TRUE)
@@ -430,20 +507,50 @@ data$ClusterB_NT <- stringr::str_remove_all(as.character(data[[snp_col]]), "[ACT
       var_type <- paste0(var_type, collapse = ";")
       SNPorGAPpos_Ref[i] <- "."
       SNPpos_all[i] <- "."
-
+      # If target is not 3 prime end SNPpos is removed? Not sure why this is done and whether the back end non 3prime is as robust to redetect
       if (!istarget3primeend)
         data$SNPpos[i] <- "."
-
+      # detect position of other variant sites identified using getVariantsFromBTOP. Based on their position in the the sequence simply add or
+      # subtract ssttart to get the exact location of variant (plus vs minus strand)
       if (length(var_position) > 0) {
         if (class(var_position) != "character") {
-          posN <- sapply(var_position, function(y) {
-            ifelse(
-              data$sstrand[i] == "plus",
-              as.numeric(data$sstart[i]) + as.numeric(y),
-              as.numeric(data$sstart[i]) - as.numeric(y)
-            )
-          })
-
+          compute_posN_for_row <- function(i, var_position, variants, data) {
+            # normalize inputs
+            vpos <- as.integer(var_position)
+            vtyp <- toupper(trimws(variants))
+            strand <- tolower(trimws(data$sstrand[i]))
+            sstart <- as.integer(data$sstart[i])
+            send   <- as.integer(data$send[i])
+            
+            # anchor = first aligned subject coordinate for this HSP on the genome
+            is_plus <- identical(strand, "plus")
+            s_first <- if (is_plus) min(sstart, send) else max(sstart, send)
+            
+            # identify sseq gaps (only A/C/G/T followed by '-')
+            is_sseq_gap <- grepl("^[ACGT]-$", vtyp)
+            
+            # alignment columns where sseq has gaps; duplicates allowed (consecutive gaps)
+            gap_cols <- sort(vpos[is_sseq_gap])
+            
+            # count number of prior sseq gaps strictly before each variant's column
+            prior_gap_count <- if (length(gap_cols)) {
+              # use -0.5 to implement "strictly less than y" for integer columns
+              findInterval(vpos - 0.5, gap_cols)
+            } else {
+              integer(length(vpos))
+            }
+            
+            # corrected subject genomic positions (vector)
+            if (is_plus) {
+              s_first + vpos - prior_gap_count
+            } else {
+              s_first - vpos + prior_gap_count
+            }
+          }
+          posN <- compute_posN_for_row(i, var_position, variants, data)
+          # Do a check. If one of the variants is marked as a SNP with the marker character (in situations where the SNP is present part way
+          # into the probe sequence not at the ends) then take the absolute position of that SNP and replace the earlier SNPpos
+          # Note this is unnessary after I fixed the above command for finding the SNP position anyway. 
           targetpos <- posN[grepl(marker.char, variants)]
           if (length(targetpos) > 0)
             data$SNPpos[i] <- targetpos
@@ -466,6 +573,7 @@ data$ClusterB_NT <- stringr::str_remove_all(as.character(data[[snp_col]]), "[ACT
       Variant[i] <- paste0(variants, collapse = ";")
 
       cat("BTOP for index",i,"is",data$btop[i],"\n",file="logger.log")
+      # Identical_bps_from_target estimates the number of correct bases from the SNP of interest (target SNP).
       Identical_bps_from_target[i] <- gsub(".*_",
                                            "",
                                            gsub(
@@ -482,7 +590,8 @@ data$ClusterB_NT <- stringr::str_remove_all(as.character(data[[snp_col]]), "[ACT
     data$SNPorGAPpos_Ref <- SNPorGAPpos_Ref
     data$Variant <- Variant
     data$SNP.Refpos <- paste0(data$saccver, ":", data$SNPpos, "-", data$SNPpos)
-
+    # Simple if else command it is asking, is the stretch of identical bases from target larger than the minimum set extension length
+    # e.g., in this case larger than 3
     if (istarget3primeend) {
       qend_matches <- data$qend == (as.numeric(data$Target.bp) - 1)
       data$Identical_bps_from_target <- Identical_bps_from_target
@@ -492,6 +601,7 @@ data$ClusterB_NT <- stringr::str_remove_all(as.character(data[[snp_col]]), "[ACT
         "Yes",
         "."
       )
+      # This is making multiple or/ or+ and statements to generate the hybridized label. 
       data$Hybridized <- ifelse((abs(data$qend - data$qlen) == 1 |
                                    data$qend == data$qlen) &
                                   data$length >= min.length &
@@ -503,8 +613,9 @@ data$ClusterB_NT <- stringr::str_remove_all(as.character(data[[snp_col]]), "[ACT
     }
 
     # Filter and Arrange - using dplyr for better readability
+    # May need to revise this bit here as We may want to report na values with the rows. Take it out temporarily # & !is.na(SNPpos)
     data <- data |>
-      dplyr::filter(SNP.Refpos != "." & !is.na(SNPpos)) |>
+      dplyr::filter(SNP.Refpos != ".") |>
       dplyr::arrange(dplyr::desc(Coverage), dplyr::desc(pident), qaccver)
 
     # Save Results
@@ -514,9 +625,9 @@ data$ClusterB_NT <- stringr::str_remove_all(as.character(data[[snp_col]]), "[ACT
       data$Target.Chr <- NULL
     saveRDS(data,
             file.path(path.2save.coords, "processed_blast_results.RDS"))
-
+ # Added in a filter for NA for markers for when the reference alignment wasn't complete.
     write.table(
-      subset(data, SNP.Refpos != paste0(saccver, ":.-."))$SNP.Refpos,
+      subset(data, SNP.Refpos != paste0(saccver, ":.-.") & SNP.Refpos != paste0(saccver,":NA-NA"))$SNP.Refpos,
       file = file.path(path.2save.coords, "samtools_marker_positions.txt"),
       quote = FALSE,
       sep = "\t",
