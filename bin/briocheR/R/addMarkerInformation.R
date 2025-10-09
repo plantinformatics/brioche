@@ -115,6 +115,7 @@ checkTarget <-
 #' @param genome.name name of the reference genome being compared
 #' @param output.path path were the results are saved
 #' @param coverage.filter double value to filter hits with small coverage
+#' @param is3prime Does the SNP exist as 3' as part of SNP chip marker mapping
 #' @keywords genome, alternative allele, reference allele
 #' @export
 #'
@@ -127,7 +128,8 @@ addSNPdetails <-
            genome.name,
            output.path = "Mapping_results",
            pident.filter = 90,
-           coverage.filter = 50)
+           coverage.filter = 50,
+           is3prime)
   {
     #Create the output directory used to store the output files
     if (!dir.exists(output.path))
@@ -135,7 +137,6 @@ addSNPdetails <-
 
     #Read samtools output file with the coordinates of the markers on the reference genome
     ref <- read.delim(reference.bases, header = F)
-
 
     #Check the file type that the blast results are saved in
     if ((!class(blast.path) %in% c("data.frame", "matrix", "data.table")))
@@ -148,17 +149,52 @@ addSNPdetails <-
     blast.out$Ref[is.na(blast.out$Ref)] <- "."
     if ("ClusterA_NT" %in% colnames(blast.out))
     {
+    
+# Add here an if for if istarget3primeend and then below for !is3prime
+# Will need to add in the params variable into the function + add it into the module.nf and finally the main.n its a param so val param.is3prime will suffice for the chanel  
+if(is3prime) {
       blast.out$ALT <- with(blast.out,
                             getAltBP(
                               NT_A = ClusterA_NT,
                               NT_B = ClusterB_NT,
                               Ref_NT = Ref
                             ))
+}
+
+if (!is3prime) {
+
+    # normalise inputs
+    ss   <- tolower(as.character(blast.out$sstrand))   # "plus" or "minus"
+    ref  <- toupper(as.character(blast.out$Ref))
+    a_nt <- toupper(as.character(blast.out$ClusterA_NT))
+    b_nt <- toupper(as.character(blast.out$ClusterB_NT))
+
+    # convert to plus-strand bases (complement if on minus)
+    plusA <- ifelse(ss == "minus", chartr("ACGT", "TGCA", a_nt), a_nt)
+    plusB <- ifelse(ss == "minus", chartr("ACGT", "TGCA", b_nt), b_nt)
+
+    # set ALT: if one equals Ref, ALT is the other; else "[A/B]" using plus-strand bases
+    blast.out$ALT <- ifelse(
+        is.na(plusA) | is.na(plusB) | is.na(ref),
+        NA_character_,
+        ifelse(
+            plusA == ref, plusB,
+            ifelse(
+                plusB == ref, plusA,
+                paste0("[", plusA, "/", plusB, "]")
+            )
+        )
+    )
+}
     }
+    # Generate a copy of blast pre filtering
+    blast.outraws <- blast.out
     blast.out<-blast.out[!is.na(blast.out$ALT),]
     blast.out <-
       blast.out[as.numeric(blast.out$pident) >= pident.filter &
                   blast.out$Coverage >= coverage.filter, ]
+    
+    #blast.out <- blast.out[blast.out$Hybridized!="No",]
 
     if (nrow(blast.out) > 1)
     {
@@ -178,11 +214,16 @@ addSNPdetails <-
          rst_new$"Target_or_off-target?" <- blast.out$"Target_or_off-target?"
       blast.out <- as.data.frame(apply(blast.out, 2, function(x)
         as.character(format(x, scientific = F))))
-
+      blast.outraws <- as.data.frame(apply(blast.outraws, 2, function(x)
+        as.character(format(x, scientific = F))))
       #Create minimal data frame of all the data
       if("Hybridized" %in% colnames(blast.out))
       {
           rst_new$Hybridised<-blast.out$Hybridized
+      }
+      if(!"Hybridized" %in% colnames(blast.out))
+      {
+          rst_new$Hybridised<-NA
       }
 
       rst_new$Coverage = blast.out$Coverage
@@ -199,11 +240,22 @@ addSNPdetails <-
         "SNP_position",
         "REF_nt",
         "ALT",
+        "Target_or_off-target",
+        "Hybridised",
         "pident",
         "Coverage"
       )
     }
 
+    nofilters.outpath <- file.path(output.path,
+                                   paste0(probe.name, "_with_", genome.name, "_complete_unfiltered_blast_results.csv"))
+    
+    write.csv(blast.outraws,
+              file = nofilters.outpath,
+              quote = F,
+              row.names = F)
+    
+    
     all.outpath <- file.path(output.path,
                              paste0(probe.name, "_with_", genome.name, "_all_mappings.csv"))
     write.csv(blast.out,
@@ -216,6 +268,30 @@ addSNPdetails <-
 
     cat("\nNumber of rows in blast results:", nrow(blast.out), "\n")
     cat("\nMapping results written to ", out.path)
+
+
+# There is a rare edge case where if no markers are present in a subset the mappings file gets populated by NA
+#Here is a quick remove NA cols to sort this out 
+
+if (is.data.frame(rst_new)) {
+  # Normalize/inspect column names
+  cn <- colnames(rst_new)
+  if (is.null(cn)) {
+    cn <- rep("", ncol(rst_new))
+    colnames(rst_new) <- cn
+  }
+
+  # columns with bad names: NA, "", or literal "NA" (case-insensitive)
+  bad_name <- is.na(cn) | cn == "" | tolower(trimws(cn)) == "na"
+
+
+  drop_cols <- bad_name
+
+  if (any(drop_cols)) {
+    rst_new <- rst_new[, !drop_cols, drop = FALSE]
+  }
+
+}
 
     write.table(rst_new,
                 file = out.path,
