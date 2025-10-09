@@ -11,7 +11,8 @@ addSNPdetails(
   genome.name,
   output.path = "Mapping_results",
   pident.filter = 90,
-  coverage.filter = 50
+  coverage.filter = 50,
+  is3prime
 )
 }
 \arguments{
@@ -25,13 +26,15 @@ addSNPdetails(
 
 \item{coverage.filter}{double value to filter hits with small coverage}
 
-\item{blast.results}{Dataframe or path to blast results returned by the `processBlastResults()` function}
+\item{is3prime}{Does the SNP exist as 3' as part of SNP chip marker mapping}
+
+\item{blast.results}{Dataframe or path to blast results returned by the \code{processBlastResults()} function}
 }
 \value{
 Returns a dataframe with the updated blast results
 }
 \description{
-This function is used to add more details to the blast output returned by the `processBlastResults()` function
+This function is used to add more details to the blast output returned by the \code{processBlastResults()} function
 }
 \author{
 David Chisanga
