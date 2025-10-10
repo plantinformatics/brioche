@@ -340,7 +340,7 @@ process MERGE_MAPPINGS {
     SNP_ID=\$(echo \$header|awk -F, '{for(i=1;i<=NF;i++){if(\$i=="qaccver")print i}}')
     pident=\$(echo \$header|awk -F, '{for(i=1;i<=NF;i++){if(\$i=="pident")print i}}')
     coverage=\$(echo \$header|awk -F, '{for(i=1;i<=NF;i++){if(\$i=="Coverage")print i}}')
-    find -name "*all_mappings.csv"|split -l 100 - subsetcsvs
+    find -name "*all_mappings.csv"|split -l 2000 - subsetcsvs
     for ss in subsetcsvs*;
     do
         cat \$(awk '{printf("%s ",\$0)}' \$ss)|grep -v "qaccver" >> Mergedmappings.csv
@@ -350,7 +350,7 @@ process MERGE_MAPPINGS {
     |awk -F, -v h="\$header" 'BEGIN{print "Alternate_SNP_ID,"h} {count[\$1]++;print \$1"."count[\$1]","\$0}' \\
     >allmaps.csv
 
-    find -name "*unfiltered*.csv"|split -l 100 - subsetcsvs2
+    find -name "*unfiltered*.csv"|split -l 2000 - subsetcsvs2
     for ss in subsetcsvs2*;
     do
         cat \$(awk '{printf("%s ",\$0)}' \$ss)|grep -v "qaccver" >> Mergedmappingsunfilts.csv
@@ -404,7 +404,7 @@ process MERGE_MIN_MAPPINGS {
     pident=\$(echo \$header|awk '{for(i=1;i<=NF;i++){if(\$i=="pident")print i}}')
     header=\$(echo \$header|awk '{for(i=1;i<=NF;i++){if(i==1){printf \$i"\tAlternate_SNP_ID"}else{printf "\t"\$i}}}')
     coverage=\$(echo \$header|awk '{for(i=1;i<=NF;i++){if(\$i=="Coverage")print i}}')
-    find -name "*.tsv"|split -l 100 - subsettsvs
+    find -name "*.tsv"|split -l 2000 - subsettsvs
     for ss in subsettsvs*;
     do
         cat \$(awk '{printf("%s ",\$0)}' \$ss)|grep -v "SNP_ID" >> Mergedmappings.tsv
