@@ -1,5 +1,8 @@
 #' @title Read in file with comment lines and attach those lines to read in object
-#' @description This function is used to read in csv files in the Brioche pipelines to preserve their appended headers of filtering information
+#' @description This function is used to read in csv/tsv files in the Brioche
+#'   pipelines to preserve their appended headers of filtering information.
+#'   It avoids loading the whole file into a single string, so it is safe for
+#'   very large files.
 #' @author James O'Dwyer
 #' @param path Character. Path to the file to read.
 #' @param sep Field separator for the data section (default `","`). Use `"\t"` for TSV.
@@ -8,50 +11,84 @@
 #' @param ... Additional arguments passed to `utils::read.csv()`.
 #' @keywords genome, csv, comment lines
 #'
-#' @return Returns an object like a read.table or read.csv function with comment.char applied but with the comment lines attached to the attributes of the object so they are not lost
+#' @return A data.frame like from `read.csv`, with header lines stored in
+#'   attributes: `attr(df, "raw_header_lines")` and (optionally) `attr(df, "header_meta")`.
 #'
 #' @export
-read_mixed_csv_base <- function(path, sep = ",", header = TRUE, parse_kv = TRUE, ...) {
-  lines <- readLines(path, warn = FALSE)
-  if (!length(lines)) stop("Empty file: ", path)
-  
-  # 1) Split header vs CSV: header lines start with '##'
-  is_header <- grepl("^##", lines)
-  header_lines <- lines[is_header]
-  data_lines   <- lines[!is_header]
-  
-  if (!length(data_lines)) stop("No CSV body detected after header lines.")
-  
-  # 2) Read CSV body
-  csv_text <- paste(data_lines, collapse = "\n")
-  df <- read.csv(text = csv_text, sep = sep, header = header, stringsAsFactors = FALSE, ...)
-  
+read_mixed_csv_base <- function(path,
+                                sep = ",",
+                                header = TRUE,
+                                parse_kv = TRUE,
+                                ...) {
+
+  # ---- 1) Read only the leading "##" header lines ----
+  con <- file(path, open = "r", encoding = "UTF-8")
+  on.exit(close(con), add = TRUE)
+
+  header_lines <- character()
+  n_header <- 0L
+
+  repeat {
+    line <- readLines(con, n = 1L, warn = FALSE)
+    if (!length(line)) break  # EOF
+    if (startsWith(line, "##")) {
+      header_lines <- c(header_lines, line)
+      n_header <- n_header + 1L
+    } else {
+      # First non-header line reached; stop scanning.
+      break
+    }
+  }
+
+  # ---- 2) Read the data section directly from disk ----
+  # If there were header lines, skip them; otherwise read from top.
+  if (n_header > 0L) {
+    df <- utils::read.csv(
+      file = path,
+      sep = sep,
+      header = header,
+      stringsAsFactors = FALSE,
+      skip = n_header,
+      ...
+    )
+  } else {
+    df <- utils::read.csv(
+      file = path,
+      sep = sep,
+      header = header,
+      stringsAsFactors = FALSE,
+      ...
+    )
+  }
+
+  # ---- 3) Optionally parse "## key = value" lines into header_meta ----
   if (parse_kv && length(header_lines)) {
-    # keep only lines that look like key=value after the leading ##
     kv_lines <- sub("^##\\s*", "", header_lines)
     kv_lines <- kv_lines[grepl("=", kv_lines, fixed = TRUE)]
-    
+
     if (length(kv_lines)) {
       # strip inline comments that start with '#'
       kv_nocomment <- sub("\\s+#.*$", "", kv_lines)
       keys <- trimws(sub("^([^=]+)=.*$", "\\1", kv_nocomment))
       vals <- trimws(sub("^[^=]+=(.*)$", "\\1", kv_nocomment))
-      
+
       # coerce to simple types when obvious (numeric/logical), else keep as character
       coerce1 <- function(x) {
         if (grepl("^[-+]?[0-9]*\\.?[0-9]+$", x)) return(as.numeric(x))
-        if (tolower(x) %in% c("true","false","yes","no")) return(tolower(x) %in% c("true","yes"))
+        if (tolower(x) %in% c("true","false","yes","no")) {
+          return(tolower(x) %in% c("true","yes"))
+        }
         x
       }
       vals <- lapply(vals, coerce1)
-      
+
       meta <- as.list(vals)
       names(meta) <- make.names(keys, unique = TRUE)
       attr(df, "header_meta") <- meta
     }
   }
-  
-  # Always keep the raw header lines too
+
+  # ---- 4) Always keep the raw header lines too ----
   attr(df, "raw_header_lines") <- header_lines
   df
 }
@@ -95,20 +132,19 @@ write_with_header_base <- function(df, path,
                                    quote = TRUE,            # quote character columns
                                    ...) {
   
-  # ---- 0) Decide separator ----
   if (is.null(sep)) {
     ext <- tolower(sub(".*\\.(\\w+)$", "\\1", path))
     sep <- if (ext %in% c("tsv", "tab", "txt")) "\t" else ","
   }
   
-  # ---- 1) Coerce to plain data.frame ----
+
   if (!inherits(df, "data.frame")) {
     df <- as.data.frame(df, stringsAsFactors = FALSE)
   } else {
     df <- as.data.frame(df, stringsAsFactors = FALSE)
   }
   
-  # ---- 2) Flatten list-columns so write.table can always serialize ----
+
   if (flatten_lists) {
     for (nm in names(df)) {
       if (is.list(df[[nm]]) && !is.data.frame(df[[nm]])) {
@@ -122,12 +158,12 @@ write_with_header_base <- function(df, path,
     }
   }
   
-  # ---- 3) Gather header lines (any length allowed) ----
+
   header_lines <- header_override
   if (is.null(header_lines)) header_lines <- attr(df, "raw_header_lines")
   if (is.null(header_lines)) header_lines <- character(0)
   
-  # ---- 4) Write the table body to a temp file ----
+
   tmp <- tempfile(fileext = ".tbl")
   on.exit(unlink(tmp), add = TRUE)
   
@@ -143,7 +179,6 @@ write_with_header_base <- function(df, path,
     ...
   )
   
-  # ---- 5) Stitch header + body to final path ----
   con <- file(path, open = "w", encoding = "UTF-8")
   on.exit(close(con), add = TRUE)
   
@@ -222,6 +257,8 @@ sanitize_rectangular <- function(x) {
 #' @param ldmapp 10 column table (standard .ld format) for pairwise ld scores and locations per marker
 #' @param blast.hits Low filtered blast hits file as csv
 #' @param mappings.file Low filtered mappings file as tsv
+#' @param dogeneticmap whether to use genetic mapping prior
+#' @param geneticmap.file CSV path to genetic mapping prior (MarkerName, Chromosomes_mapped, etc)
 #' @keywords genome, filter blast intermediate
 #' @return Returns an object which has been filtered using given priors to remove/keep best hits per marker
 #' @export
@@ -237,12 +274,23 @@ DoIntermediatefiltering <-
            doldedge,
            ldmapp,
            blast.hits,
-           mappings.file)
+           mappings.file,
+           dogeneticmap,
+           geneticmap.file)
   {
     
-    # Remember that the header Lines will be stored as an attribute for reattaching later
-    blast.out <- read_mixed_csv_base(blast.hits)
-    headerinfo <- attributes(blast.out)
+    hdr <- readLines(blast.hits, n = 100L, warn = FALSE)
+    headerinfo <- hdr[grepl("^##", hdr)]
+
+
+    blast.out <- read.csv(
+      blast.hits,
+      comment.char = "#",
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+
+
     mappings.out <- read.table(mappings.file,sep="\t",header = TRUE,comment.char="#",fill=TRUE)
     mappings.out <- subset(mappings.out, mappings.out$Hybridised!="No" | is.na(mappings.out$Hybridised))
     
@@ -284,7 +332,7 @@ DoIntermediatefiltering <-
     
     # Generate two separate filtering processes depending on the presence/absence of chrom info 
     
-    if(dotargetfilt=="No" & domapmarkers=="No" & doldedge=="No") {
+    if(dotargetfilt=="No" & domapmarkers=="No" & doldedge=="No" & dogeneticmap=="No") {
 
      # Filter to have only the top bitscore hit per chrom
       top_hits <- blast.out |>
@@ -297,11 +345,11 @@ DoIntermediatefiltering <-
         dplyr::filter(Alternate_SNP_ID %in% top_hits$Alternate_SNP_ID)
     
       
-      attributes(top_hits)$raw_header_lines <- headerinfo$raw_header_lines
+      attributes(top_hits)$raw_header_lines <- headerinfo
       top_hits_clean <- sanitize_rectangular(top_hits)
   
   
-      attributes(filtered_mappings)$raw_header_lines <- headerinfo$raw_header_lines
+      attributes(filtered_mappings)$raw_header_lines <- headerinfo
       filtered_mappings_clean <- sanitize_rectangular(filtered_mappings)
   
     }
@@ -575,7 +623,7 @@ DoIntermediatefiltering <-
         dplyr::mutate(max_in_group = base::max(bitscore, na.rm = TRUE)) |>
         dplyr::ungroup()
       
-      ## 3) For targets with a prior chromosome, get that target’s max bitscore ON that chr (no warnings)
+      ## 3) For targets with a prior chromosome, get that targets max bitscore ON that chr (no warnings)
       target_max_df <- tmp |>
         dplyr::filter(!base::is.na(prior_chr), saccver == prior_chr) |>
         dplyr::group_by(qaccver) |>
@@ -593,8 +641,8 @@ DoIntermediatefiltering <-
         dplyr::mutate(has_prior = !base::is.na(prior_chr) & !base::is.na(target_max))
       
       ## 4) Filter:
-      ##   - with prior: keep ALL rows on prior chr + any rows on other chrs that TIE that chr’s max
-      ##   - without prior: keep per-(qaccver, saccver) max rows (classic fallback)
+      ##   - with prior: keep ALL rows on prior chr + any rows on other chrs that TIE that chroms max
+      ##   - without prior: keep per chrom-(qaccver, saccver) max rows 
       top_hits <- top_hits_ld_filt <- tmp2 |>
         dplyr::filter(
           dplyr::case_when(
@@ -640,105 +688,122 @@ DoIntermediatefiltering <-
       
       
       
-    } 
-    # combine results of targe chroms + neighbour markers + ld data 
-    if(dotargetfilt=="Yes" & domapmarkers=="Yes" & doldedge=="Yes") {
-     
-      #Least important is ld followed by target chrom followed by neighbour markers
-      replace_idsa <- unique(as.character(targetchrommarkers))
-      replace_ids2 <- unique(as.character(targetneighbourmarkers))
-      # Need to create an intersect to subtract to make sure markers are not double added. 
-      intersectboth <- intersect(replace_idsa,replace_ids2)
-      
-      replace_ids1 <- replace_idsa[!replace_idsa %in% intersectboth]   
-      
-      
-      targchrom_rows <- top_hits_knowntargetchroms |>
-        dplyr::semi_join(
-          dplyr::tibble(qaccver = replace_ids1),
-          by = "qaccver"
-        )
-      
-      neigh_rows <- top_hits_neighbourfilt |>
-        dplyr::semi_join(
-          dplyr::tibble(qaccver = replace_ids2),
-          by = "qaccver"
-        )
-      
-      known_remaining <- top_hits_knowntargetchroms |>
-        dplyr::anti_join(
-          dplyr::tibble(qaccver = c(replace_ids1,replace_ids2)),
-          by = "qaccver"
-        )
-      
-      combined_hits1 <- dplyr::bind_rows(known_remaining, targchrom_rows)
-      top_hits <- dplyr::bind_rows(combined_hits1, neigh_rows)
     }
-    
-    
-    if(dotargetfilt=="Yes" & domapmarkers=="No" & doldedge=="Yes") {
-      
-      # Least important is ld edge
-      
-      # confirm there are no duplicates in the marker list
-      replace_ids <- unique(as.character(targetchrommarkers))
-      
-      ## 1) Take the rows for the markers which were directly informed by the nearby marker prior information
-      targchrom_rows <- top_hits_knowntargetchroms |>
-        dplyr::semi_join(
-          dplyr::tibble(qaccver = replace_ids),
-          by = "qaccver"
-        )
-      
-      
-      known_remaining <- top_hits_ld_filt |>
-        dplyr::anti_join(
-          dplyr::tibble(qaccver = replace_ids),
-          by = "qaccver"
-        )
-      
-      top_hits <- dplyr::bind_rows(known_remaining, targchrom_rows)
-      
-    } 
-    
-    
-     
-    if(dotargetfilt=="No" & domapmarkers=="Yes" & doldedge=="Yes"){
-    
-      # order is similar markers is most important
-      
-      
-      replace_ids <- unique(as.character(targetneighbourmarkers))
-      
 
-      neigh_rows <- top_hits_neighbourfilt |>
-        dplyr::semi_join(
-          dplyr::tibble(qaccver = replace_ids),
-          by = "qaccver"
-        )
-      
-      
-      known_remaining <- top_hits_ld_filt |>
-        dplyr::anti_join(
-          dplyr::tibble(qaccver = replace_ids),
-          by = "qaccver"
-        )
-      
-      top_hits <- dplyr::bind_rows(known_remaining, top_hits_neighbourfilt)
 
-    }
+if (dogeneticmap == "Yes") {
+
+  # 1) Read priors (CSV with commas, header)
+  gmap <- read.table(geneticmap.file, sep = ",", header = TRUE,
+                     stringsAsFactors = FALSE, check.names = FALSE)
+
+  # 2) For each row, pick the ChrmapNo* corresponding to the largest No_maps*
+  chr_cols <- paste0("ChrmapNo", 1:5)
+  num_cols <- paste0("No_maps",  1:5)
+
+
+  no_mat  <- as.matrix(sapply(gmap[num_cols], as.numeric))
+  best_ix <- max.col(no_mat, ties.method = "first")
+
+  chr_mat <- as.matrix(gmap[chr_cols])
+  chosen_chr_oldref <- chr_mat[cbind(seq_len(nrow(chr_mat)), best_ix)]
+
+  # 3) Map old->new chromosomes via chrom.comp (CSV with commas, header)
+  chromcomparisontable <- read.table(chrom.comp, sep = ",", header = TRUE,
+                                     stringsAsFactors = FALSE, check.names = FALSE)
+  lkp <- setNames(chromcomparisontable$New_reference_chromosome,
+                  chromcomparisontable$Original_reference_chromsome)
+  chosen_chr_newref <- unname(lkp[chosen_chr_oldref])
+
+  # 4) Build prior table in new-ref space
+  prior_gmap <- data.frame(
+    qaccver = gmap$MarkerName,
+    geneticmap_chr = chosen_chr_newref,
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  targetgeneticmapmarkers <- prior_gmap$qaccver[!is.na(prior_gmap$geneticmap_chr)]
+
+  # 5) Apply prior: keep rows on the prior chr + any ties to its max; else per-chr max fallback
+  tmp <- blast.out |>
+    dplyr::left_join(prior_gmap, by = "qaccver") |>
+    dplyr::group_by(qaccver, saccver) |>
+    dplyr::mutate(max_in_group = max(bitscore, na.rm = TRUE)) |>
+    dplyr::ungroup()
+
+  target_max_df <- tmp |>
+    dplyr::filter(!is.na(geneticmap_chr), saccver == geneticmap_chr) |>
+    dplyr::group_by(qaccver) |>
+    dplyr::summarise(target_max = max(bitscore, na.rm = TRUE), .groups = "drop")
+
+  tmp2 <- tmp |>
+    dplyr::left_join(target_max_df, by = "qaccver") |>
+    dplyr::mutate(has_gmap = !is.na(geneticmap_chr) & !is.na(target_max))
+
+  top_hits <- top_hits_gmap_filt <- tmp2 |>
+    dplyr::filter(
+      dplyr::case_when(
+        has_gmap ~ (saccver == geneticmap_chr) | (bitscore == target_max),
+        TRUE     ~ bitscore == max_in_group
+      )
+    ) |>
+    dplyr::select(-max_in_group, -has_gmap)
+
+}
+
+
+## New revised method which directly layers based on what priors are given cutting down on the if statements and code duplication. 
+# test this method and confirm the results are identical (will test with genetic mapping for wheat but also need to test again for barley to make sure stuff comes out identical)
+overlay_by_ids <- function(base_df, add_df, replace_ids) {
+  if (is.null(base_df)) return(add_df)
+  if (is.null(add_df) || length(replace_ids) == 0L) return(base_df)
+  keep_base <- dplyr::anti_join(base_df, dplyr::tibble(qaccver = replace_ids), by = "qaccver")
+  add_rows  <- add_df |>
+    dplyr::semi_join(dplyr::tibble(qaccver = replace_ids), by = "qaccver")
+  dplyr::bind_rows(keep_base, add_rows)
+}
+
+has_ld    <- identical(doldedge,      "Yes")
+has_gmap  <- identical(dogeneticmap,  "Yes")
+has_tchr  <- identical(dotargetfilt,  "Yes")
+has_neigh <- identical(domapmarkers,  "Yes")
+
+# Decide baseline (lowest available priority); if none, we keep whatever 'top_hits'
+# was produced in the earlier "no priors" branch.
+if (has_ld || has_gmap || has_tchr || has_neigh) {
+  base_hits <- NULL
+  if (has_ld)        base_hits <- top_hits_ld_filt
+  else if (has_gmap) base_hits <- top_hits_gmap_filt
+  else if (has_tchr) base_hits <- top_hits_knowntargetchroms
+  else               base_hits <- top_hits_neighbourfilt
+
+  # Overlay in ascending priority so later steps override earlier ones
+  if (has_gmap)  base_hits <- overlay_by_ids(
+                    base_hits, top_hits_gmap_filt,
+                    unique(as.character(targetgeneticmapmarkers))
+                  )
+  if (has_tchr)  base_hits <- overlay_by_ids(
+                    base_hits, top_hits_knowntargetchroms,
+                    unique(as.character(targetchrommarkers))
+                  )
+  if (has_neigh) base_hits <- overlay_by_ids(
+                    base_hits, top_hits_neighbourfilt,
+                    unique(as.character(targetneighbourmarkers))
+                  )
+
+  top_hits <- base_hits
+}
     
     filtered_mappings <- mappings.out |>
       dplyr::filter(Alternate_SNP_ID %in% top_hits$Alternate_SNP_ID)
     
     
-    attributes(top_hits)$raw_header_lines <- headerinfo$raw_header_lines
+    attributes(top_hits)$raw_header_lines <- headerinfo
     top_hits_clean <- sanitize_rectangular(top_hits)
     
     top_hits_clean <- top_hits_clean[,1:34]
 
     
-    attributes(filtered_mappings)$raw_header_lines <- headerinfo$raw_header_lines
+    attributes(filtered_mappings)$raw_header_lines <- headerinfo
     filtered_mappings_clean <- sanitize_rectangular(filtered_mappings)
              
 
@@ -760,8 +825,5 @@ DoIntermediatefiltering <-
     
     cat("\nNumber of rows in intermediate filtering results blast table:", nrow(top_hits_clean), "\n")
     cat("\nMapping results written to ", output.path)
-
-    
-    
+   
   }
-

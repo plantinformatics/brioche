@@ -28,6 +28,7 @@ $params.loginfo
  */
 include {
   BUILD_TARGET;
+  SPLIT_TARGET_FASTA;
   PREP_REFGENOME;
   BUILD_BLASTDb;
   RUN_BLAST;
@@ -65,54 +66,82 @@ workflow {
     if(!params.buildblastdbonly)
     {
         BUILD_TARGET( params.targetdesign )
-        probefasta=BUILD_TARGET.out.map{it->it[1]}
-        targettable=BUILD_TARGET.out.map{it->it[0]}
-          //Part 2: Run blast on probe fasta
-          RUN_BLAST(
-            probefasta,
-            BUILD_BLASTDb.out,
-            params.blastoutformat
-          )
 
-          //Part 2: Process the output from blasta
-          PROCESS_BLAST_RESULTS(
-                    RUN_BLAST.out.flatten(),
-                    targettable,
-                    params.minlength,
-                    params.extendablebps,
-                    PREP_REFGENOME.out,
-                    params.blastoutformat,
-                    params.istarget3primeend,
-                    params.markercharacter)
+        // Channels: keep target table for later; split the fasta now
+        targettable_ch = BUILD_TARGET.out.map{ it[0] }   // path to target.table
+        fasta_ch       = BUILD_TARGET.out.map{ it[1] }   // path to target.fasta
+
+        // Split target.fasta into 50k-sequence chunks or what user sets
+        def query_chunk_size = params.query_chunk_size ?: 50000
+        SPLIT_TARGET_FASTA( fasta_ch, query_chunk_size )
+        split_queries = SPLIT_TARGET_FASTA.out.flatten()   // paths split/q_*.fa
+
+        // Run BLAST once per split query FASTA channel
+        RUN_BLAST(
+          split_queries,           // one task per query chunk FASTA
+          BUILD_BLASTDb.out,       // blastdb (used as `val blastdb` in the process)
+          params.blastoutformat
+        )
+
+          //Part 2b: Process the output from blasta
+        PROCESS_BLAST_RESULTS(
+          RUN_BLAST.out,
+          targettable_ch,
+          params.minlength,
+          params.extendablebps,
+          PREP_REFGENOME.out,
+          params.blastoutformat,
+          params.istarget3primeend,
+          params.markercharacter
+        )
 
           // PART 3: Process to filter markers
-          ADD_MARKERINFO(
-                    PROCESS_BLAST_RESULTS.out,
-                    params.probename,
-                    params.genomename,
-                    params.keepduplicates,
-                    params.coverage,
-                    params.pident,
-                    params.istarget3primeend)
-          ADD_MARKERINFO.out.map{it->it[0]}.collect().set{allmappings}
-          ADD_MARKERINFO.out.map{it->it[1]}.collect().set{minmappings}
-          ADD_MARKERINFO.out.map{it->it[2]}.collect().set{rawsallmappings}
-          MERGE_MAPPINGS(
-             allmappings,
-             rawsallmappings,
-             params.resultsdirectory,
-             params.probename,
-             params.genomename
-          )
-          MERGE_MIN_MAPPINGS(
-             minmappings,
-             params.resultsdirectory,
-             params.probename,
-             params.genomename
-          )
-          // PART 3: Process to filter markers
+        ADD_MARKERINFO(
+          PROCESS_BLAST_RESULTS.out,
+          params.probename,
+          params.genomename,
+          params.keepduplicates,
+          params.coverage,
+          params.pident,
+          params.istarget3primeend,
+          params.doorientation,
+          params.forcebiallelic,
+          params.orientationfile
+        )
+
+        // Split the 5-tuple output from ADD_MARKERINFO into separate channels (need to do this as more separately filtered individual files are present now before the concatenation
+        //  0: *_all_mappings.csv
+        //  1: *_filtered_mappings.csv
+        //  2: *_mapping.tsv
+        //  3: *_filtered_mappings.tsv
+        //  4: *_complete_unfiltered_blast_results.csv
+
+        ADD_MARKERINFO.out.map{ it[0] }.collect().set{ allmappings_ch }
+        ADD_MARKERINFO.out.map{ it[1] }.collect().set{ filtered_allmappings_ch }
+        ADD_MARKERINFO.out.map{ it[2] }.collect().set{ mappings_tsv_ch }
+        ADD_MARKERINFO.out.map{ it[3] }.collect().set{ minmappings_ch }          // filtered TSVs
+        ADD_MARKERINFO.out.map{ it[4] }.collect().set{ rawsallmappings_ch }
+
+        // Part 4. Merge CSV outputs
+        MERGE_MAPPINGS(
+          allmappings_ch,          // *_all_mappings.csv
+          filtered_allmappings_ch, // *_filtered_mappings.csv
+          rawsallmappings_ch,      // *_complete_unfiltered_blast_results.csv
+          params.resultsdirectory,
+          params.probename,
+          params.genomename
+        )
+        // Part 4. Merge TSVs
+        MERGE_MIN_MAPPINGS(
+          minmappings_ch,          // *_filtered_mappings.tsv
+          params.resultsdirectory,
+          params.probename,
+          params.genomename
+        )
+          MERGE_MAPPINGS.out.map{it->it[0]}.set{filteredmappings}
           MERGE_MAPPINGS.out.map{it->it[0]}.set{filteredmappings}
 
+          // PART 5. Intermediate filtering run proces 
           INTERMEDIATE_FILTERING(
             filteredmappings,
             MERGE_MIN_MAPPINGS.out,
@@ -125,7 +154,9 @@ workflow {
             params.usesharedmarkersmap,
             params.similarmarkersmap,
             params.useldedgemap,
-            params.ldedgemap
+            params.ldedgemap,
+            params.usegeneticmap,
+            params.geneticmap 
           )
           INTERMEDIATE_FILTERING.out.map{it->it[0]}.set{filteredmappretzelcsv}
           INTERMEDIATE_FILTERING.out.map{it->it[1]}.set{intermediatefilteredmap}
@@ -141,7 +172,12 @@ workflow {
             params.usesharedmarkersmap,
             params.similarmarkersmap,
             params.useldedgemap,
-            params.ldedgemap
+            params.ldedgemap,
+            params.usegeneticmap,
+            params.geneticmap,
+            params.doorientation,
+            params.orientationfile,
+            projectDir
           )
           ADVANCED_FILTERING.out.map{ it -> it[0] }.set { strictmappedcsv }
           ADVANCED_FILTERING.out.map{ it -> it[1] }.set { strictmappedctsv }

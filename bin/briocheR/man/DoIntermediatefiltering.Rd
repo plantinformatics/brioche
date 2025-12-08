@@ -16,7 +16,9 @@ DoIntermediatefiltering(
   doldedge,
   ldmapp,
   blast.hits,
-  mappings.file
+  mappings.file,
+  dogeneticmap,
+  geneticmap.file
 )
 }
 \arguments{
@@ -43,6 +45,10 @@ DoIntermediatefiltering(
 \item{blast.hits}{Low filtered blast hits file as csv}
 
 \item{mappings.file}{Low filtered mappings file as tsv}
+
+\item{dogeneticmap}{whether to use genetic mapping prior}
+
+\item{geneticmap.file}{CSV path to genetic mapping prior (MarkerName, Chromosomes_mapped, etc)}
 }
 \value{
 Returns an object which has been filtered using given priors to remove/keep best hits per marker

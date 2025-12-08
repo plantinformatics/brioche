@@ -39,7 +39,7 @@ No return value; called for side effects. Writes:
 This function is used to collate results across all filtering steps and generate summary graphs/csv files for easier interpretation
 }
 \author{
-James O'Dwyer
+James ODwyer
 }
 \keyword{Data}
 \keyword{Prereport}

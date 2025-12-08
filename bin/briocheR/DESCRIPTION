@@ -15,7 +15,9 @@ Depends:
     tidyr,
     dplyr,
     magrittr,
-    ggplot2
+    ggplot2,
+    stringi,
+    tidyselect
 Imports:
     stringr   
 Suggests:
