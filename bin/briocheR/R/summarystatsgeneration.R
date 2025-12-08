@@ -56,8 +56,10 @@ Dosumstats <-
       cmd          = sprintf("grep -v '^#' %s", shQuote(unf_file)),
       select       = "qaccver",
       showProgress = TRUE
-    )[!is.na(qaccver) & qaccver != "", .(Blast_hits = .N), by = qaccver]
-    
+    ) |>
+      dplyr::filter(!is.na(qaccver), qaccver != "") |>
+      dplyr::count(qaccver, name = "Blast_hits")    
+
     # remember original position of Blast_hits
     .orig_names <- names(sumstatsfile)
     .pos_bh     <- match("Blast_hits", .orig_names)
@@ -86,11 +88,10 @@ Dosumstats <-
       cmd          = sprintf("grep -v '^#' %s", shQuote(cov_file)),
       select       = "qaccver",
       showProgress = TRUE
-    )[!is.na(qaccver) & qaccver != "", .(Blast_hits = .N), by = qaccver]
+    ) |>
+      dplyr::filter(!is.na(qaccver), qaccver != "") |>
+      dplyr::count(qaccver, name = "Cov-ident_BLASThits")
 
-# Rename to match the summary column name we use downstream
-  cov_counts <- as.data.frame(cov_counts) |>
-  dplyr::rename(`Cov-ident_BLASThits` = Blast_hits)    
     .orig_names <- names(sumstatsfile)
     .pos_filter <- match("Filter_coverage-identity", .orig_names)
     .pos_covhit <- match("Cov-ident_BLASThits", .orig_names)
@@ -125,16 +126,13 @@ Dosumstats <-
 sec_file <- file.path(output.path,
                       paste0(probe.name, "_with_", genome.name, "_filtered_mappings.csv"))
 
-sec_counts <- data.table::fread(
-  cmd          = sprintf("grep -v '^#' %s", shQuote(sec_file)),
-  select       = "qaccver",
-  showProgress = TRUE
-)[!is.na(qaccver) & qaccver != "", .(Blast_hits = .N), by = qaccver]
-
-# Rename to match the column used later
-sec_counts <- as.data.frame(sec_counts) |>
-  dplyr::rename(Secondaries_hybridisation_BLASThits = Blast_hits)
-
+    sec_counts <- data.table::fread(
+      cmd          = sprintf("grep -v '^#' %s", shQuote(sec_file)),
+      select       = "qaccver",
+      showProgress = TRUE
+    ) |>
+      dplyr::filter(!is.na(qaccver), qaccver != "") |>
+      dplyr::count(qaccver, name = "Secondaries_hybridisation_BLASThits")
     
     .orig_names  <- names(sumstatsfile)
     .pos_secflag <- match("Filter_secondaries_and_hybridisation", .orig_names)
@@ -179,15 +177,14 @@ sec_counts <- as.data.frame(sec_counts) |>
 int_file <- file.path(output.path,
                       paste0(probe.name, "_with_", genome.name, "_intermediate_filtering_hits.csv"))
 
-int_counts <- data.table::fread(
-  cmd          = sprintf("grep -v '^#' %s", shQuote(int_file)),
-  select       = "qaccver",
-  showProgress = TRUE
-)[!is.na(qaccver) & qaccver != "", .(Blast_hits = .N), by = qaccver]
+    int_counts <- data.table::fread(
+      cmd          = sprintf("grep -v '^#' %s", shQuote(int_file)),
+      select       = "qaccver",
+      showProgress = TRUE
+    ) |>
+      dplyr::filter(!is.na(qaccver), qaccver != "") |>
+      dplyr::count(qaccver, name = "Intermediate_BLASThits")
 
-# Rename to match the column used later
-int_counts <- as.data.frame(int_counts) |>
-  dplyr::rename(Intermediate_BLASThits = Blast_hits) 
 
     #Intermediate sensitivity filter
     .orig_names <- names(sumstatsfile)
