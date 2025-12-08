@@ -16,7 +16,12 @@ DoStrictfiltering(
   doldedge,
   ldmapp,
   blast.hits,
-  mappings.file
+  mappings.file,
+  dogeneticmap,
+  geneticmap.file,
+  doorientation = "No",
+  orientation.file = NA,
+  project.dir = output.path
 )
 }
 \arguments{
@@ -43,6 +48,16 @@ DoStrictfiltering(
 \item{blast.hits}{Intermediate filtered blast hits file as csv}
 
 \item{mappings.file}{Low filtered mappings file as tsv}
+
+\item{dogeneticmap}{whether to use genetic mapping prior}
+
+\item{geneticmap.file}{CSV path to genetic mapping prior (MarkerName, Chromosomes_mapped, etc)}
+
+\item{doorientation}{Whether to update marker orientation file ("Yes"/"No", case insensitive).}
+
+\item{orientation.file}{TSV file with columns ID, Orientation giving current marker orientation.}
+
+\item{project.dir}{Project directory where Updated_orientation_file.tsv will be written.}
 }
 \value{
 Returns an object which has been filtered using given priors to remove/keep a maximum of 1 hit (the best) per marker

@@ -21,12 +21,16 @@ read_mixed_csv_base(path, sep = ",", header = TRUE, parse_kv = TRUE, ...)
 \item{...}{Additional arguments passed to \code{utils::read.csv()}.}
 }
 \value{
-Returns an object like a read.table or read.csv function with comment.char applied but with the comment lines attached to the attributes of the object so they are not lost
+A data.frame like from \code{read.csv}, with header lines stored in
+attributes: \code{attr(df, "raw_header_lines")} and (optionally) \code{attr(df, "header_meta")}.
 
 Returns an object like a read.table or read.csv function with comment.char applied but with the comment lines attached to the attributes of the object so they are not lost
 }
 \description{
-This function is used to read in csv files in the Brioche pipelines to preserve their appended headers of filtering information
+This function is used to read in csv/tsv files in the Brioche
+pipelines to preserve their appended headers of filtering information.
+It avoids loading the whole file into a single string, so it is safe for
+very large files.
 
 This function is used to read in csv files in the Brioche pipelines to preserve their appended headers of filtering information
 }

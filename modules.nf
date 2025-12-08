@@ -66,6 +66,42 @@ process BUILD_TARGET {
         """
 }
 
+process SPLIT_TARGET_FASTA {
+  tag { file(fasta).baseName }
+  executor 'local'
+  input:
+    path fasta
+    val  chunk_size
+  output:
+    path "split/*.fa"
+  script:
+  """
+  set -euo pipefail
+  mkdir -p split
+
+  # sanity check
+  if [[ \$(grep -c '^>' "${fasta}") -eq 0 ]]; then
+    echo "No sequences found in ${fasta}" >&2
+    exit 1
+  fi
+
+  awk -v n=${chunk_size} '
+    BEGIN{ c=0; f="" }
+    /^>/{
+      c++
+      if ((c-1)%n==0) {
+        if (f!="") close(f)
+        f=sprintf("split/q_%06d.fa", int((c-1)/n)+1)
+      }
+    }
+    { print >> f }
+    END{
+      if (f!="") close(f)
+    }
+  ' "${fasta}"
+  """
+}
+
 process PREP_REFGENOME {
   input:
     path ref_in
@@ -83,47 +119,50 @@ process PREP_REFGENOME {
 }
 
 process BUILD_BLASTDb {
-  tag "${file(fasta).baseName.replaceAll('-split','')}"
+  tag   "${file(fasta).baseName.replaceAll('-split','')}"
   label 'large'
   input:
     path fasta
-    val ref_origin
-    val genomename
+    val  ref_origin
+    val  genomename
   output:
-    val "${blastdatabase}"
+    val  "${blastdatabase}"
 
   script:
-  fastadir    = new File("${ref_origin}").getParent()
-  blastsubdir = new File(fastadir + "/BLAST/")
+  def fastadir       = new File(ref_origin as String).getParent()
+  def blastsubdir    = new File("${fastadir}/BLAST")
+  def dbstem         = file(fasta).getName().replaceAll("-split.*","")
+  def refgenomename  = new File(ref_origin as String).getName()
+  def genomeTag      = (genomename as String).replaceAll(/[^A-Za-z0-9._-]/,'_')
+  def writable = new File(fastadir).canWrite() && ( !blastsubdir.exists() || blastsubdir.canWrite() )
+  def runWorkDir = workflow.workDir.toString()
+  def blastdbBase = writable ? blastsubdir.toString()
+                             : "${runWorkDir}/BLAST/${genomeTag}"
 
-  if( !new File(fastadir).canWrite() || (blastsubdir.exists() && !blastsubdir.canWrite()) ) {
-    System.err.println("Error: No write access to ${fastadir}/BLAST; falling back to ${projectDir}/BLAST/${genomename}")
-    blastdb = new File("${projectDir}/BLAST/${genomename}").toString()
-  } else {
-    blastdb = blastsubdir.toString()
+  if( dbstem != refgenomename ) {
+    if( writable )
+      blastdbBase += "/brioche-blastdb${genomeTag}"
+    // else: fallback path already segregated by ${genomeTag} keep as-is
   }
 
-  blastdatabase = "${file(fasta).getName()}".replaceAll("-split.*","")
-  refgenomename = "${new File(ref_origin).getName()}"
-
-  if( blastdatabase != refgenomename ) {
-    blastdb = new File(blastdb + "/brioche-blastdb/").toString()
-  }
-  if( !new File(blastdb).exists() ) {
-    new File(blastdb).mkdirs()
-  }
-  blastdatabase = blastdb.toString() + "/" + blastdatabase
+  blastdatabase = "${blastdbBase}/${dbstem}"
 
   """
   set -euo pipefail
-  if [[ ! -e "${blastdatabase}.ndb" ]]; then
-    echo "creating database for ${fasta} -> ${blastdatabase}"
-    makeblastdb -in "${fasta}" -out "${blastdatabase}" -dbtype nucl -title "${params.genomename}"
+
+  mkdir -p "\$(dirname "${blastdatabase}")"
+
+  # Build only if missing (cover classic and multi-volume layouts)
+  if [[ ! -e "${blastdatabase}.ndb" && ! -e "${blastdatabase}.nin" && ! -e "${blastdatabase}.00.nin" ]]; then
+    echo "Creating BLAST DB for ${fasta} -> ${blastdatabase}"
+    makeblastdb -in "${fasta}" -out "${blastdatabase}" -dbtype nucl -title "${genomename}"
+  else
+    echo "BLAST DB already exists at ${blastdatabase}"
   fi
   """
 }
 
- 
+
 process SPLIT_REFGENOME {
   tag "${file(refgenome).baseName}"
   input:
@@ -198,27 +237,34 @@ process SPLIT_REFGENOME {
  * Step2: Process to run blast of the probes provided against reference genome
  */
 process RUN_BLAST {
-  tag "${file(blastdb).baseName}"
+  tag "${file(probefasta).baseName}"
   label 'large'
+
   input:
     path probefasta
-    val blastdb
-    val blastoutformat
+    val  blastdb
+    val  blastoutformat
+
+  // Single BLAST output file per run; name decided in the script
   output:
-        path "${splitname}*"
+    path "*.blast.txt"
+
   script:
-  splitname=file("${blastdb}").baseName
   """
+  dbbase=\$(basename "${blastdb}")
+  qbase=\$(basename "${probefasta}")
+  outprefix="\${dbbase}_\${qbase}"
+
   blastn -db ${blastdb} -query ${probefasta} \\
-         -out blastoutput.txt \\
+         -out "\${outprefix}.blast.txt" \\
          -num_threads $task.cpus \\
          -outfmt ${blastoutformat} \\
+         -max_target_seqs 20 \\
+         -max_hsps 20 \\
          -evalue ${params.evalue} ${params.otherblastoptions} \\
          -dust ${params.dust}
-  split -l 50000 blastoutput.txt ${splitname}
   """
 }
-
 
 /*
 * Step 3 Process  to pre-process the results from blastn
@@ -228,19 +274,19 @@ process PROCESS_BLAST_RESULTS {
   label 'large'
   input:
     path blastout
-    val targetdesign
-    val minmismatches
-    val extendablebps
+    val  targetdesign
+    val  minmismatches
+    val  extendablebps
     path genomefasta
-    val blastoutformat
-    val istarget3primeend
-    val markerchar
+    val  blastoutformat
+    val  istarget3primeend
+    val  markerchar
   output:
     path "${rds}"
     path "${snpmapped}"
   script:
-  snpmapped="${blastout.baseName}_samtools_coordinates_mapped.tsv"
-  rds="SNPcoordinates/${blastout.baseName}_blast_results.RDS"
+  snpmapped = "${blastout.baseName}_samtools_coordinates_mapped.tsv"
+  rds       = "SNPcoordinates/${blastout.baseName}_blast_results.RDS"
   """
   echo ${blastout}
   snpcoords="\$(pwd)/SNPcoordinates/"
@@ -254,23 +300,24 @@ process PROCESS_BLAST_RESULTS {
                 outfmt=strsplit(${blastoutformat},' ')[[1]][-1],
                 istarget3primeend='${istarget3primeend}',
                 marker.char='${markerchar}')"
-  mv  \${snpcoords}/processed_blast_results.RDS ${rds}
-  samtools faidx ${genomefasta} -r "\${snpcoords}/samtools_marker_positions.txt"|awk '
+  mv \${snpcoords}/processed_blast_results.RDS ${rds}
+
+  samtools faidx ${genomefasta} -r "\${snpcoords}/samtools_marker_positions.txt" | awk '
     BEGIN {FS = "\\n"}
     /^>/ {
-    if (seq != "") {
+      if (seq != "") {
+        print id "\\t" seq
+      }
+      id = substr(\$1, 2)
+      seq = ""
+    }
+    !/^>/ {
+      seq = seq \$1
+    }
+    END {
       print id "\\t" seq
     }
-    id = substr(\$1, 2)
-    seq = ""
-    }
-  !/^>/ {
-    seq = seq \$1
-  }
-  END {
-    print id "\\t" seq
-  }
-  ' >"${snpmapped}"
+  ' > "${snpmapped}"
   """
 }
 
@@ -278,153 +325,422 @@ process PROCESS_BLAST_RESULTS {
 /*
 Step4: Perform filtering and generate annotations
 */
-process ADD_MARKERINFO{
+process ADD_MARKERINFO {
     tag "${blast_results.baseName}"
     input:
         path blast_results
         path coordinates
-        val probename
-        val genomename
-        val keepduplicates
-        val coveragefilter
-        val pidentfilter
-        val istarget3primeend
+        val  probename
+        val  genomename
+        val  keepduplicates
+        val  coveragefilter
+        val  pidentfilter
+        val  istarget3primeend
+        val  doorientation
+        val  forcebiallelic
+        val  orientationfile
+    /*
+     * Outputs per BLAST chunk to optimise for ultra large file sizes:
+     */
     output:
-        tuple path("${allmappings}"), path("${mappings}"), path("${rawsallmappings}")
+        tuple path(allmappings),
+              path(filteredmappings),
+              path(mappings),
+              path(filtered_mappings_tsv),
+              path(rawsallmappings)
     script:
-    def random_factor = new Random().nextInt()
-    allmappings="${blast_results.baseName}_"+random_factor+"_all_mappings.csv"
-    mappings="${blast_results.baseName}_"+random_factor+"_mapping.tsv"
-    rawsallmappings="${blast_results.baseName}_"+random_factor+"_complete_unfiltered_blast_results.csv"
+    def random_factor        = new Random().nextInt()
+    def raw_prefix           = "${blast_results.baseName}_${random_factor}"
+    allmappings              = "${raw_prefix}_all_mappings.csv"
+    mappings                 = "${raw_prefix}_mapping.tsv"
+    rawsallmappings          = "${raw_prefix}_complete_unfiltered_blast_results.csv"
+    filteredmappings         = "${raw_prefix}_filtered_mappings.csv"
+    filtered_mappings_tsv    = "${raw_prefix}_filtered_mappings.tsv"
+
     """
+    # 1) Run R addSNPdetails
     R --version
     Rscript -e "briocheR::addSNPdetails(
-               blast.path='${blast_results}',
-               reference.bases='${coordinates}',
-               probe.name='${probename}',
-               genome.name='${genomename}',
-               output.path = '\$(pwd)',
-               pident.filter=${pidentfilter},
-               coverage.filter= ${coveragefilter},
-               is3prime = ${istarget3primeend})"
+           blast.path='${blast_results}',
+           reference.bases='${coordinates}',
+           probe.name='${probename}',
+           genome.name='${genomename}',
+           output.path = '\$(pwd)',
+           pident.filter=${pidentfilter},
+           coverage.filter=${coveragefilter},
+           is3prime=${istarget3primeend},
+           doorientation='${doorientation}',
+           isbiallelic='${forcebiallelic}',
+           orientation.file='${orientationfile}')"
     mv "${probename}_with_${genomename}_all_mappings.csv" ${allmappings}
-    mv "${probename}_with_${genomename}_mapping.tsv" ${mappings}
+    mv "${probename}_with_${genomename}_mapping.tsv"      ${mappings}
     mv "${probename}_with_${genomename}_complete_unfiltered_blast_results.csv" ${rawsallmappings}
+
+    # 2) CSV: filter all_mappings -> filteredmappings
+
+    header_csv=\$(head -n1 ${allmappings})
+    snpcol_csv=\$(echo "\$header_csv" | awk -F, '{for(i=1;i<=NF;i++) if(\$i=="qaccver")  print i}')
+    hybcol_csv=\$(echo "\$header_csv" | awk -F, '{for(i=1;i<=NF;i++) if(\$i=="Hybridized") print i}')
+    covcol_csv=\$(echo "\$header_csv" | awk -F, '{for(i=1;i<=NF;i++) if(\$i=="Coverage") print i}')
+    pidcol_csv=\$(echo "\$header_csv" | awk -F, '{for(i=1;i<=NF;i++) if(\$i=="pident") print i}')
+
+    if [ -z "\$snpcol_csv" ]; then
+        echo "ERROR: qaccver column not found in ${allmappings}" 1>&2
+        exit 1
+    fi
+    if [ -z "\$covcol_csv" ] || [ -z "\$pidcol_csv" ]; then
+        echo "ERROR: Coverage and/or pident column not found in ${allmappings}" 1>&2
+        exit 1
+    fi
+
+    # --- Sort allmappings by qaccver, Coverage (desc), pident (desc) ---
+    tail -n +2 "${allmappings}" \
+      | sort -t, -k\${snpcol_csv},\${snpcol_csv} -k\${covcol_csv},\${covcol_csv}nr -k\${pidcol_csv},\${pidcol_csv}nr \
+      > "${allmappings}.sorted"
+
+    {
+      echo "\$header_csv"
+      cat "${allmappings}.sorted"
+    } > "${allmappings}.tmp"
+
+    mv "${allmappings}.tmp" "${allmappings}"
+    rm -f "${allmappings}.sorted"
+
+    # --- First pass: count hits per qaccver (trimmed), independent of Hybridized ---
+    awk -F, -v col="\$snpcol_csv" -v mh=${params.maximumhits} '
+        NR>1 {
+            snp = \$col
+            gsub("^[[:space:]]+|[[:space:]]+\$", "", snp)
+            if (snp != "") cnt[snp]++
+        }
+        END {
+            for (k in cnt)
+                if (cnt[k] > mh)
+                    print k
+        }
+    ' "${allmappings}" > drop_snps_allmaps.txt
+
+    echo "Alternate_SNP_ID,\$header_csv" > ${filteredmappings}
+
+    awk -F, -v OFS=, \
+        -v col_snp="\$snpcol_csv" \
+        -v col_hyb="\$hybcol_csv" \
+        -v dropfile="drop_snps_allmaps.txt" '
+        BEGIN{
+            while ((getline line < dropfile) > 0) {
+                gsub("^[[:space:]]+|[[:space:]]+\$", "", line)
+                if (line != "") drop[line] = 1
+            }
+        }
+        NR==1 { next }  # header already written
+        {
+            # Trim whitespace on all fields
+            for (i=1; i<=NF; i++)
+                gsub("^[[:space:]]+|[[:space:]]+\$", "", \$i)
+
+            snp = \$col_snp
+            if (snp == "") next
+
+            # SNP exceeds maxhits?
+            if (snp in drop) next
+
+            # Hybridized filter (if column present)
+            hyb = (col_hyb > 0 ? \$col_hyb : "")
+            gsub("^[[:space:]]+|[[:space:]]+\$", "", hyb)
+            if (col_hyb > 0 && hyb == "No") next
+
+            # Per-SNP hit index for Alternate_SNP_ID
+            idx[snp]++
+            alt = snp "." idx[snp]
+
+            # Write filtered row with Alternate_SNP_ID
+            print alt, \$0
+        }
+    ' "${allmappings}" >> ${filteredmappings}
+
+    rm -f drop_snps_allmaps.txt
+
+    # 2b) Add Alternate_SNP_ID to full all_mappings CSV (so all csvs have the same columns regardless of analysis stage filtering stopped)
+    awk -F, -v OFS=, -v col_snp="\$snpcol_csv" '
+      NR==1 {
+        for (i=1; i<=NF; i++)
+            gsub("^[[:space:]]+|[[:space:]]+\$", "", \$i)
+        print "Alternate_SNP_ID", \$0
+        next
+      }
+      {
+        for (i=1; i<=NF; i++)
+            gsub("^[[:space:]]+|[[:space:]]+\$", "", \$i)
+        snp = \$col_snp
+        if (snp == "") next
+        idx[snp]++
+        alt = snp "." idx[snp]
+        print alt, \$0
+      }
+    ' "${allmappings}" > "${allmappings}.tmp"
+
+    mv "${allmappings}.tmp" "${allmappings}"
+
+    # 2c) Add Alternate_SNP_ID to unfiltered BLAST CSV (as above)
+
+    header_raw=\$(head -n1 ${rawsallmappings})
+    snpcol_raw=\$(echo "\$header_raw" | awk -F, '{for(i=1;i<=NF;i++) if(\$i=="qaccver") print i}')
+    covcol_raw=\$(echo "\$header_raw" | awk -F, '{for(i=1;i<=NF;i++) if(\$i=="Coverage") print i}')
+    pidcol_raw=\$(echo "\$header_raw" | awk -F, '{for(i=1;i<=NF;i++) if(\$i=="pident") print i}')
+
+    if [ -z "\$snpcol_raw" ]; then
+        echo "ERROR: qaccver column not found in ${rawsallmappings}" 1>&2
+        exit 1
+    fi
+    if [ -z "\$covcol_raw" ] || [ -z "\$pidcol_raw" ]; then
+        echo "ERROR: Coverage and/or pident column not found in ${rawsallmappings}" 1>&2
+        exit 1
+    fi
+
+    # Sort unfiltered BLAST CSV by qaccver, Coverage (desc), pident (desc)
+    tail -n +2 "${rawsallmappings}" \
+      | sort -t, -k\${snpcol_raw},\${snpcol_raw} -k\${covcol_raw},\${covcol_raw}nr -k\${pidcol_raw},\${pidcol_raw}nr \
+      > "${rawsallmappings}.sorted"
+
+    {
+      echo "\$header_raw"
+      cat "${rawsallmappings}.sorted"
+    } > "${rawsallmappings}.tmp1"
+
+    mv "${rawsallmappings}.tmp1" "${rawsallmappings}"
+    rm -f "${rawsallmappings}.sorted"
+
+    awk -F, -v OFS=, -v col_snp="\$snpcol_raw" '
+      NR==1 {
+        for (i=1; i<=NF; i++)
+            gsub("^[[:space:]]+|[[:space:]]+\$", "", \$i)
+        print "Alternate_SNP_ID", \$0
+        next
+      }
+      {
+        for (i=1; i<=NF; i++)
+            gsub("^[[:space:]]+|[[:space:]]+\$", "", \$i)
+        snp = \$col_snp
+        if (snp == "") next
+        idx[snp]++
+        alt = snp "." idx[snp]
+        print alt, \$0
+      }
+    ' "${rawsallmappings}" > "${rawsallmappings}.tmp2"
+
+    mv "${rawsallmappings}.tmp2" "${rawsallmappings}"
+
+    # 3) "TSV": filter mappings -> filtered_mappings_tsv
+
+    header_tsv=\$(head -n1 ${mappings})
+    snpcol_tsv=\$(echo "\$header_tsv" | awk '{for(i=1;i<=NF;i++) if(\$i=="SNP_ID") print i}')
+    hybcol_tsv=\$(echo "\$header_tsv" | awk '{for(i=1;i<=NF;i++) if(\$i=="Hybridised") print i}')
+    covcol_tsv=\$(echo "\$header_tsv" | awk '{for(i=1;i<=NF;i++) if(\$i=="Coverage") print i}')
+    pidcol_tsv=\$(echo "\$header_tsv" | awk '{for(i=1;i<=NF;i++) if(\$i=="pident") print i}')
+
+    if [ -z "\$snpcol_tsv" ] || [ -z "\$hybcol_tsv" ] || [ -z "\$covcol_tsv" ] || [ -z "\$pidcol_tsv" ]; then
+        echo "ERROR: required columns (SNP_ID/Hybridised/Coverage/pident) not found in ${mappings}" 1>&2
+        exit 1
+    fi
+
+    # Build new header line, keeping it whitespace-separated
+    echo "\$header_tsv" | awk -v col_snp="\$snpcol_tsv" 'BEGIN{FS="[[:space:]]+"; OFS=" "}{
+        first=1
+        for (i=1; i<=NF; i++) {
+            if (first) { first=0 } else { printf OFS }
+            printf "%s", \$i
+            if (i == col_snp) printf OFS "Alternate_SNP_ID"
+        }
+        printf ORS
+    }' > ${filtered_mappings_tsv}
+
+    tail -n +2 "${mappings}" \
+      | sort -k\${snpcol_tsv},\${snpcol_tsv} -k\${covcol_tsv},\${covcol_tsv}nr -k\${pidcol_tsv},\${pidcol_tsv}nr \
+      | awk -v FS="[[:space:]]+" -v OFS=" " \
+            -v col_snp="\$snpcol_tsv" \
+            -v col_hyb="\$hybcol_tsv" \
+            -v mh=${params.maximumhits} '
+        {
+            snp = \$col_snp
+            gsub("^[[:space:]]+|[[:space:]]+\$", "", snp)
+            if (snp == "") next
+
+            hyb = \$col_hyb
+            gsub("^[[:space:]]+|[[:space:]]+\$", "", hyb)
+            if (hyb == "No") next
+
+            # limit to mh hits per SNP_ID (after Hybridised filter)
+            idx[snp]++
+            if (idx[snp] > mh) next
+
+            alt = snp "." idx[snp]
+
+            # Print row with Alternate_SNP_ID inserted after SNP_ID
+            first=1
+            for (i=1; i<=NF; i++) {
+                if (first) { first=0 } else { printf OFS }
+                if (i == col_snp) {
+                    printf "%s", \$i        # SNP_ID
+                    printf OFS "%s", alt    # Alternate_SNP_ID
+                } else {
+                    printf "%s", \$i
+                }
+            }
+            printf ORS
+        }
+    ' >> ${filtered_mappings_tsv}
     """
 }
+
 /*
 Step5: Process to merge individual mapping results into a single file
 */
 process MERGE_MAPPINGS {
-    publishDir "${params.resultsdirectory}/",mode:'copy'
+    publishDir "${params.resultsdirectory}/", mode: 'copy'
     label 'merge'
     tag 'Merge_all_CSVs'
+
     input:
-        path allmappings
-        path rawsallmappings
+        path allmappings_in          // list of *_all_mappings.csv
+        path filteredmappings_in     // list of *_filtered_mappings.csv
+        path rawsallmappings_in      // list of *_complete_unfiltered_blast_results.csv
         path resultsdir
-        val probename
-        val genomename
+        val  probename
+        val  genomename
+
     output:
-        tuple path("${filteredmappings}"), path("${allmappings}"), path("${allmappingsunfiltered}")
+        tuple path(filteredmappings_out),
+              path(allmappings_out),
+              path(allmappingsunfiltered_out)
+
     script:
-    allmaps=allmappings[0]
-    filteredmappings="${probename}_with_${genomename}_filtered_mappings.csv"
-    allmappingsunfiltered="${probename}_with_${genomename}_blastmappings_unfiltered.csv"
-    allmappings="${probename}_with_${genomename}_all_mappings.csv"
+    // Pick one file from each group to grab the header
+    def oneFilt = filteredmappings_in[0]
+    def oneAll  = allmappings_in[0]
+    def oneRaw  = rawsallmappings_in[0]
+
+    // String lists of filenames for the for-loops
+    def filtList = filteredmappings_in.collect { it.getName() }.join(' ')
+    def allList  = allmappings_in.collect { it.getName() }.join(' ')
+    def rawList  = rawsallmappings_in.collect { it.getName() }.join(' ')
+
+    filteredmappings_out       = "${probename}_with_${genomename}_filtered_mappings.csv"
+    allmappings_out            = "${probename}_with_${genomename}_all_mappings.csv"
+    allmappingsunfiltered_out  = "${probename}_with_${genomename}_blastmappings_unfiltered.csv"
+
     """
-    #-k\${SNP_ID},\${SNP_ID} -k\${coverage},\${coverage}r -k\${pident},\${pident}r -k\${chrom},\${chrom} -k\${pos},\${pos}
-    header=\$(head -n1 $allmaps)
-    chrom=\$(echo \$header|awk -F, '{for(i=1;i<=NF;i++){if(\$i=="saccver")print i}}')
-    pos=\$(echo \$header|awk -F, '{for(i=1;i<=NF;i++){if(\$i=="sstart")print i}}')
-    SNP_ID=\$(echo \$header|awk -F, '{for(i=1;i<=NF;i++){if(\$i=="qaccver")print i}}')
-    pident=\$(echo \$header|awk -F, '{for(i=1;i<=NF;i++){if(\$i=="pident")print i}}')
-    coverage=\$(echo \$header|awk -F, '{for(i=1;i<=NF;i++){if(\$i=="Coverage")print i}}')
-    find -name "*all_mappings.csv"|split -l 2000 - subsetcsvs
-    for ss in subsetcsvs*;
-    do
-        cat \$(awk '{printf("%s ",\$0)}' \$ss)|grep -v "qaccver" >> Mergedmappings.csv
-    done
+    header_filtered=\$(head -n1 "${oneFilt.getName()}")
+    header_all=\$(head -n1 "${oneAll.getName()}")
+    header_raw=\$(head -n1 "${oneRaw.getName()}")
 
-    sort -t, -k\${SNP_ID},\${SNP_ID} -k\${coverage},\${coverage}r -k\${pident},\${pident}r -k\${chrom},\${chrom} -k\${pos},\${pos} Mergedmappings.csv \\
-    |awk -F, -v h="\$header" 'BEGIN{print "Alternate_SNP_ID,"h} {count[\$1]++;print \$1"."count[\$1]","\$0}' \\
-    >allmaps.csv
+    echo "##brioche parameters" > header_params.txt
+    echo "##evalue            = ${params.evalue} #The number of expected hits of similar quality (score) that could be found just by chance." >> header_params.txt
+    echo "##minimumlength     = ${params.minlength} #minimum length of HSP to be considered fully hybridized" >> header_params.txt
+    echo "##extendablebps     =${params.extendablebps}  #number of matching base pairs from the 3 prime end for a probe to be considered as extendable" >> header_params.txt
+    echo "##maximumgaps       = ${params.maxgaps} #Maximum number of gaps allowed per HSP" >> header_params.txt
+    echo "##coverage          = ${params.coverage} #Option to filter any hits with coverage less than the provided percentage" >> header_params.txt
+    echo "##pident            = ${params.pident}  #Option to filter any hits with pident less than the provided percentage" >> header_params.txt
+    echo "##maximumhits       = ${params.maximumhits} #Filter probes with hits more than maximumhits" >> header_params.txt
 
-    find -name "*unfiltered*.csv"|split -l 2000 - subsetcsvs2
-    for ss in subsetcsvs2*;
-    do
-        cat \$(awk '{printf("%s ",\$0)}' \$ss)|grep -v "qaccver" >> Mergedmappingsunfilts.csv
-    done
+    # 1) Merge filtered mappings (maxhits + Hybridized)
+    {
+      cat header_params.txt
+      echo "\$header_filtered"
+      for f in ${filtList}; do
+        [ -s "\$f" ] || continue
+        tail -n +2 "\$f"
+      done
+    } > "${filteredmappings_out}"
 
-    sort -t, -k\${SNP_ID},\${SNP_ID} -k\${coverage},\${coverage}r -k\${pident},\${pident}r -k\${chrom},\${chrom} -k\${pos},\${pos} Mergedmappingsunfilts.csv \\
-    |awk -F, -v h="\$header" 'BEGIN{print "Alternate_SNP_ID,"h} {count[\$1]++;print \$1"."count[\$1]","\$0}' \\
-    >allmapsunfilt.csv 
-    awk -F, -v OFS=, -v maxhit="${params.maximumhits}" 'NR==1{for(i=1;i<=NF;i++)if(\$i=="Hybridized")hyb=i; if(!hyb){print "ERROR: Hybridized column not found" > "/dev/stderr"; exit 1} header=\$0; next}{split(\$1,a,".");pref=a[1];cnt[pref]++;row[NR]=\$0;p[NR]=pref;h[NR]=\$hyb} END{print header; for(i=2;i<=NR;i++) if(cnt[p[i]]<=maxhit && h[i]!="No ") print row[i]}' allmaps.csv > map.csv
-    #awk -F, -v maxhit="${params.maximumhits}" 'BEGIN{split(\$1,a,".");data[\$1]=\$0;IDs[a[1]]=0} {split(\$1,a,".");IDs[a[1]]++;data[\$1]=\$0} END{for(n in data){split(n,b,".");if(IDs[b[1]]<=maxhit)print data[n]}}' allmaps.csv > map.csv   
-    LC_ALL=C tr -d ' \t\r' < allmapsunfilt.csv | sponge allmapsunfilt.csv
-    LC_ALL=C tr -d ' \t\r' < allmaps.csv | sponge allmaps.csv
-    LC_ALL=C tr -d ' \t\r' < map.csv | sponge map.csv
-    echo "##brioche parameters" > header.txt
-    echo "##evalue            = ${params.evalue} #The number of expected hits of similar quality (score) that could be found just by chance." >> header.txt
-    echo "##minimumlength     = ${params.minlength} #minimum length of HSP to be considered fully hybridized" >> header.txt
-    echo "##extendablebps     =${params.extendablebps}  #number of matching base pairs from the 3 prime end for a probe to be considered as extendable" >> header.txt
-    echo "##maximumgaps       = ${params.maxgaps} #Maximum number of gaps allowed per HSP" >> header.txt
-    echo "##coverage          = ${params.coverage} #Option to filter any hits with coverage less than the provided percentage" >> header.txt
-    echo "##pident            = ${params.pident}  #Option to filter any hits with pident less than the provided percentage" >> header.txt
-    echo "##maximumhits       = ${params.maximumhits} #Filter probes with hits more than maximumhits" >> header.txt
-    cat header.txt map.csv >"${filteredmappings}"
-    cat header.txt allmaps.csv>"${allmappings}"
-    cat header.txt allmapsunfilt.csv>"${allmappingsunfiltered}"
+    # 2) merge pident/coverage-filtered mappings
+    {
+      cat header_params.txt
+      echo "\$header_all"
+      for f in ${allList}; do
+        [ -s "\$f" ] || continue
+        tail -n +2 "\$f"
+      done
+    } > "${allmappings_out}"
+
+    # 3) Merge fully unfiltered BLAST mappings ( may need to optimise further)
+    {
+      cat header_params.txt
+      echo "\$header_raw"
+      for f in ${rawList}; do
+        [ -s "\$f" ] || continue
+        tail -n +2 "\$f"
+      done
+    } > "${allmappingsunfiltered_out}"
+
+    if command -v sponge >/dev/null 2>&1; then
+      LC_ALL=C tr -d '\\t\\r' < "${filteredmappings_out}"      | sponge "${filteredmappings_out}"
+      LC_ALL=C tr -d '\\t\\r' < "${allmappings_out}"           | sponge "${allmappings_out}"
+      LC_ALL=C tr -d '\\t\\r' < "${allmappingsunfiltered_out}" | sponge "${allmappingsunfiltered_out}"
+    fi
     """
 }
+
 
 
 /*
 Step5: Process to merge individual mapping results into a single file
 */
 process MERGE_MIN_MAPPINGS {
-    publishDir "${params.resultsdirectory}/",mode:'copy'
+    publishDir "${params.resultsdirectory}/", mode: 'copy'
     label 'merge'
     tag 'Merge_all_TSVs'
+
     input:
-        path mappings
-        val resultsdir
-        val probename
-        val genomename
+        path filtered_mappings_tsv_in   // *_filtered_mappings.tsv from ADD_MARKERINFO
+        path resultsdir
+        val  probename
+        val  genomename
+
     output:
-        path("${outfile}")
+        path(outfile)
+
     script:
-    allmaps=mappings[0]
-    outfile="${probename}_with_${genomename}_mappings.tsv"
+    // Use one file to grab the TSV header
+    def oneFiltTsv = filtered_mappings_tsv_in[0]
+    outfile        = "${probename}_with_${genomename}_mappings.tsv"
+
     """
-    header=\$(head -n1 $allmaps)
-    chrom=\$(echo \$header|awk '{for(i=1;i<=NF;i++){if(\$i=="Chr")print i}}')
-    pos=\$(echo \$header|awk '{for(i=1;i<=NF;i++){if(\$i=="SNP_position")print i}}')
-    SNP_ID=\$(echo \$header|awk '{for(i=1;i<=NF;i++){if(\$i=="SNP_ID")print i}}')
-    pident=\$(echo \$header|awk '{for(i=1;i<=NF;i++){if(\$i=="pident")print i}}')
-    header=\$(echo \$header|awk '{for(i=1;i<=NF;i++){if(i==1){printf \$i"\tAlternate_SNP_ID"}else{printf "\t"\$i}}}')
-    coverage=\$(echo \$header|awk '{for(i=1;i<=NF;i++){if(\$i=="Coverage")print i}}')
-    find -name "*.tsv"|split -l 2000 - subsettsvs
-    for ss in subsettsvs*;
-    do
-        cat \$(awk '{printf("%s ",\$0)}' \$ss)|grep -v "SNP_ID" >> Mergedmappings.tsv
-    done
-    sort -k\${SNP_ID},\${SNP_ID} -k\${coverage},\${coverage}r -k\${pident},\${pident}r -k\${chrom},\${chrom} -k\${pos},\${pos} Mergedmappings.tsv \\
-    |awk 'BEGIN{count[\$1]=0} {count[\$1]++;for(i=1;i<=NF;i++){if(i==1){printf\$i"\t"\$i"."count[\$1]}else{printf"\t"\$i}};print""}' \\
-    |awk -v maxhit=${params.maximumhits} -v h="\$header" 'BEGIN{print h; split(\$2,a,".");data[\$2]=\$0;count[\$1]=0} {count[\$1]++;data[\$2]=\$0} END{for(n in data){split(n,a,".");if(count[a[1]]<=maxhit){print data[n]}}}' \\
-    |awk '{if(\$0!=""){print \$0}}' \\
-    > map.tsv
-    echo "##brioche parameters" > header.txt
-    echo "##evalue            = ${params.evalue} #The number of expected hits of similar quality (score) that could be found just by chance." >> header.txt
-    echo "##minimumlength     = ${params.minlength} #minimum length of HSP to be considered fully hybridized" >> header.txt
-    echo "##extendablebps     =${params.extendablebps}  #number of matching base pairs from the 3 prime end for a probe to be considered as extendable" >> header.txt
-    echo "##maximumgaps       = ${params.maxgaps} #Maximum number of gaps allowed per HSP" >> header.txt
-    echo "##coverage          = ${params.coverage} #Option to filter any hits with coverage less than the provided percentage" >> header.txt
-    echo "##pident            = ${params.pident}  #Option to filter any hits with pident less than the provided percentage" >> header.txt
-    echo "##maximumhits       = ${params.maximumhits} #Filter probes with hits more than maximumhits" >> header.txt
-    cat header.txt map.tsv >"${outfile}"  
+    header_tsv=\$(head -n1 "${oneFiltTsv}")
+
+    echo "##brioche parameters" > header_params.txt
+    echo "##evalue            = ${params.evalue} #The number of expected hits of similar quality (score) that could be found just by chance." >> header_params.txt
+    echo "##minimumlength     = ${params.minlength} #minimum length of HSP to be considered fully hybridized" >> header_params.txt
+    echo "##extendablebps     =${params.extendablebps}  #number of matching base pairs from the 3 prime end for a probe to be considered as extendable" >> header_params.txt
+    echo "##maximumgaps       = ${params.maxgaps} #Maximum number of gaps allowed per HSP" >> header_params.txt
+    echo "##coverage          = ${params.coverage} #Option to filter any hits with coverage less than the provided percentage" >> header_params.txt
+    echo "##pident            = ${params.pident}  #Option to filter any hits with pident less than the provided percentage" >> header_params.txt
+    echo "##maximumhits       = ${params.maximumhits} #Filter probes with hits more than maximumhits" >> header_params.txt
+
+    {
+      cat header_params.txt
+      echo "\$header_tsv"
+      for f in *_filtered_mappings.tsv; do
+        [ -s "\$f" ] || continue
+        # Skip each file's header row
+        tail -n +2 "\$f"
+      done
+    } | awk 'BEGIN{
+               FS="[[:space:]]+";
+               OFS="\\t"
+             }
+             /^##/ { print; next }
+             {
+               # Convert whitespace-delimited header/body to tab-delimited
+               n = split(\$0, f, /[[:space:]]+/);
+               for (i=1; i<=n; i++) {
+                 if (i>1) printf OFS;
+                 printf "%s", f[i];
+               }
+               printf ORS;
+             }' > "${outfile}"
     """
 }
+
 
 /*
 Step6: Perform filtering and generate annotations
@@ -446,6 +762,8 @@ process INTERMEDIATE_FILTERING {
         val similarmarkersmaps
         val useldedge
         val ldmapp
+        val usegeneticmap
+        val geneticmap
     output:
         tuple path("${filteredmappretzelcsv}"), path("${intermediatefilteredmap}")
     script:
@@ -464,6 +782,8 @@ process INTERMEDIATE_FILTERING {
             similarity.maps='${similarmarkersmaps}',
             doldedge='${useldedge}',
             ldmapp='${ldmapp}',
+            dogeneticmap='${usegeneticmap}',
+            geneticmap.file='${geneticmap}',
             blast.hits='${filteredmappings}',
             mappings.file='${outfile}')"
     #mv "name of intermediate mapping blasts" filteredmappretzelcsv 
@@ -477,26 +797,36 @@ Step7: Perform advanced filtering and generate annotations
 process ADVANCED_FILTERING {
     tag "Apply_strict_filters"
     label 'large'
-    publishDir "${params.resultsdirectory}/",mode:'copy'
+    publishDir "${params.resultsdirectory}/", mode: 'copy'
+
     input:
         path filteredmappretzelcsv
         path intermediatefilteredmap
-        val resultsdir
-        val probename
-        val genomename
-        val chrominfo
-        val chrompath
-        val targetinf
-        val usemapmarkers
-        val similarmarkersmaps
-        val useldedge
-        val ldmapp
+        val  resultsdir
+        val  probename
+        val  genomename
+        val  chrominfo
+        val  chrompath
+        val  targetinf
+        val  usemapmarkers
+        val  similarmarkersmaps
+        val  useldedge
+        val  ldmapp
+        val  usegeneticmap
+        val  geneticmap
+        val  doorientation
+        val  orientationfile
+        val  projectdir
+
     output:
-        tuple path("${strictmappedcsv}"), path("${strictmappedctsv}"), path("${pretzelfile}")
+        tuple path("${strictmappedcsv}"),
+              path("${strictmappedctsv}"),
+              path("${pretzelfile}")
+
     script:
-    strictmappedcsv="${probename}_with_${genomename}_strict_filtering_hits.csv"
-    strictmappedctsv="${probename}_with_${genomename}_strict_filtering_mappings.tsv"
-    pretzelfile="${probename}_with_${genomename}_mappings-pretzel-alignment.xlsx"
+    strictmappedcsv   = "${probename}_with_${genomename}_strict_filtering_hits.csv"
+    strictmappedctsv  = "${probename}_with_${genomename}_strict_filtering_mappings.tsv"
+    pretzelfile       = "${probename}_with_${genomename}_mappings-pretzel-alignment.xlsx"
     """
     R --version
     Rscript -e "briocheR::DoStrictfiltering(
@@ -511,7 +841,12 @@ process ADVANCED_FILTERING {
             doldedge='${useldedge}',
             ldmapp='${ldmapp}',
             blast.hits='${filteredmappretzelcsv}',
-            mappings.file='${intermediatefilteredmap}')"
+            mappings.file='${intermediatefilteredmap}',
+            dogeneticmap='${usegeneticmap}',
+            geneticmap.file='${geneticmap}',
+            doorientation='${doorientation}',
+            orientation.file='${orientationfile}',
+            project.dir='${projectdir}')"
     #mv "name of intermediate mapping blasts" filteredmappretzelcsv 
     #mv "name of intermediate mapping maps" intermediatefilteredmap
     #Generate pretzel files

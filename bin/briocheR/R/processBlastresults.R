@@ -430,7 +430,7 @@ processBlastResults <- function(blast.file,
         return(if (is_plus) s_first + s_len else s_first - s_len)
       }
       
-      # If Target.bp lies outside this HSP (beyond the ±1 boundary), we can't map it here. This is strict, maybe its best to incorporate something else her
+      # If Target.bp lies outside this HSP (beyond the A+-1 boundary), we can't map it here. This is strict, maybe its best to incorporate something else her
       # something that conveys some information about SNP position approximation. 
       if (k < 1L || k > q_len)  {
         
@@ -537,59 +537,76 @@ processBlastResults <- function(blast.file,
       #  data$SNPpos[i] <- "."
       # detect position of other variant sites identified using getVariantsFromBTOP. Based on their position in the the sequence simply add or
       # subtract ssttart to get the exact location of variant (plus vs minus strand)
-      if (length(var_position) > 0) {
-        if (class(var_position) != "character") {
-          compute_posN_for_row <- function(i, var_position, variants, data) {
-            # normalize inputs
-            vpos <- as.integer(var_position)
-            vtyp <- toupper(trimws(variants))
-            strand <- tolower(trimws(data$sstrand[i]))
-            sstart <- as.integer(data$sstart[i])
-            send   <- as.integer(data$send[i])
-            
-            # anchor = first aligned subject coordinate for this HSP on the genome
-            is_plus <- identical(strand, "plus")
-            s_first <- if (is_plus) min(sstart, send) else max(sstart, send)
-            
-            # identify sseq gaps (only A/C/G/T followed by '-')
-            is_sseq_gap <- grepl("^[ACGT]-$", vtyp)
-            
-            # alignment columns where sseq has gaps; duplicates allowed (consecutive gaps)
-            gap_cols <- sort(vpos[is_sseq_gap])
-            
-            # count number of prior sseq gaps strictly before each variant's column
-            prior_gap_count <- if (length(gap_cols)) {
-              # use -0.5 to implement "strictly less than y" for integer columns
-              findInterval(vpos - 0.5, gap_cols)
-            } else {
-              integer(length(vpos))
-            }
-            
-            # corrected subject genomic positions (vector)
-            if (is_plus) {
-              s_first + vpos - prior_gap_count
-            } else {
-              s_first - vpos + prior_gap_count
-            }
+    if (length(var_position) > 0) {
+      if (!is.character(var_position)) {
+
+        compute_posN_for_row <- function(i, var_position, variants, data) {
+          # normalise inputs
+          vpos   <- as.integer(var_position)
+          vtyp   <- toupper(trimws(variants))
+          strand <- tolower(trimws(data$sstrand[i]))
+          sstart <- as.integer(data$sstart[i])
+          send   <- as.integer(data$send[i])
+
+          # anchor = first aligned subject coordinate for this HSP on the genome
+          is_plus <- identical(strand, "plus")
+          s_first <- if (is_plus) min(sstart, send) else max(sstart, send)
+
+          # identify sseq gaps (only A/C/G/T followed by '-')
+          is_sseq_gap <- grepl("^[ACGT]-$", vtyp)
+
+          # alignment columns where sseq has gaps; duplicates allowed (consecutive gaps)
+          gap_cols <- sort(vpos[is_sseq_gap])
+
+          # count number of prior sseq gaps strictly before each variant's column
+          prior_gap_count <- if (length(gap_cols)) {
+            findInterval(vpos - 0.5, gap_cols)
+          } else {
+            integer(length(vpos))
           }
-          posN <- compute_posN_for_row(i, var_position, variants, data)
-          # Do a check. If one of the variants is marked as a SNP with the marker character (in situations where the SNP is present part way
-          # into the probe sequence not at the ends) then take the absolute position of that SNP and replace the earlier SNPpos
-          # Note this is unnessary after I fixed the above command for finding the SNP position anyway. 
-          targetpos <- posN[grepl(marker.char, variants)]
-          if (length(targetpos) > 0)
-            data$SNPpos[i] <- targetpos
-          
-          SNPorGAPpos_Ref[i] <- paste0(sapply(posN, function(xx) {
-            if (is.na(xx))
-              return(".")
-            paste0(data$saccver[i], ":", xx, "-", xx)
-          }), collapse = ";")
-          
-          if (!istarget3primeend)
-            SNPpos_all[i] <- paste0(posN, collapse = ";")
+
+          # corrected subject genomic positions (vector)
+          if (is_plus) {
+            s_first + vpos - prior_gap_count
+          } else {
+            s_first - vpos + prior_gap_count
+          }
         }
+
+        posN <- compute_posN_for_row(i, var_position, variants, data)
+
+        ## IMPORTANT CHANGE:
+        ## Do NOT override data$SNPpos based on marker.char any more.
+        ## SNPpos from calculateSNPpos is now the single source of truth.
+        ##
+        ## If you still want to *inspect* ambiguous cases, you can log them:
+        ## (optional, safe debugging only)
+        target_idx <- which(grepl(marker.char, variants))
+        if (length(target_idx) > 1L) {
+          cat(
+            "Ambiguous marker.char matches for row", i,
+            "qaccver=", data$qaccver[i],
+            "btop=", data$btop[i],
+            "variants=", paste(variants, collapse = ";"),
+            "posN=", paste(posN, collapse = ";"),
+            "\n",
+            file = "multi_markerchar_rows.log",
+            append = TRUE
+          )
+        }
+
+        SNPorGAPpos_Ref[i] <- paste0(
+          sapply(posN, function(xx) {
+            if (is.na(xx)) return(".")
+            paste0(data$saccver[i], ":", xx, "-", xx)
+          }),
+          collapse = ";"
+        )
+
+        if (!istarget3primeend)
+          SNPpos_all[i] <- paste0(posN, collapse = ";")
       }
+    }
       
       if (var_type == "")
         var_type <- "."
@@ -610,39 +627,58 @@ processBlastResults <- function(blast.file,
     }
     
     # Add Processed Columns
-    data$SNPorGap <- SNPorGap
-    data$SNPorGap_pos <- SNPorGap_pos
-    data$SNPorGAPpos_Ref <- SNPorGAPpos_Ref
-    data$Variant <- Variant
-    data$SNP.Refpos <- paste0(data$saccver, ":", data$SNPpos, "-", data$SNPpos)
-    # Simple if else command it is asking, is the stretch of identical bases from target larger than the minimum set extension length
-    # e.g., in this case larger than 3
+    data$SNPorGap         <- SNPorGap
+    data$SNPorGap_pos     <- SNPorGap_pos
+    data$SNPorGAPpos_Ref  <- SNPorGAPpos_Ref
+    data$Variant          <- Variant
+    data$SNP.Refpos       <- paste0(data$saccver, ":", data$SNPpos, "-", data$SNPpos)
+
+    ## ---- Normalise Identical_bps_from_target safely ----
+    # Start from the character vector we just built in the loop
+    raw_ident <- Identical_bps_from_target
+
+    # Treat obvious non-values as 0
+    raw_ident[is.na(raw_ident) | raw_ident == "" | raw_ident == "."] <- "0"
+
+    # Coerce to numeric; suppress the usual coercion warning
+    suppressWarnings(
+      numeric_ident <- as.numeric(raw_ident)
+    )
+
+    # Any remaining NAs (truly non-numeric junk) => 0 matches
+    numeric_ident[is.na(numeric_ident)] <- 0L
+
+    # Simple if/else: is the stretch of identical bases from target
+    # >= the minimum set extension length?
     if (istarget3primeend) {
       qend_matches <- data$qend == (as.numeric(data$Target.bp) - 1)
-      data$Identical_bps_from_target <- Identical_bps_from_target
+
+      data$Identical_bps_from_target <- numeric_ident
+
       data$ExtendableSite <- ifelse(
-        as.numeric(data$Identical_bps_from_target) >= extendable.site.bps &
-          qend_matches,
+        numeric_ident >= extendable.site.bps & qend_matches,
         "Yes",
         "."
       )
-      # This is making multiple or/ or+ and statements to generate the hybridized label. 
-      data$Hybridized <- ifelse((abs(data$qend - data$qlen) == 1 |
-                                   data$qend == data$qlen) &
-                                  data$length >= min.length &
-                                  data$gapopen == 0 &
-                                  data$ExtendableSite == "Yes",
-                                "Yes",
-                                "No"
+
+      # This is making multiple or/and statements to generate the hybridized label.
+      data$Hybridized <- ifelse(
+        (abs(data$qend - data$qlen) == 1 | data$qend == data$qlen) &
+          data$length >= min.length &
+          data$gapopen == 0 &
+          data$ExtendableSite == "Yes",
+        "Yes",
+        "No"
       )
+
+    } else {
+      # Non-3' chips: keep numeric version for downstream, but no ExtendableSite logic
+      data$Identical_bps_from_target <- numeric_ident
+      data$ExtendableSite            <- NA
+      data$Hybridized                <- NA
     }
-    if (!istarget3primeend) {
-      data$Identical_bps_from_target <- Identical_bps_from_target
-      data$ExtendableSite = NA
-      data$Hybridized = NA
-    }
-    # Filter and Arrange - using dplyr for better readability
-    # May need to revise this bit here as We may want to report na values with the rows. Take it out temporarily # & !is.na(SNPpos)
+
+
     data <- data |>
       dplyr::filter(SNP.Refpos != ".") |>
       dplyr::arrange(dplyr::desc(Coverage), dplyr::desc(pident), qaccver)

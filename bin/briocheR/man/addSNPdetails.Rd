@@ -12,29 +12,49 @@ addSNPdetails(
   output.path = "Mapping_results",
   pident.filter = 90,
   coverage.filter = 50,
-  is3prime
+  is3prime,
+  doorientation = FALSE,
+  isbiallelic = FALSE,
+  orientation.file = NULL
 )
 }
 \arguments{
-\item{reference.bases}{Path to the reference bases obtained from samtools}
+\item{blast.path}{Dataframe or path to blast results returned by the
+\code{processBlastResults()} function (RDS file).}
 
-\item{probe.name}{name of the probe file being analysed}
+\item{reference.bases}{Path to the reference bases obtained from samtools.}
 
-\item{genome.name}{name of the reference genome being compared}
+\item{probe.name}{Name of the probe file being analysed.}
 
-\item{output.path}{path were the results are saved}
+\item{genome.name}{Name of the reference genome being compared.}
 
-\item{coverage.filter}{double value to filter hits with small coverage}
+\item{output.path}{Path where the results are saved.}
 
-\item{is3prime}{Does the SNP exist as 3' as part of SNP chip marker mapping}
+\item{pident.filter}{Double value to filter hits with small percentage identity.}
 
-\item{blast.results}{Dataframe or path to blast results returned by the \code{processBlastResults()} function}
+\item{coverage.filter}{Double value to filter hits with small coverage.}
+
+\item{is3prime}{Logical. Does the SNP exist as 3' as part of SNP chip marker mapping.}
+
+\item{doorientation}{Logical or character ("Yes"/"No"). If TRUE or "Yes"
+(case-insensitive), marker orientation harmonisation using \code{orientation.file}
+will be applied.}
+
+\item{isbiallelic}{Logical or character ("Yes"/"No"). If TRUE or "Yes"
+(case-insensitive), REF/ALT are re-oriented to be consistent with the
+Cluster A/B nucleotides (using reverse complement if needed).}
+
+\item{orientation.file}{Optional path to a TSV file describing the current state
+of marker orientation. Must contain columns \code{ID} and \code{Orientation}.}
 }
 \value{
-Returns a dataframe with the updated blast results
+Returns a dataframe with the updated blast results. The returned object
+has attributes \code{is3prime}, \code{doorientation}, \code{isbiallelic}, and
+\code{orientation.file} attached for downstream use.
 }
 \description{
-This function is used to add more details to the blast output returned by the \code{processBlastResults()} function
+This function is used to add more details to the blast output
+returned by the \code{processBlastResults()} function
 }
 \author{
 David Chisanga

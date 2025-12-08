@@ -205,7 +205,6 @@ sanitize_rectangular <- function(x) {
 
 
 
-
 #' @title Do strict filtering 
 #' @description This function is used to undertake an strict level of filtering producing output files with only one hit per marker allowed
 #' @author James O'Dwyer
@@ -221,6 +220,11 @@ sanitize_rectangular <- function(x) {
 #' @param ldmapp 10 column table (standard .ld format) for pairwise ld scores and locations per marker
 #' @param blast.hits Intermediate filtered blast hits file as csv
 #' @param mappings.file Low filtered mappings file as tsv
+#' @param dogeneticmap whether to use genetic mapping prior
+#' @param geneticmap.file CSV path to genetic mapping prior (MarkerName, Chromosomes_mapped, etc)
+#' @param doorientation Whether to update marker orientation file ("Yes"/"No", case insensitive).
+#' @param orientation.file TSV file with columns ID, Orientation giving current marker orientation.
+#' @param project.dir Project directory where Updated_orientation_file.tsv will be written.
 #' @keywords genome, filter blast strict
 #' @export
 #'
@@ -238,9 +242,13 @@ DoStrictfiltering <-
            doldedge,
            ldmapp,
            blast.hits,
-           mappings.file)
-  {
-    
+           mappings.file,
+           dogeneticmap,
+           geneticmap.file,
+           doorientation     = "No",
+           orientation.file  = NA,
+           project.dir       = output.path)
+  {    
     # Remember that the header Lines will be stored as an attribute for reattaching later
     blast.out <- read_mixed_csv_base(blast.hits)
     headerinfo <- attributes(blast.out)
@@ -257,10 +265,10 @@ DoStrictfiltering <-
     
     remove_namescombined <- vector()
     keep_namescombined <- vector()
-    # Generate two separate filtering processes depending on the presence/absence of chrom info 
+    # Generate two separate filtering processes depending on the presence/absence of priors info 
     # Currently set to just remove any marker which has 2+ remaining hits. May revised and bring back but change the Chrom
     # to be Chrom or something
-    if(dotargetfilt=="No" & domapmarkers=="No" & doldedge=="No") {
+    if(dotargetfilt=="No" & domapmarkers=="No" & doldedge=="No" & dogeneticmap=="No") {
       
       
       top_hits <- blast.out |>
@@ -397,14 +405,14 @@ DoStrictfiltering <-
       tmp2 <- tmp |>
         dplyr::left_join(per_q, by = "qaccver", suffix = c("", ".perq")) |>
         dplyr::mutate(
-          # unify target_chr (prefer the one already on tmp, fall back to per_q’s)
+          # unify target_chr (prefer the one already on tmp)
           target_chr = dplyr::coalesce(target_chr, target_chr.perq),
           keep = dplyr::case_when(
-            !base::is.na(target_chr) & total_hits == 1L ~ TRUE,                                   # single hit → keep
-            !base::is.na(target_chr) & total_hits > 1L & n_on_target == 1L ~ (saccver == target_chr), # one on target → keep that row
-            !base::is.na(target_chr) & n_on_target > 1L ~ FALSE,                                   # multiple on target → drop marker
-            base::is.na(target_chr) & total_hits > 1L ~ FALSE,                                     # no target & >1 hits → drop marker
-            base::is.na(target_chr) & total_hits == 1L ~ TRUE,                                     # no target & single hit → keep
+            !base::is.na(target_chr) & total_hits == 1L ~ TRUE,                                   # single hit keep
+            !base::is.na(target_chr) & total_hits > 1L & n_on_target == 1L ~ (saccver == target_chr), # one on target keep that row
+            !base::is.na(target_chr) & n_on_target > 1L ~ FALSE,                                   # multiple on target drop marker
+            base::is.na(target_chr) & total_hits > 1L ~ FALSE,                                     # no target & >1 hits drop marker
+            base::is.na(target_chr) & total_hits == 1L ~ TRUE,                                     # no target & single hit keep
             TRUE ~ FALSE
           )
         ) |>
@@ -426,7 +434,99 @@ DoStrictfiltering <-
       
     }
     
-    
+ 
+
+if (dogeneticmap == "Yes") {
+
+  # Read inputs
+  gmap <- read.table(geneticmap.file, sep = ",", header = TRUE,
+                     stringsAsFactors = FALSE, check.names = FALSE)
+  chromcomparisontable <- read.table(chrom.comp, sep = ",", header = TRUE,
+                                     stringsAsFactors = FALSE, check.names = FALSE)
+
+  chr_cols <- paste0("ChrmapNo", 1:5)
+
+ saveRDS(gmap , "gmap.RDS")
+ saveRDS(blast.out , "blastout.RDS")
+ saveRDS(chromcomparisontable, "chromchrom.RDS")
+
+  # Count mapped chromosomes; prefer provided column
+  nmapped <- if ("Chromosomes_mapped" %in% names(gmap)) {
+    suppressWarnings(as.numeric(gmap$Chromosomes_mapped))
+  } else {
+    rowSums(!is.na(gmap[chr_cols]))
+  }
+  nmapped[is.na(nmapped)] <- 0
+
+  # Remove priors with >=2 mapped chromosomes (ambiguous as priors)
+  gmap_slim <- gmap[nmapped < 2, , drop = FALSE]
+
+  # Partition IDs
+  zero_ids <- gmap$MarkerName[nmapped == 0]  # no chromosome in gmap
+  one_ids  <- gmap$MarkerName[nmapped == 1]  # exactly one chromosome in gmap
+
+  # For one_ids: pick the single non-NA ChrmapNo* (old ref)
+  chosen_chr_oldref <- rep(NA_character_, length(one_ids))
+  if (length(one_ids) > 0) {
+    chr_sub <- gmap[gmap$MarkerName %in% one_ids, chr_cols, drop = FALSE]
+    chosen_chr_oldref <- apply(chr_sub, 1, function(r) {
+      r <- as.character(r); r <- trimws(r)
+      r[which(!is.na(r) & r != "")[1]]
+    })
+  }
+
+  # Map old -> new reference (needed only for multi-hit markers in one_ids)
+  lkp <- setNames(chromcomparisontable$New_reference_chromosome,
+                  chromcomparisontable$Original_reference_chromsome)
+  mapped_chr_new <- unname(lkp[chosen_chr_oldref])
+
+  prior_gmap <- data.frame(
+    qaccver = one_ids,
+    geneticmap_chr = mapped_chr_new,
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  prior_gmap <- prior_gmap[!is.na(prior_gmap$geneticmap_chr), , drop = FALSE]
+
+  # Total BLAST hit counts per marker
+  tgt_counts <- blast.out |>
+    dplyr::count(qaccver, name = "total_hits")
+
+  # 1) Single-hit markers: keep regardless of gmap (covers zero_ids, one_ids, or no gmap row)
+  winners_single <- blast.out |>
+    dplyr::left_join(tgt_counts, by = "qaccver") |>
+    dplyr::filter(total_hits == 1L) |>
+    dplyr::group_by(qaccver) |>
+    dplyr::slice(1) |>
+    dplyr::ungroup()
+
+  # 2) Multi-hit markers with exactly one gmap chromosome:
+  #    keep ONLY if exactly one BLAST hit lies on the mapped chromosome
+  multi_with_prior <- blast.out |>
+    dplyr::left_join(tgt_counts, by = "qaccver") |>
+    dplyr::filter(total_hits > 1L) |>
+    dplyr::inner_join(prior_gmap, by = "qaccver") |>
+    dplyr::filter(saccver == geneticmap_chr)
+
+  winners_multi <- multi_with_prior |>
+    dplyr::group_by(qaccver) |>
+    dplyr::filter(dplyr::n() == 1L) |>
+    dplyr::ungroup()
+
+  # Note: multi-hit markers in zero_ids (Chromosomes_mapped==0) have no prior_gmap,
+  #       so they are NOT in winners_multi and are therefore dropped.
+
+  # 3) Combine winners ? one row per kept marker
+  top_hits_gmap_strict <- dplyr::bind_rows(winners_single, winners_multi) |>
+    dplyr::distinct(qaccver, .keep_all = TRUE)
+
+  # 4) Update keep/remove name collections
+  keep_names_gmap   <- intersect(top_hits_gmap_strict$Alternate_SNP_ID, blast.out$Alternate_SNP_ID)
+  remove_names_gmap <- setdiff(blast.out$Alternate_SNP_ID, keep_names_gmap)
+
+  keep_namescombined   <- append(keep_namescombined,   keep_names_gmap)
+  remove_namescombined <- append(remove_namescombined, remove_names_gmap)
+}
+
     
     if(domapmarkers=="Yes") {
       
@@ -496,9 +596,9 @@ DoStrictfiltering <-
         dplyr::mutate(on_prior_chr = !base::is.na(prior_chr) & (saccver == prior_chr))
       
       # winners WITH prior:
-      #  1. if zero hits on prior chr → no row will be selected (marker dropped)
-      #  2.if one hit on prior chr  → that one wins
-      #  3. if >1 on prior chr       → choose the one with SNPpos closest to prior_bp
+      #  1. if zero hits on prior chr  no row will be selected (marker dropped)
+      #  2.if one hit on prior chr   that one wins
+      #  3. if >1 on prior chr  choose the one with SNPpos closest to prior_bp
       # winners with prior: choose the one on prior chr closest to prior_bp
       winners_with_prior <- tmp |>
         dplyr::filter(!base::is.na(prior_chr), saccver == prior_chr) |>
@@ -549,14 +649,18 @@ DoStrictfiltering <-
       targetLDmarkers <- unique(intersect(blast.out$qaccver,pwldmappings$SNP_A))
       
       if(nrow(ld_hits) >=1) {
-
-        pwld_link <- pwldmappings |>
-          dplyr::transmute(
-            SNP_A, SNP_B,
-            w = dplyr::coalesce(R2, R)   # prefer R2, else R
-          ) |>
-          dplyr::filter(!base::is.na(SNP_A), !base::is.na(SNP_B), !base::is.na(w))
-        
+  for ( i in c(1:3)) {
+	pwld_link <- pwldmappings |>
+	  dplyr::transmute(
+	    SNP_A,
+	    SNP_B,
+	    w = .data[[score_col]]  # use chosen score column (R2 or R)
+	  ) |>
+	  dplyr::filter(
+	    !base::is.na(SNP_A),
+	    !base::is.na(SNP_B),
+	    !base::is.na(w)
+	  )         
         ## Keep only neighbours (SNP_B) that map to a single BLAST site
         b_counts <- blast.out |>
           dplyr::count(qaccver, name = "n_hits")
@@ -565,11 +669,19 @@ DoStrictfiltering <-
           dplyr::filter(n_hits == 1L) |>
           dplyr::select(qaccver)
         
-        ## SNP_B → (chr, bp) for single-hit neighbours
+
+         
+        ## SNP_B (chr, bp) for single-hit neighbours
         b_hits <- blast.out |>
           dplyr::semi_join(single_b, by = "qaccver") |>
           dplyr::select(qaccver, saccver, SNPpos)
-        
+          ## insert the single b add here for iterative loop. Apply end added markers into single_b and then deduplicate. simple statement check if iter is >1 and if it is add markers identified as newly unique to SNP b allowed for next iter 
+        if (i>1) {
+          b_hits_add_prioritr <- as.data.frame(multi_with_prior[,1:3])
+          b_hits <- rbind(b_hits,b_hits_add_prioritr)
+
+        }
+
         ## Link SNP_A with its usable neighbours (SNP_B single-hit),
         ## keep top 10 by weight per SNP_A (in intermediate I used 5 but here it is 10 incase of threat of translocation issues)
         neigh10 <- pwld_link |>
@@ -606,19 +718,19 @@ DoStrictfiltering <-
           dplyr::left_join(t_counts, by = "qaccver") |>
           dplyr::left_join(prior_chr, by = "qaccver")
         
-        ## Rule 1 & 6–7: markers with a single BLAST hit are kept outright
+        ## Rule 1 & 6: markers with a single BLAST hit are kept outright
         winners_single <- tmp |>
           dplyr::filter(total_hits == 1L) |>
           dplyr::group_by(qaccver) |>
           dplyr::slice(1) |>
           dplyr::ungroup()
         
-        ## For markers with multiple hits AND a prior chr:
-        ##   - if zero hits on that chr → drop
-        ##   - if one hit on that chr → keep it
-        ##   - if >1 on that chr → compute weighted mean distance to neighbours on prior chr
-        ##                         dist = sum_i w_i * |SNPpos_hit - neigh_bp_i| / sum_i w_i
-        ##                         pick the hit with MIN dist; tie → higher bitscore
+        # For markers with multiple hits AND a prior chr:
+        # if zero hits on that chr  drop
+        #  if one hit on that chr  keep it
+        #  if >1 on that chr  compute weighted mean distance to neighbours on prior chr
+        #                         dist = sum_i w_i * |SNPpos_hit - neigh_bp_i| / sum_i w_i
+        #                         pick the hit with MIN dist; tie higher bitscore
         multi_with_prior <- tmp |>
           dplyr::filter(total_hits > 1L, !base::is.na(prior_chr)) |>
           dplyr::filter(saccver == prior_chr) |>
@@ -651,6 +763,7 @@ DoStrictfiltering <-
           dplyr::distinct(qaccver, .keep_all = TRUE)
         
         
+      }
       }
       else{
         
@@ -700,6 +813,83 @@ DoStrictfiltering <-
     attributes(filtered_mappings)$raw_header_lines <- headerinfo$raw_header_lines
     filtered_mappings_clean <- sanitize_rectangular(filtered_mappings)
     
+
+# orientation update file section
+
+do_orient <- isTRUE(doorientation) ||
+      tolower(as.character(doorientation)) == "yes"
+
+    if (do_orient &&
+        !is.null(orientation.file) &&
+        !is.na(orientation.file) &&
+        nzchar(orientation.file)) {
+
+      if (!file.exists(orientation.file)) {
+        warning("Orientation file not found: ", orientation.file,
+                ". Skipping orientation update.")
+      } else if (nrow(blast_unique) > 0) {
+
+        orient_df <- utils::read.delim(
+          orientation.file,
+          header = TRUE,
+          sep = "\t",
+          stringsAsFactors = FALSE,
+          check.names = FALSE
+        )
+
+        if (!all(c("ID", "Orientation") %in% colnames(orient_df))) {
+          warning(
+            "Orientation file is missing required columns 'ID' and 'Orientation'; ",
+            "skipping orientation update."
+          )
+        } else {
+          # Map from marker ID -> sstrand in final unique mappings
+          # (using qaccver as the marker name, consistent with addSNPdetails)
+          sstrand_map <- stats::setNames(
+            tolower(as.character(blast_unique$sstrand)),
+            blast_unique$qaccver
+          )
+
+          # Orientation current values
+          ori_lower <- tolower(as.character(orient_df$Orientation))
+          marker_sstrand <- sstrand_map[orient_df$ID]
+
+          # Update only where:
+          #  - Orientation is "unknown" (case-insensitive)
+          #  - We have a unique mapping strand for that ID
+          #  - Strand is plus/minus
+          to_update <- !is.na(marker_sstrand) &
+            ori_lower == "unknown" &
+            marker_sstrand %in% c("plus", "minus")
+
+          if (any(to_update)) {
+            orient_df$Orientation[to_update] <- marker_sstrand[to_update]
+          }
+
+          # Decide where to write the updated file
+          proj_dir <- if (!is.null(project.dir) && nzchar(project.dir)) {
+            project.dir
+          } else {
+            output.path
+          }
+
+          if (!dir.exists(proj_dir)) {
+            dir.create(proj_dir, recursive = TRUE, showWarnings = FALSE)
+          }
+
+          out_orient <- file.path(proj_dir, "Updated_orientation_file.tsv")
+
+          # Overwrite allowed (default behaviour of write.table)
+          utils::write.table(
+            orient_df,
+            file      = out_orient,
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = FALSE
+          )
+        }
+      }
+    }
     
     
     
