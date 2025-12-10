@@ -736,7 +736,7 @@ if (!is_vcfraws & is_snpchip) {
     "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count per ALT\">",
     "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">",
     "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
-    "##FORMAT=<ID=NU,Number=1,Type=Integer,Description=\"Null allele flag from SNP chip (1=NC; 0=otherwise[N or genotype])\">",
+    "##FORMAT=<ID=NU,Number=1,Type=Integer,Description=\"Null allele flag from SNP chip (1= Null allele; 0=otherwise[N or genotype])\">",
     contig_lines
   )
   header_lines <- header_lines[!duplicated(header_lines)]
@@ -820,7 +820,7 @@ if (!is_vcfraws & is_snpchip) {
     ## ## Genotypes + NU flag (1=NC, 0 otherwise; “N” scores 0 as does true genotype data)
     geno_raw <- as.matrix(df[, sample_idx, drop = FALSE])
     geno_raw_upper <- toupper(trimws(geno_raw))
-    NU <- (geno_raw_upper == "NC")
+    NU <- (geno_raw_upper == "N")
     storage.mode(NU) <- "integer"
     NU[is.na(NU)] <- 0L
 
