@@ -79,7 +79,7 @@ slurm_mem=40G
 # CPUs for the nextflow main script (helps with a couple of set up commands but otherwise more CPUs are allocated per task later so this doesn't need to be big
 slurm_cpus=4
 # Set the account of the data 
-slurmaccount="aggstrategic1"
+slurmaccount="default"
 
 # An initial delay is given to allow the first nextflow instance to create the software environment without having nextflow error from trying to multibuild
 INITIAL_SUBMIT_DELAY=900

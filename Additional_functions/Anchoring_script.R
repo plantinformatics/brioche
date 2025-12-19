@@ -12,7 +12,10 @@
 #     --dobiallelic false \
 #     --Outputfilename my_output.vcf \
 #     --Accession "" \
-#     --genomename ""
+#     --genomename ""\
+#     --reference_species ""\
+#     --reference_url ""\
+#     --droplist ""\
 #
 # Notes:
 #   - --Rawgenotypes : path to the raw genotype table/vcf file. Must have minimum values of Name REF, ALT, and a genotype matrix of data 
@@ -24,7 +27,9 @@
 #   - --Outputfilename : path/filename to write VCF (default: output.vcf)
 #   - --Accession : Accession of the reference genome used for mapping in Brioche e.g., GCF_000331145.2 (don't do GCA)  If provided, metadata from NCBI will be incorporated into vcf header info
 #   - --genomename :genome name (title) of the reference genome used for mapping in Brioche e.g., Cicar.CDCFrontier_v2.0  If provided, metadata from NCBI will be incorporated into vcf header info. If Accession and genomename are provided, Accession is used first then genomename afterwards if no metadata was found using accession
-
+#   - --reference_species "" :User can input a specific reference species to be added to the header metadata of the vcf file. (Useful for when not working with an NCBI reference)
+#   - --reference_url "" :User can input a specific reference url to be added to the header metadata of the vcf file. (Useful for when the genome was downloaded from a repository that isn't NCBI)
+#   - --droplist "" :user can provide drop list of markernames which should be changed to unknown Chromosome and position [allow for duplicates to be dealt with]. 
 
 
 # install packages if they are missing
@@ -107,20 +112,24 @@ map_path      <- get_opt(opts, "Briochemappings", "AVR_Ta_Hv_40K_v1_2_with_cicar
 is_vcfraws    <- to_bool(get_opt(opts, "IsVCFraws", "false"))
 is_snpchip    <- to_bool(get_opt(opts, "IsSNPchip", "true"))
 isDArTfile    <- to_bool(get_opt(opts, "isDArTfile", "false"))
-dobiallelic   <- to_bool(get_opt(opts, "dobiallelic", "false")) 
 Outputfilename<- get_opt(opts, "Outputfilename", "outfile")
+droplist_path <- get_opt(opts, "droplist",   "")
 Accession     <- get_opt(opts, "Accession",  "")
 genomename    <- get_opt(opts, "genomename", "")
+user_species   <- get_opt(opts, "reference_species", "")
+user_genome_url<- get_opt(opts, "reference_url",   "")
 
 message(sprintf("Rawgenotypes   : %s", raw_path))
 message(sprintf("Briochemappings: %s", map_path))
 message(sprintf("IsVCFraws      : %s", is_vcfraws))
 message(sprintf("IsSNPchip      : %s", is_snpchip))
 message(sprintf("isDArTfile     : %s", isDArTfile))
-message(sprintf("dobiallelic   : %s", dobiallelic))
 message(sprintf("Outputfilename : %s", Outputfilename))
 message(sprintf("Accession      : %s", Accession))
 message(sprintf("genomename     : %s", genomename))
+message(sprintf("reference_species: %s", user_species))
+message(sprintf("reference_url    : %s", user_genome_url))
+message(sprintf("droplist      : %s", droplist_path))
 
 # Functions
 
@@ -133,8 +142,8 @@ split_alts <- function(x) {
 }
 join_alts <- function(v) if (!length(v)) "." else paste(v, collapse = ",")
 
-# Build 0/1/2… index remap given old (REF + ALTs) and new (REF + ALTs)
-# Returns an integer vector mapping old indices -> new indices (0-based).
+# Build 0/1/2 index remap given old (REF + ALTs) and new (REF and ALTs)
+# Returns an integer vector mapping old indices new indices (0-based)
 build_symbol_maps <- function(ref_old, alts_old_chr, ref_new, alts_new_chr) {
   alts_old_chr <- if (is.null(alts_old_chr)) character(0) else alts_old_chr
   alts_new_chr <- if (is.null(alts_new_chr)) character(0) else alts_new_chr
@@ -143,10 +152,11 @@ build_symbol_maps <- function(ref_old, alts_old_chr, ref_new, alts_new_chr) {
   idx_map <- integer(length(sym_old))
   for (i in seq_along(sym_old)) {
     m <- match(toupper(sym_old[i]), toupper(sym_new))
-    idx_map[i] <- ifelse(is.na(m), NA_integer_, m - 1L)  # 0-based
+    idx_map[i] <- ifelse(is.na(m), NA_integer_, m - 1L) 
   }
   idx_map
 }
+
 
 upsert_info_key_vec <- function(x, key, val) {
   x <- as.character(x); x[is.na(x)] <- ""
@@ -214,6 +224,28 @@ upsert_info_key <- function(x, key, val) {
   x[!has] <- ifelse(x[!has] == "", paste0(key, "=", val), paste0(x[!has], ";", key, "=", val))
   x
 }
+
+info_get <- function(info_vec, key){
+  x <- as.character(info_vec); x[is.na(x)] <- ""
+  m <- regexec(paste0("(^|;)", key, "=([^;]+)"), x, perl = TRUE)
+  regmatches(x, m) |>
+    lapply(function(hit) if (length(hit) >= 3) hit[3] else NA_character_) |>
+    unlist(use.names = FALSE)
+}
+
+info_strip_keys <- function(info_vec, keys){
+  x <- as.character(info_vec); x[is.na(x)] <- ""
+  for (k in keys) x <- gsub(paste0("(^|;)", k, "=[^;]*"), "\\1", x, perl = TRUE)
+  x <- gsub(";{2,}", ";", x, perl = TRUE)
+  gsub("^;|;$", "", x, perl = TRUE)
+}
+
+norm_prior <- function(x){
+  x <- tolower(trimws(as.character(x)))
+  ifelse(x %in% c("+","plus"), "plus",
+         ifelse(x %in% c("-","minus"), "minus", "none"))
+}
+
 
 # Count allele freqs 
 gt2ac <- function(x) {
@@ -406,6 +438,37 @@ swap_biallelic_gt_vec <- function(vec) {
   paste0(out, rest)
 }
 
+load_drop_ids <- function(path) {
+  if (!nzchar(path)) return(character(0))
+  if (!file.exists(path)) {
+    warning(sprintf("[droplist] File not found: %s (ignored)", path))
+    return(character(0))
+  }
+  # Flexible reader: try readr first, fall back to base if needed
+  read_lines_safely <- function(p) {
+    tryCatch(readLines(p, warn = FALSE), error = function(e) character(0))
+  }
+  raw <- read_lines_safely(path)
+  if (!length(raw)) return(character(0))
+  # Strip BOM, trim, drop comments/empties
+  raw <- sub("^\ufeff", "", raw, perl = TRUE)
+  raw <- trimws(raw)
+  raw <- raw[!grepl("^\\s*#", raw)]         # drop comment lines
+  raw <- raw[nzchar(raw)]                   # drop empty lines
+  # If file has tabs/commas and more than 1 col, keep only first field
+  first_field <- sub("[\t,].*$", "", raw)
+  unique(first_field[nzchar(first_field)])
+}
+
+DROP_IDS <- load_drop_ids(droplist_path)
+
+# Fast membership test function
+`%in_drop%` <- if (requireNamespace("fastmatch", quietly = TRUE)) {
+  function(x, y) !is.na(fastmatch::fmatch(x, y))
+} else {
+  function(x, y) x %in% y
+}
+
 
 
 # For genome info gathering function to search NCBI
@@ -413,39 +476,35 @@ swap_biallelic_gt_vec <- function(vec) {
 fetch_ncbi_meta <- function(accession = "", genomename = "") {
   out <- list(ok = FALSE)
   `%||%` <- function(a, b) if (!is.null(a)) a else b
-  
+
   tryCatch({
     acc_in  <- trimws(accession)
     name_in <- trimws(genomename)
-    
+
     pick_id <- NULL
     used    <- ""
-    
+
     normalize_summaries <- function(sums) {
-      # rentrez returns either a single esummary object or a list of them
       if (is.list(sums) && !is.null(sums$uid)) list(sums)
       else if (is.list(sums)) sums
       else list(sums)
     }
-    
+
     if (nzchar(acc_in)) {
       ids <- character(0)
-      
       q1 <- sprintf('%s[Assembly Accession]', acc_in)
       s1 <- rentrez::entrez_search(db = "assembly", term = q1, retmax = 20)
       ids <- unique(c(ids, s1$ids))
-      
-      if (length(ids) == 0) {
+      if (!length(ids)) {
         q2 <- sprintf('"%s"[Assembly Accession]', acc_in)
         s2 <- rentrez::entrez_search(db = "assembly", term = q2, retmax = 20)
         ids <- unique(c(ids, s2$ids))
       }
-      if (length(ids) == 0) {
+      if (!length(ids)) {
         q3 <- sprintf('"%s"', acc_in)
         s3 <- rentrez::entrez_search(db = "assembly", term = q3, retmax = 20)
         ids <- unique(c(ids, s3$ids))
       }
-      
       if (length(ids) > 0) {
         sums <- normalize_summaries(rentrez::entrez_summary(db = "assembly", id = ids))
         matches <- vapply(
@@ -462,8 +521,7 @@ fetch_ncbi_meta <- function(accession = "", genomename = "") {
         }
       }
     }
-    
-    
+
     if (is.null(pick_id) && nzchar(name_in)) {
       qn <- sprintf('"%s"[Assembly Name]', gsub('"', '\\"', name_in))
       sn <- rentrez::entrez_search(db = "assembly", term = qn, retmax = 20)
@@ -483,16 +541,13 @@ fetch_ncbi_meta <- function(accession = "", genomename = "") {
         }
       }
     }
-    
-    
+
     if (is.null(pick_id)) {
       message("Accession or genome name were nonspecific unable to populate genomic information")
       return(out)
     }
-    
-    
+
     sum <- rentrez::entrez_summary(db = "assembly", id = pick_id)
-    
     if (used == "acc") {
       acc_sum <- sum[["assemblyaccession"]] %||% sum[["accn"]] %||% ""
       if (!nzchar(acc_sum) || toupper(acc_sum) != toupper(acc_in)) {
@@ -506,64 +561,105 @@ fetch_ncbi_meta <- function(accession = "", genomename = "") {
         return(out)
       }
     }
-    
+
     acc_sum <- sum[["assemblyaccession"]] %||% sum[["accn"]] %||% ""
     aname   <- sum[["assemblyname"]]      %||% ""
     org     <- sum[["organism"]]          %||% sum[["speciesname"]] %||% ""
     taxid   <- sum[["taxid"]]             %||% NA
     ftp     <- sum[["ftppath_refseq"]]    %||% sum[["ftppath_genbank"]] %||% ""
-    
+
     if (!nzchar(acc_sum) || !nzchar(ftp)) {
       message("Accession or genome name were nonspecific unable to populate genomic information")
       return(out)
     }
-    
+
     ftp_https <- sub("^ftp://", "https://", ftp)
     base      <- basename(ftp_https)
     rpt_url   <- paste0(ftp_https, "/", base, "_assembly_report.txt")
     asm_url   <- paste0("https://www.ncbi.nlm.nih.gov/datasets/genome/", acc_sum)
-    
-    
-    
+
     parse_assembly_report <- function(rpt_url) {
       lines <- readr::read_lines(rpt_url, progress = FALSE)
       hdr_i <- which(grepl("^#\\s*Sequence-Name\\t", lines))[1]
       if (is.na(hdr_i)) stop("assembly_report header line not found")
       header <- sub("^#\\s*", "", lines[hdr_i])
       data   <- lines[(hdr_i + 1L):length(lines)]
-      data   <- data[!grepl("^#", data)]  # drop any remaining comment/meta lines
+      data   <- data[!grepl("^#", data)]
       txt    <- paste(c(header, data), collapse = "\n")
       readr::read_tsv(I(txt), show_col_types = FALSE, progress = FALSE,
                       col_types = readr::cols(.default = "c"))
     }
-    
-    
-    
+
     ar <- parse_assembly_report(rpt_url)
-    
+
+    # Flexible column lookups
     col_len      <- intersect(c("Sequence-Length","sequence-length","length"), names(ar))
     col_assigned <- intersect(c("Assigned-Molecule","assigned-molecule"), names(ar))
     col_md5      <- intersect(c("MD5","md5"), names(ar))
     col_seqname  <- intersect(c("Sequence-Name","sequence-name"), names(ar))
-    
-    key_col <- if (length(col_assigned)) col_assigned[1] else col_seqname[1]
-    num_key <- suppressWarnings(as.integer(ar[[key_col]]))
-    len_val <- suppressWarnings(as.numeric(ar[[col_len[1]]]))
-    md5_val <- if (length(col_md5)) ar[[col_md5[1]]] else rep(NA_character_, nrow(ar))
-    
-    keep <- !is.na(num_key) & num_key >= 1L & !is.na(len_val)
-    len_by_num <- tapply(len_val[keep], num_key[keep], function(v) v[1])
-    md5_by_num <- tapply(md5_val[keep], num_key[keep], function(v) v[1])
-    
+    col_role     <- intersect(c("Sequence-Role","sequence-role"), names(ar))
+    col_refseq   <- intersect(c("RefSeq-Accn","refseq-accn","RefSeq Accn"), names(ar))
+    col_genbank  <- intersect(c("GenBank-Accn","genbank-accn","GenBank Accn"), names(ar))
+
+    # 1) Prefer Sequence-Name as key; fallback to Assigned-Molecule
+    key_col <- if (length(col_seqname)) col_seqname[1] else if (length(col_assigned)) col_assigned[1] else NULL
+    if (is.null(key_col)) stop("assembly_report lacks Sequence-Name / Assigned-Molecule columns")
+
+    seq_name <- ar[[key_col]]
+    assigned <- if (length(col_assigned)) ar[[col_assigned[1]]] else rep(NA_character_, nrow(ar))
+    len_val  <- suppressWarnings(as.numeric(ar[[col_len[1]]]))
+    md5_val  <- if (length(col_md5)) ar[[col_md5[1]]] else rep(NA_character_, nrow(ar))
+    role_val <- if (length(col_role)) ar[[col_role[1]]] else rep(NA_character_, nrow(ar))
+    ref_acc  <- if (length(col_refseq)) ar[[col_refseq[1]]] else rep(NA_character_, nrow(ar))
+    gb_acc   <- if (length(col_genbank)) ar[[col_genbank[1]]] else rep(NA_character_, nrow(ar))
+
+    # numeric chromosome index (use Sequence-Name first, else Assigned-Molecule)
+    extract_num <- function(x) {
+      s <- tolower(trimws(x))
+      m <- stringr::str_match(s, "^.*(?:chromosome|chrom|chr|contig|scaffold|segment|seg)?[ _-]*0*([0-9]+)([a-z])?(?![a-z0-9]).*")
+      suppressWarnings(as.integer(m[,2]))
+    }
+
+    chrom_num <- extract_num(seq_name)
+    chrom_num <- ifelse(
+      is.na(chrom_num),
+      extract_num(assigned),
+      chrom_num
+    )
+    preferred <- ifelse(nzchar(ref_acc), ref_acc, gb_acc)
+    nuccore   <- ifelse(nzchar(preferred), paste0("https://www.ncbi.nlm.nih.gov/nuccore/", preferred), NA_character_)
+
+    # keep rows that actually have a length and some label
+    keep <- !is.na(len_val) & nzchar(seq_name)
+    chr_table <- data.frame(
+      chrom_num        = chrom_num,
+      seq_name         = seq_name,
+      assigned_molecule= assigned,
+      sequence_role    = role_val,
+      refseq_accn      = ref_acc,
+      genbank_accn     = gb_acc,
+      preferred_accn   = preferred,
+      length           = len_val,
+      md5              = md5_val,
+      nuccore_url      = nuccore,
+      stringsAsFactors = FALSE
+    )[keep, , drop = FALSE]
+
+    # name lengths / md5 by Sequence-Name (lowercased)
+    key_seq <- tolower(chr_table$seq_name)
+    len_by_seqname <- stats::setNames(chr_table$length, key_seq)
+    md5_by_seqname <- stats::setNames(chr_table$md5,    key_seq)
+
     list(
-      ok          = TRUE,
-      accession   = acc_sum,
-      asm_name    = aname,
-      organism    = org,
-      taxid       = as.integer(taxid),
-      asm_url     = asm_url,
-      len_by_num  = len_by_num,
-      md5_by_num  = md5_by_num
+      ok               = TRUE,
+      accession        = acc_sum,
+      asm_name         = aname,
+      organism         = org,
+      taxid            = as.integer(taxid),
+      asm_url          = asm_url,
+      chr_table        = chr_table,
+      len_by_seqname   = len_by_seqname,
+      md5_by_seqname   = md5_by_seqname
     )
   }, error = function(e) {
     message("Accession or genome name were nonspecific unable to populate genomic information")
@@ -571,80 +667,118 @@ fetch_ncbi_meta <- function(accession = "", genomename = "") {
   })
 }
 
-build_extra_meta <- function(ncbi_meta, genomename) {
-  gn <- trimws(ifelse(is.null(genomename), "", genomename))
+`%||%` <- function(a, b) if (!is.null(a) && !is.na(a) && nzchar(a)) a else b
 
-  esc <- function(x) gsub('"', '\\\\"', x)
+build_extra_meta <- function(ncbi_meta, genomename, override_species = NULL, override_url = NULL) {
+  esc <- function(x) gsub('"', '\\\\"', x, fixed = TRUE)
+
+  gn <- trimws(genomename %||% "")
+  # Species preference order:
+  #   1) NCBI organism (when ncbi_meta OK)
+  #   2) override_species (user-provided)
+  #   3) genomename (pipeline input)
+  #   4) "unknown"
+  species_fallback <- function() {
+    s <- override_species %||% gn %||% "unknown"
+    trimws(s)
+  }
 
   if (isTRUE(ncbi_meta$ok)) {
-    # If organism missing but a genomename was provided, use it as a species fallback
-    sp <- ncbi_meta$organism
-    if (!nzchar(ifelse(is.null(sp), "", sp)) && nzchar(gn)) sp <- gn
+    sp <- (ncbi_meta$organism %||% species_fallback())
+    acc <- ncbi_meta$accession %||% (gn %||% "unknown")
+    asm_url <- ncbi_meta$asm_url %||% ""
 
     c(
-      sprintf('##reference=%s', ncbi_meta$accession),
+      sprintf("##reference=%s", acc),
       sprintf(
         '##assembly=<accession=%s,name="%s"%s%s%s>',
-        ncbi_meta$accession,
-        esc(ncbi_meta$asm_name),
-        if (nzchar(ifelse(is.null(sp), "", sp))) paste0(',species="', esc(sp), '"') else "",
-        if (!is.null(ncbi_meta$taxid) && !is.na(ncbi_meta$taxid)) paste0(",taxonomy=", ncbi_meta$taxid) else "",
-        if (!is.null(ncbi_meta$asm_url) && nzchar(ncbi_meta$asm_url)) paste0(',url="', esc(ncbi_meta$asm_url), '"') else ""
-      )
-    )
-  } else if (nzchar(gn)) {
-    # No NCBI metadata — still record the user-provided genome name
-    c(
-      sprintf('##reference=%s', gn),
-      sprintf('##assembly=<name="%s",species="%s">', esc(gn), esc(gn))
+        acc,
+        esc(ncbi_meta$asm_name %||% "unknown"),
+        if (nzchar(sp)) sprintf(',species="%s"', esc(sp)) else "",
+        if (!is.null(ncbi_meta$taxid) && !is.na(ncbi_meta$taxid)) sprintf(",taxonomy=%s", ncbi_meta$taxid) else "",
+        if (nzchar(asm_url)) sprintf(',url="%s"', esc(asm_url)) else ""
+      ),
+      # Convenience: also surface the URL as a simple key=value line
+      if (nzchar(asm_url)) sprintf("##genome_url=%s", asm_url) else NULL
     )
   } else {
-    character(0)
+    # No NCBI metadata — fall back to user-provided species/url (or unknowns)
+    sp <- species_fallback()
+    url_out <- override_url %||% ""  # only write this when NCBI meta is absent
+
+    ref_val <- gn %||% sp %||% "unknown"
+    c(
+      sprintf("##reference=%s", ref_val),
+      sprintf(
+        '##assembly=<name="%s",species="%s"%s>',
+        esc(gn %||% "unknown"),
+        esc(sp %||% "unknown"),
+        if (nzchar(url_out)) sprintf(',url="%s"', esc(url_out)) else ""
+      ),
+      if (nzchar(url_out)) sprintf("##genome_url=%s", url_out) else NULL
+    )
   }
 }
 
-# Add contig info and build contig lines based on the contigs in the Brioche output
-build_contig_lines <- function(ids, meta) {
-  ids <- unique(as.character(ids))
-  mk_attr <- function(id, len = NA, md5 = NA, meta) {
-    parts <- c(paste0("ID=", id))
-    if (!is.na(len)) parts <- c(parts, paste0("length=", as.integer(len)))
-    if (!is.null(meta$organism) && nzchar(meta$organism)) parts <- c(parts, paste0('species="', meta$organism, '"'))
-    if (!is.null(meta$taxid) && !is.na(meta$taxid)) parts <- c(parts, paste0("taxonomy=", meta$taxid))
-    paste0("##contig=<", paste(parts, collapse = ","), ">")
-  }
-  
-  # derive numeric key from id: accept chromosome|chrom|chr|contig|scaffold prefixes, case-insensitive
-  num_from_id <- function(s) {
-    ss <- tolower(trimws(s))
-    # unknowns anywhere before, but ending with these tokens
-    if (grepl("^.*(chrunk|chrun|unk|un|chr0)$", ss, perl = TRUE)) return(NA_integer_)
-    # capture numeric after common prefixes; allow extra leading chars
-    hit <- stringr::str_match(
-      ss,
-      "^.*(?:chromosome|chrom|chr|contig|scaffold|segment|seg)?[ _-]*0*([0-9]+)\\b"
-    )[, 2]
-    if (is.na(hit)) return(NA_integer_)
-    k <- suppressWarnings(as.integer(hit))
-    if (is.na(k) || k == 0L) return(NA_integer_) else k
-  }
-  
-  out <- character(length(ids))
-  for (i in seq_along(ids)) {
-    id <- ids[i]
-    if (isTRUE(meta$ok)) {
-      k <- num_from_id(id)
-      len <- if (!is.na(k) && !is.null(meta$len_by_num[[as.character(k)]]))
-        as.numeric(meta$len_by_num[[as.character(k)]]) else NA_real_
-      md5 <- if (!is.na(k) && !is.null(meta$md5_by_num[[as.character(k)]]))
-        as.character(meta$md5_by_num[[as.character(k)]]) else NA_character_
-      out[i] <- mk_attr(id, len = len, md5 = md5, meta = meta)
+build_contig_lines <- function(ids, meta, override_species = NULL) {
+  ids <- unique(na.omit(as.character(ids)))
+  esc <- function(x) gsub('"', '\\\\"', x, fixed = TRUE)
+
+  # choose species string for contigs
+  contig_species <- function() {
+    if (isTRUE(meta$ok) && !is.null(meta$organism) && nzchar(meta$organism)) {
+      meta$organism
     } else {
-      out[i] <- paste0("##contig=<ID=", id, ">")
+      override_species %||% "unknown"
     }
   }
-  out
+
+  mk_attr <- function(id, len = NA_real_, acc = NA_character_, alias = NA_character_, tax = NA) {
+    parts <- c(sprintf("ID=%s", id))
+    if (!is.na(len)) parts <- c(parts, sprintf("length=%d", as.integer(len)))
+    parts <- c(parts, sprintf('species="%s"', esc(contig_species())))
+    # Taxonomy: integer when known, otherwise literal unknown (kept unquoted)
+    parts <- c(parts, if (!is.null(tax) && !is.na(tax)) sprintf("taxonomy=%s", tax) else "taxonomy=unknown")
+    parts <- c(parts, sprintf("Accession=%s", if (!is.na(acc) && nzchar(acc)) acc else "unknown"))
+    parts <- c(parts, sprintf('Alias="%s"', if (!is.na(alias) && nzchar(alias)) esc(alias) else "unknown"))
+    sprintf("##contig=<%s>", paste(parts, collapse = ","))
+  }
+
+  # If we have no chrom table, produce unknown-but-complete lines
+  if (!isTRUE(meta$ok) || is.null(meta$chr_table) || !NROW(meta$chr_table)) {
+    tax <- if (!is.null(meta$taxid) && !is.na(meta$taxid)) meta$taxid else NA
+    return(vapply(ids, function(id) mk_attr(id, tax = tax), FUN.VALUE = character(1)))
+  }
+
+  ct <- meta$chr_table
+  n  <- nrow(ct)
+
+  # Lowercased keys for matching
+  key_seq  <- tolower(trimws(if ("seq_name" %in% names(ct)) ct$seq_name else rep(NA_character_, n)))
+  key_assn <- tolower(trimws(if ("assigned_molecule" %in% names(ct)) ct$assigned_molecule else rep(NA_character_, n)))
+
+  # Named lookups (safe; missing -> NA)
+  len_seq   <- setNames(suppressWarnings(as.numeric(if ("length" %in% names(ct)) ct$length else rep(NA_real_, n))), key_seq)
+  len_ass   <- setNames(suppressWarnings(as.numeric(if ("length" %in% names(ct)) ct$length else rep(NA_real_, n))), key_assn)
+  acc_seq   <- setNames(if ("preferred_accn" %in% names(ct)) ct$preferred_accn else rep(NA_character_, n), key_seq)
+  acc_ass   <- setNames(if ("preferred_accn" %in% names(ct)) ct$preferred_accn else rep(NA_character_, n), key_assn)
+  alias_seq <- setNames(if ("assigned_molecule" %in% names(ct)) ct$assigned_molecule else rep(NA_character_, n), key_seq)
+  alias_ass <- setNames(if ("assigned_molecule" %in% names(ct)) ct$assigned_molecule else rep(NA_character_, n), key_assn)
+
+  tax <- if (!is.null(meta$taxid) && !is.na(meta$taxid)) meta$taxid else NA
+
+  vapply(ids, function(id) {
+    lid <- tolower(trimws(id))
+
+    # Prefer Sequence-Name ? fall back to Assigned-Molecule
+    len   <- if (lid %in% names(len_seq))   len_seq[lid]   else if (lid %in% names(len_ass))   len_ass[lid]   else NA_real_
+    acc   <- if (lid %in% names(acc_seq)   && nzchar(acc_seq[lid]))   acc_seq[lid]   else if (lid %in% names(acc_ass))   acc_ass[lid]   else NA_character_
+    alias <- if (lid %in% names(alias_seq) && nzchar(alias_seq[lid])) alias_seq[lid] else if (lid %in% names(alias_ass)) alias_ass[lid] else NA_character_
+
+    mk_attr(id, len = len, acc = acc, alias = alias, tax = tax)
+  }, FUN.VALUE = character(1))
 }
+
 
 # If raws genotypes is not a vcf file  
 if (!is_vcfraws & !isDArTfile) {
@@ -655,13 +789,21 @@ if (!is_vcfraws & !isDArTfile) {
 }
 
 
-Finalmappings  <- read.csv(map_path, check.names = FALSE, stringsAsFactors = FALSE)
+Finalmappings  <- read.csv(map_path, check.names = FALSE, stringsAsFactors = FALSE, comment.char = "#")
+
+
+# Newly added metadata in lines 1-10 of Brioche (might expand further)
+# Ln 1= generic, Ln2 brioche commit version, Ln3 brioche repo, Ln4 brioche branch, ln5 pident ln6 coverage, ln7 blast options, ln8 target chromprior? ln9 sharedmarkersmap used?,ln10 ld mapping used?, ln11 genetic map used?, ln 12 rundate
+Metadata <- readLines(map_path,n=12L)
+# remove excess comment chars 
+Metadata <- sub(pattern="## ", replacement="",x=Metadata, fixed =TRUE)
+# Remove extra column at start
+Metadata <- Metadata[-1]
+
+
 
 #VCFchroms <- unique(Finalmappings$saccver)
 VCFchroms <- order_contigs(Finalmappings$saccver)
-
-
-
 
 ncbi_meta <- list(ok = FALSE)
 if (nzchar(Accession) || nzchar(genomename)) {
@@ -671,47 +813,75 @@ if (nzchar(Accession) || nzchar(genomename)) {
                     ncbi_meta$accession, ncbi_meta$asm_name, ncbi_meta$taxid))
     message(sprintf("NCBI URL       : %s", ncbi_meta$asm_url))
   } else {
-    message("NCBI metadata   : none found (proceeding without enrichment)")
+    message("NCBI metadata   : none found (proceeding with user/unknown fallbacks)")
   }
 }
-if (nzchar(genomename)) {
-  org_present <- !is.null(ncbi_meta$organism) && nzchar(ncbi_meta$organism)
-  if (!org_present) ncbi_meta$organism <- genomename
+
+# if NCBI failed and user gave species
+if (!isTRUE(ncbi_meta$ok) && nzchar(user_species)) {
+  ncbi_meta$organism <- user_species
 }
 
+# Header meta lines (uses NCBI URL when present; otherwise uses user_genome_url)
+extra_meta <- build_extra_meta(
+  ncbi_meta,
+  genomename,
+  override_species = if (nzchar(user_species)) user_species else NULL,
+  override_url     = if (nzchar(user_genome_url)) user_genome_url else NULL
+)
+
+#Contig lines (always full-shape; uses overrides only when NCBI meta is missing)
+VCFchroms <- order_contigs(Finalmappings$saccver)
+contig_lines <- build_contig_lines(
+  ids   = VCFchroms,
+  meta  = ncbi_meta,
+  override_species = if (nzchar(user_species)) user_species else NULL
+)
+
+
+
 # SNP-chip pathway (raw genotypes table to vcf)
+
 if (!is_vcfraws & is_snpchip) {
 
-  ## ---- 0) Delimiter + header (column names) ----
+  # Helpers
+  strand_to_word <- function(x) {
+    z <- tolower(trimws(as.character(x)))
+    ifelse(is.na(z) | z == "" | z == ".", "none",
+      ifelse(z %in% c("+","plus","pos","positive","p"), "plus",
+        ifelse(z %in% c("-","minus","neg","negative","m"), "minus", "none")))
+  }
+  is_blank <- function(x) is.na(x) | x == "" | x == "."
+
+  
   delim <- if (grepl("\\.(tsv|txt)$", raw_path, ignore.case = TRUE)) "\t" else ","
   hdr0  <- utils::read.table(
     file = raw_path, header = TRUE, sep = delim, nrows = 0,
     check.names = FALSE, quote = "", comment.char = "", stringsAsFactors = FALSE
   )
   cn_raw   <- names(hdr0)
-  cn_fixed <- make.unique(cn_raw, sep = "...")  # ensure unique for VCF/sample IDs
+  cn_fixed <- make.unique(cn_raw, sep = "...")
 
-  ## Required columns in SNP-chip table
   idx_Name <- match("Name", cn_raw)
   idx_REF  <- match("REF",  cn_raw)
   idx_ALT  <- match("ALT",  cn_raw)
   if (any(is.na(c(idx_Name, idx_REF, idx_ALT))))
-    stop("SNP chip file must have columns: Name, REF, ALT (in that order before samples).")
+    stop("SNP chip file must have columns: Name, REF, ALT.")
 
   sample_idx <- setdiff(seq_along(cn_raw), c(idx_Name, idx_REF, idx_ALT))
-  if (length(sample_idx) == 0L) stop("No sample genotype columns found after ALT.")
-  sample_ids <- cn_fixed[sample_idx]  # VCF sample IDs
+  if (!length(sample_idx)) stop("No sample genotype columns found after ALT.")
+  sample_ids <- cn_fixed[sample_idx]
 
-  ## Mapping frame (single hit per Name and Brioche REF/ALT targets)
+  ## Mapping frame (include sstrand)
   fm_base <- Finalmappings %>%
     dplyr::transmute(
       Name      = qaccver,
       CHROM_map = saccver,
       POS_map   = SNPpos,
       REF_map   = toupper(Ref),
-      ALT_map   = normalize_alt(ALT)
+      ALT_map   = normalize_alt(ALT),
+      STRAND    = sstrand
     )
-
   fm_hits <- Finalmappings %>% dplyr::count(qaccver, name = "MAP_HITS")
   fm <- fm_base %>%
     dplyr::left_join(fm_hits, by = c("Name" = "qaccver")) %>%
@@ -721,24 +891,35 @@ if (!is_vcfraws & is_snpchip) {
   ## ---- 1) Write VCF header ----
   fileDate     <- format(Sys.Date(), "%Y%m%d")
   VCFchroms    <- unique(c(order_contigs(Finalmappings$saccver), "chrUnk"))
-  contig_lines <- unique(build_contig_lines(VCFchroms, ncbi_meta))
-  extra_meta   <- build_extra_meta(ncbi_meta, genomename)
+  contig_lines #<- unique(build_contig_lines(VCFchroms, ncbi_meta))
+  extra_meta   #<- build_extra_meta(ncbi_meta, genomename)
 
-  header_lines <- c(
-    "##fileformat=VCFv4.3",
-    sprintf("##fileDate=%s", fileDate),
-    "##source=Brioche-VCF-build",
-    extra_meta,
-    "##FILTER=<ID=LowQual,Description=\"Low quality or ambiguous mapping\">",
-    '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Mapping status from anchoring_script.R (Unique_mapping|Failed_to_map_uniquely)">',
-    '##INFO=<ID=ORIENTATIONSTATUS,Number=1,Type=String,Description="Whether the marker has been oriented w.r.t. reference alleles (Yes|No)">',
-    "##INFO=<ID=MAF,Number=A,Type=Float,Description=\"Minor Allele frequency per ALT\">",
-    "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count per ALT\">",
-    "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">",
-    "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
-    "##FORMAT=<ID=NU,Number=1,Type=Integer,Description=\"Null allele flag from SNP chip (1= Null allele; 0=otherwise[N or genotype])\">",
-    contig_lines
-  )
+header_lines <- c(
+  "##fileformat=VCFv4.3",
+  sprintf("##fileDate=%s", fileDate),
+  "##source=Brioche-VCF-build",
+  paste0("##",Metadata[1]),
+  paste0("##",Metadata[2]),
+  paste0("##",Metadata[3]),
+  paste0("##Brioche_filtering_",Metadata[4]),
+  paste0("##Brioche_filtering_",Metadata[5]),
+  paste0("##Brioche_filtering_",Metadata[6]),
+  paste0("##Brioche_priors_files:",Metadata[7]),
+  paste0("##Brioche_priors_files:",Metadata[8]),
+  paste0("##Brioche_priors_files:",Metadata[9]),
+  paste0("##Brioche_priors_files:",Metadata[10]),
+  paste0("##Brioche_",Metadata[11]),
+  extra_meta,
+  "##FILTER=<ID=LowQual,Description=\"Low quality or ambiguous mapping\">",
+  '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Unique_mapping|Failed_to_map_uniquely">',
+  '##INFO=<ID=PriorORIENT,Number=1,Type=String,Description="Accumulated strand orientation across runs (plus|minus|none)">',
+  "##INFO=<ID=MAF,Number=A,Type=Float,Description=\"Minor Allele frequency per ALT\">",
+  "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count per ALT\">",
+  "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">",
+  "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+  "##FORMAT=<ID=NU,Number=1,Type=Integer,Description=\"Null allele flag from SNP chip (1= Null allele; 0=otherwise)\">",
+  contig_lines
+)
   header_lines <- header_lines[!duplicated(header_lines)]
   writeLines(header_lines, con = Outputfilename)
 
@@ -746,12 +927,11 @@ if (!is_vcfraws & is_snpchip) {
   data.table::fwrite(as.list(vcf_header), file = Outputfilename, sep = "\t",
                      append = TRUE, col.names = FALSE, quote = FALSE)
 
-  ## ---- 2) Streaming chunked processing (base R) ----
+  ## ---- 2) Stream rows ----
   chunk_size <- 1500L
-  is_blank <- function(x) is.na(x) | x == "" | x == "."
   con_chunk <- if (grepl("\\.gz$", raw_path, ignore.case = TRUE)) gzfile(raw_path, "rt") else file(raw_path, "rt")
   on.exit(try(close(con_chunk), silent = TRUE), add = TRUE)
-  invisible(readLines(con_chunk, n = 1L, warn = FALSE))  # consume header line
+  invisible(readLines(con_chunk, n = 1L, warn = FALSE))  # consume header
 
   repeat {
     raw_lines <- readLines(con_chunk, n = chunk_size, warn = FALSE)
@@ -762,53 +942,40 @@ if (!is_vcfraws & is_snpchip) {
                             check.names = FALSE, col.names = cn_fixed, fill = TRUE)
 
     Name    <- df[[idx_Name]]
+    force_drop <- if (length(DROP_IDS)) Name %in_drop% DROP_IDS else rep(FALSE, length(Name))
     REF_old <- toupper(df[[idx_REF]])
     ALT_old <- normalize_alt(df[[idx_ALT]])
-
-    # Enforce biallelic on INPUT side
-    ALT_old <- sub(",.*$", "", ALT_old)
+    ALT_old <- sub(",.*$", "", ALT_old)  # enforce single ALT
 
     m     <- match(Name, fm_Name)
     hasM  <- !is.na(m)
     hits  <- ifelse(hasM, fm$MAP_HITS[m], 0L)
-    u_map <- hasM & hits == 1L
+    u_map <- hasM & hits == 1L & !force_drop
 
-    ## Coordinates (only when uniquely mapped)
     CHROM <- ifelse(u_map, fm$CHROM_map[m], "chrUnk")
     POS   <- ifelse(u_map, fm$POS_map[m],   0L)
 
-    ## Candidate Brioche targets (only used if uniquely mapped)
     BriocheREF <- ifelse(u_map, toupper(fm$REF_map[m]), NA_character_)
-    BriocheALT <- ifelse(u_map, toupper(sub(",.*$", "", fm$ALT_map[m])), NA_character_)  # single ALT
-    # RC of Brioche alleles
+    BriocheALT <- ifelse(u_map, toupper(sub(",.*$", "", fm$ALT_map[m])), NA_character_)
+
+    # Orientation decision (same as before for SNPchip), but compute PriorORIENT from sstrand
     BriocheREFRC <- ifelse(!is.na(BriocheREF), revcomp_iupac(BriocheREF), NA_character_)
-    BriocheALTRC <- ifelse(!is.na(BriocheALT), revcomp_iupac(BriocheALT), NA_character_)
+    genotypeREF  <- REF_old
+    genotypeALT  <- ALT_old
 
-    # Biallelic viability: need exactly one ALT on both sides
-    old_alt_len <- ifelse(is.na(ALT_old) | ALT_old == "" | ALT_old == ".", 0L, 1L)
-    new_alt_len <- ifelse(is.na(BriocheALT) | BriocheALT == "" | BriocheALT == ".", 0L, 1L)
-    bial_ok     <- u_map & (old_alt_len == 1L) & (new_alt_len == 1L)
-
-    # Identity / RC-identity / Swap / RC-swap tests (case-insensitive)
-    genotypeREF <- REF_old
-    genotypeALT <- ALT_old
-
-    ident      <- bial_ok & !is.na(BriocheREF) & (BriocheREF  == genotypeREF)
-    ident_rc   <- bial_ok & !is.na(BriocheREFRC) & (BriocheREFRC == genotypeREF)
-    swap       <- bial_ok & !is.na(BriocheREF) & (BriocheREF  == genotypeALT)
-    swap_rc    <- bial_ok & !is.na(BriocheREFRC) & (BriocheREFRC == genotypeALT)
+    ident    <- u_map & !is.na(BriocheREF)   & (BriocheREF   == genotypeREF)
+    ident_rc <- u_map & !is.na(BriocheREFRC) & (BriocheREFRC == genotypeREF)
+    swap     <- u_map & !is.na(BriocheREF)   & (BriocheREF   == genotypeALT)
+    swap_rc  <- u_map & !is.na(BriocheREFRC) & (BriocheREFRC == genotypeALT)
 
     oriented_now <- ident | ident_rc | swap | swap_rc
 
-    # Output REF/ALT: when oriented, force to Brioche REF/ALT; otherwise keep input
     REF_out <- ifelse(oriented_now, BriocheREF, REF_old)
     ALT_out <- ifelse(oriented_now, BriocheALT, ALT_old)
-
-    # Always keep ALT single (strict biallelic)
     ALT_out <- sub(",.*$", "", ALT_out)
     ALT_out[is.na(ALT_out) | ALT_out == ""] <- "."
 
-    # QUAL / FILTER / INFO (MAP only here; ORIENTATIONSTATUS appended later)
+    # QUAL/FILTER/INFO
     pos_int     <- suppressWarnings(as.integer(POS))
     coord_bad   <- is.na(pos_int) | pos_int <= 0L | is_blank(CHROM)
     unknown_now <- !u_map | coord_bad
@@ -817,12 +984,14 @@ if (!is_vcfraws & is_snpchip) {
     FILTER <- ifelse(unknown_now, "LowQual", "PASS")
     INFO   <- ifelse(unknown_now, "MAPSTATUS=Failed_to_map_uniquely", "MAPSTATUS=Unique_mapping")
 
-    ## ## Genotypes + NU flag (1=NC, 0 otherwise; “N” scores 0 as does true genotype data)
+    # PriorORIENT from current sstrand when uniquely mapped; else 'none'
+    cur_strand  <- ifelse(u_map, strand_to_word(fm$STRAND[m]), "none")
+    INFO        <- paste0(INFO, ";PriorORIENT=", cur_strand)
+
+    ## Genotypes + NU
     geno_raw <- as.matrix(df[, sample_idx, drop = FALSE])
     geno_raw_upper <- toupper(trimws(geno_raw))
-    NU <- (geno_raw_upper == "N")
-    storage.mode(NU) <- "integer"
-    NU[is.na(NU)] <- 0L
+    NU <- (geno_raw_upper == "N"); storage.mode(NU) <- "integer"; NU[is.na(NU)] <- 0L
 
     geno <- as.matrix(df[, sample_idx, drop = FALSE])
     geno[] <- toupper(gsub("\\|", "/", geno, perl = TRUE))
@@ -831,21 +1000,9 @@ if (!is_vcfraws & is_snpchip) {
     dbl <- grepl("^[012]{2}$", geno, perl = TRUE)
     if (any(dbl)) geno[dbl] <- sub("^([012])([012])$", "\\1/\\2", geno[dbl], perl = TRUE)
 
-    # SAME/RC-SAME: no genotype change; SWAP/RC-SWAP: flip 0<->2, keep 1 hetero (0/1 stays 0/1 as we don't actually know phasing so keep it consistent and use / for uncertainty vs |)
+    # SAME/RC-SAME: none; SWAP/RC-SWAP: 0<->2 flip
     rsame <- ifelse(is.na(ident | ident_rc), FALSE, (ident | ident_rc))
-    rswap <- ifelse(is.na(swap | swap_rc),  FALSE, (swap  | swap_rc))
-
-    if (any(rsame)) {
-      g <- geno
-      d0 <- (g == "0") & matrix(rep(rsame, times = ncol(geno)), nrow = nrow(geno))
-      d1 <- (g == "1") & matrix(rep(rsame, times = ncol(geno)), nrow = nrow(geno))
-      d2 <- (g == "2") & matrix(rep(rsame, times = ncol(geno)), nrow = nrow(geno))
-      if (any(d0)) g[d0] <- "0/0"
-      if (any(d1)) g[d1] <- "0/1"
-      if (any(d2)) g[d2] <- "1/1"
-      geno[matrix(rep(rsame, times = ncol(geno)), nrow = nrow(geno))] <-
-        g[matrix(rep(rsame, times = ncol(geno)), nrow = nrow(geno))]
-    }
+    rswap <- ifelse(is.na(swap  | swap_rc ), FALSE, (swap  | swap_rc ))
     if (any(rswap)) {
       g <- geno
       d0 <- (g == "0") & matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno))
@@ -854,55 +1011,37 @@ if (!is_vcfraws & is_snpchip) {
       if (any(d0)) g[d0] <- "1/1"
       if (any(d1)) g[d1] <- "0/1"
       if (any(d2)) g[d2] <- "0/0"
-      geno[matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno))] <-
-        g[matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno))]
+      geno[matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno))] <- g[matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno))]
     }
-
-    # Normalize any lingering single digits
     i0 <- geno == "0"; if (any(i0)) geno[i0] <- "0/0"
     i1 <- geno == "1"; if (any(i1)) geno[i1] <- "0/1"
     i2 <- geno == "2"; if (any(i2)) geno[i2] <- "1/1"
 
-    ## Append ORIENTATIONSTATUS
-    INFO <- ifelse(oriented_now,
-                   paste0(INFO, ";ORIENTATIONSTATUS=Yes"),
-                   paste0(INFO, ";ORIENTATIONSTATUS=No"))
-
-    ## AC/AN/MAF (strictly biallelic)
-    nr <- nrow(geno)
-    ac1 <- integer(nr); an <- integer(nr)
+    ## AC/AN/MAF (biallelic)
+    nr <- nrow(geno); ac1 <- integer(nr); an <- integer(nr)
     for (jj in seq_len(ncol(geno))) {
       x <- geno[, jj]
-      m <- (x == "./.")
-      a1 <- substr(x, 1L, 1L); a1[m] <- NA_character_
-      a2 <- substr(x, 3L, 3L); a2[m] <- NA_character_
+      msk <- x == "./."
+      a1 <- substr(x, 1L, 1L); a1[msk] <- NA_character_
+      a2 <- substr(x, 3L, 3L); a2[msk] <- NA_character_
       ac1 <- ac1 + as.integer((!is.na(a1)) & (a1 == "1")) + as.integer((!is.na(a2)) & (a2 == "1"))
-      an  <- an  + as.integer(!m) * 2L
+      an  <- an  + as.integer(!msk) * 2L
     }
-    # ensure ALT_out is single; AC is for allele "1"
     AC_str  <- as.character(ac1)
     AF1     <- ifelse(an > 0L, ac1 / an, NA_real_)
     MAF_str <- sprintf("%.6g", AF1)
-    INFO <- ifelse(
-      is.na(INFO) | INFO == ".",
-      paste0("MAF=", MAF_str, ";AC=", AC_str, ";AN=", an),
-      paste0(INFO, ";MAF=", MAF_str, ";AC=", AC_str, ";AN=", an)
-    )
+    INFO <- paste0(INFO, ";MAF=", MAF_str, ";AC=", AC_str, ";AN=", an)
 
-    ## Join GT:NU
-    NU_chr <- matrix(as.character(NU), nrow = nrow(NU), ncol = ncol(NU))
-    NU_chr[is.na(NU_chr)] <- "0"
+    ## Write
+    NU_chr <- matrix(as.character(NU), nrow = nrow(NU), ncol = ncol(NU)); NU_chr[is.na(NU_chr)] <- "0"
     geno_df <- as.data.frame(geno, stringsAsFactors = FALSE, check.names = FALSE)
-    for (jj in seq_len(ncol(geno_df))) {
-      geno_df[[jj]] <- paste0(geno_df[[jj]], ":", NU_chr[, jj])
-    }
+    for (jj in seq_len(ncol(geno_df))) geno_df[[jj]] <- paste0(geno_df[[jj]], ":", NU_chr[, jj])
 
     body <- data.table::data.table(
       `#CHROM` = CHROM, POS = POS, ID = Name,
       REF = REF_out, ALT = ALT_out, QUAL = QUAL, FILTER = FILTER, INFO = INFO, FORMAT = "GT:NU"
     )
     body <- cbind(body, data.table::as.data.table(geno_df))
-
     data.table::fwrite(body, file = Outputfilename, sep = "\t",
                        append = TRUE, col.names = FALSE, quote = FALSE)
 
@@ -913,179 +1052,47 @@ if (!is_vcfraws & is_snpchip) {
 }
 
 
+
  
 # vcf pathway 
-# vcf pathway 
+# VCF pathway (VCF -> re-anchored VCF using Brioche sstrand and PriorORIENT)
 if (is_vcfraws) {
 
-  ## ---- Local helpers (define only if missing) ----
-  if (!exists("nzchar_safe", mode = "function")) {
-    nzchar_safe <- function(x) !is.na(x) & x != "" & x != "."
+  # Helpers
+  strand_to_word <- function(x) {
+    z <- tolower(trimws(as.character(x)))
+    ifelse(is.na(z) | z == "" | z == ".", NA_character_,
+      ifelse(z %in% c("+","plus","pos","positive","p"), "plus",
+        ifelse(z %in% c("-","minus","neg","negative","m"), "minus", NA_character_)))
   }
-
-  if (!exists("normalize_alt", mode = "function")) {
-    # Normalize ALT csv (strip brackets/whitespace, uppercase, unique tokens, keep order)
-    normalize_alt <- function(s) {
-      if (is.null(s)) return(s)
-      s0 <- as.character(s)
-      is_na <- is.na(s0)
-      s0 <- gsub("[\\[\\]\\(\\)\\{\\}]", "", s0, perl = TRUE)
-      s0 <- gsub("\\s+", "", s0, perl = TRUE)
-      parts <- strsplit(s0, "[/|,]+", perl = TRUE)
-      out <- vapply(parts, function(v) {
-        v <- toupper(v[nzchar(v)])
-        if (!length(v)) return(NA_character_)
-        v <- v[!duplicated(v)]
-        paste(v, collapse = ",")
-      }, character(1))
-      out[is_na] <- NA_character_
-      out
-    }
+  pr_norm <- function(x) {
+    z <- tolower(trimws(as.character(x)))
+    ifelse(is.na(z) | z == "" | z == ".", "none",
+      ifelse(z %in% c("plus","+","pos"), "plus",
+        ifelse(z %in% c("minus","-","neg"), "minus", "none")))
   }
-
-  if (!exists("first_alt_uc", mode = "function")) {
-    first_alt_uc <- function(alt_csv) {
-      x <- as.character(alt_csv)
-      vapply(x, function(s) {
-        if (is.na(s) || s == "" || s == ".") return(NA_character_)
-        toupper(strsplit(s, ",", fixed = TRUE)[[1]][1])
-      }, character(1))
-    }
-  }
-
-  if (!exists("swap_biallelic_gt_vec", mode = "function")) {
-    # Swap 0<->1 for diploid biallelic genotypes; preserve phasing and trailing subfields
-    swap_biallelic_gt_vec <- function(vec) {
-      v <- as.character(vec); v[is.na(v)] <- ""
-      gt   <- sub("^([^:]+).*", "\\1", v)
-      rest <- sub("^[^:]*", "", v)
-      is_single <- gt %in% c("0","1")
-      gt[is_single] <- paste0(gt[is_single], "/", gt[is_single])
-      rec1 <- function(g) {
-        if (g == "" || g == "." || g == "./.") return(if (g == "") "" else "./.")
-        sep <- if (grepl("\\|", g)) "|" else "/"
-        a <- strsplit(g, "[/|]", perl = TRUE)[[1]]
-        a[a == "0"] <- "1"
-        a[a == "1"] <- "0"
-        paste(a, collapse = sep)
-      }
-      out_gt <- vapply(gt, rec1, character(1))
-      paste0(out_gt, rest)
-    }
-  }
-
-  if (!exists("info_get", mode = "function")) {
-    info_get <- function(info_vec, key){
-      x <- as.character(info_vec); x[is.na(x)] <- ""
-      m <- regexec(paste0("(^|;)", key, "=([^;]+)"), x, perl = TRUE)
-      regmatches(x, m) |>
-        lapply(function(hit) if (length(hit) >= 3) hit[3] else NA_character_) |>
-        unlist(use.names = FALSE)
-    }
-  }
-
-  if (!exists("info_strip_keys", mode = "function")) {
-    info_strip_keys <- function(info_vec, keys) {
-      x <- as.character(info_vec); x[is.na(x)] <- ""
-      for (k in keys) x <- gsub(paste0("(^|;)", k, "=[^;]*"), "\\1", x, perl = TRUE)
-      x <- gsub(";{2,}", ";", x, perl = TRUE)
-      gsub("^;|;$", "", x, perl = TRUE)
-    }
-  }
-
-  if (!exists("upsert_info_key_vec", mode = "function")) {
-    upsert_info_key_vec <- function(x, key, val) {
-      y <- info_strip_keys(x, key)
-      ifelse(y == "" | is.na(y), paste0(key, "=", val), paste0(y, ";", key, "=", val))
-    }
-  }
-
-  if (!exists("revcomp_iupac", mode = "function")) {
-    revcomp_iupac <- function(x) {
-      map <- c(A="T", C="G", G="C", T="A", M="K", R="Y", W="W", S="S", Y="R", K="M",
-               V="B", H="D", D="H", B="V", N="N")
-      rc1 <- function(s) {
-        if (is.na(s) || s == "") return(NA_character_)
-        s <- toupper(s)
-        ch <- strsplit(s, "", fixed = TRUE)[[1]]
-        rc <- rev(ifelse(ch %in% names(map), map[ch], ch))
-        paste0(rc, collapse = "")
-      }
-      vapply(x, rc1, character(1))
-    }
-  }
-
-  if (!exists("recode_gt_vec", mode = "function")) {
-    # Recode GT with 0-based allele index map; preserves phasing & subfields
-    recode_gt_vec <- function(vec, idx_map) {
-      v <- as.character(vec); v[is.na(v)] <- ""
-      if (!length(idx_map)) return(v)
-      gt   <- sub("^([^:]+).*", "\\1", v)
-      rest <- sub("^[^:]*", "", v)
-      is_single <- gt %in% c("0","1","2","3","4","5","6","7","8","9")
-      gt[is_single] <- paste0(gt[is_single], "/", gt[is_single])
-      out_gt <- vapply(gt, function(g){
-        if (g == "" || g == "." || g == "./.") return(if (g=="") "" else "./.")
-        sep <- if (grepl("\\|", g)) "|" else "/"
-        a <- strsplit(g, "[/|]", perl = TRUE)[[1]]
-        map_allele <- function(x) {
-          if (x == ".") return(".")
-          xi <- suppressWarnings(as.integer(x))
-          if (is.na(xi) || xi + 1L > length(idx_map)) return(".")
-          y <- idx_map[xi + 1L]
-          if (is.na(y)) "." else as.character(y)
-        }
-        a2 <- vapply(a, map_allele, character(1))
-        if (any(a2 == ".")) return("./.")
-        paste(a2, collapse = sep)
-      }, character(1))
-      paste0(out_gt, rest)
-    }
-  }
-
-  if (!exists("build_symbol_maps", mode = "function")) {
-    build_symbol_maps <- function(ref_old, alts_old_chr, ref_new, alts_new_chr) {
-      alts_old_chr <- if (length(alts_old_chr)) alts_old_chr else character(0)
-      alts_new_chr <- if (length(alts_new_chr)) alts_new_chr else character(0)
-      sym_old <- c(ref_old, alts_old_chr)
-      sym_new <- c(ref_new, alts_new_chr)
-      idx_map <- integer(length(sym_old))
-      for (i in seq_along(sym_old)) {
-        m <- match(toupper(sym_old[i]), toupper(sym_new))
-        idx_map[i] <- ifelse(is.na(m), NA_integer_, m - 1L)
-      }
-      idx_map
-    }
-  }
+  is_blank <- function(x) is.na(x) | x == "" | x == "."
 
   split_alts_csv <- function(s) {
     if (is.na(s) || s == "" || s == ".") character(0) else strsplit(s, ",", fixed = TRUE)[[1]]
   }
-
-  if (!exists("order_contigs", mode = "function")) {
-    order_contigs <- function(x) unique(as.character(x))
-  }
-  if (!exists("build_contig_lines", mode = "function")) {
-    build_contig_lines <- function(ids, meta) {
-      ids <- unique(as.character(ids))
-      paste0("##contig=<ID=", ids, ">")
-    }
-  }
-  if (!exists("build_extra_meta", mode = "function")) {
-    build_extra_meta <- function(ncbi_meta, genomename) character(0)
+  rc_csv <- function(csv) {
+    v <- split_alts_csv(csv)
+    if (!length(v)) return(csv)
+    paste(revcomp_iupac(v), collapse = ",")
   }
 
-  ## -------- mapping frame (REF/ALT targets) ----------
-  req <- c("qaccver","saccver","SNPpos","Ref","ALT")
+  # Mapping frame with sstrand
+  req <- c("qaccver","saccver","SNPpos","Ref","ALT","sstrand")
   missing <- setdiff(req, names(Finalmappings))
   if (length(missing))
-    stop(sprintf("Finalmappings is missing required columns: %s", paste(missing, collapse=", ")))
+    stop(sprintf("Finalmappings missing: %s", paste(missing, collapse=", ")))
 
-  suppressPackageStartupMessages(library(dplyr))
   fm_one <- Finalmappings %>%
     transmute(qaccver, saccver, SNPpos,
               REF_map = toupper(Ref),
-              ALT_map = normalize_alt(ALT)) %>%
+              ALT_map = normalize_alt(ALT),
+              STRAND  = sstrand) %>%
     group_by(qaccver) %>% slice(1L) %>% ungroup()
   fm_hits <- Finalmappings %>% count(qaccver, name = "MAP_HITS")
 
@@ -1097,10 +1104,11 @@ if (is_vcfraws) {
       POS_map   = SNPpos,
       REF_map   = REF_map,
       ALT_map   = ALT_map,
+      STRAND    = STRAND,
       MAP_HITS  = ifelse(is.na(MAP_HITS), 0L, MAP_HITS)
     )
 
-  ## -------- read input header ----------
+  # Read input header
   read_vcf_header <- function(path) {
     con <- if (grepl("\\.gz$", path, ignore.case = TRUE)) gzfile(path, "rt") else file(path, "rt")
     on.exit(try(close(con), silent = TRUE), add = TRUE)
@@ -1135,366 +1143,296 @@ if (is_vcfraws) {
   stopifnot(!any(is.na(c(ix_CHROM, ix_POS, ix_ID, ix_REF, ix_ALT))))
   sample_cols_idx <- if (is.na(ix_FMT)) integer(0) else (ix_FMT + 1L):length(colnames_vcf)
 
-  ## -------- write new header (preserve sample header line) ----------
-  meta_out   <- meta_lines[!grepl("^##(contig=|reference=|assembly=<)", meta_lines)]
+  fileDate     <- format(Sys.Date(), "%Y%m%d")
+
+  # New header. Remove old brioche metadata, remove all assembly data, remove old file date, replace with newest. deduplicate etc
+  meta_lines  <- meta_lines[!grepl("^##(fileDate=)", meta_lines)] 
+  meta_lines  <- meta_lines[!grepl("^##(Brioche_)", meta_lines)]
+  meta_lines  <- meta_lines[!grepl("^##(assembly=)", meta_lines)] 
+  meta_lines  <- meta_lines[!grepl("^##(reference=)", meta_lines)] 
+  meta_lines  <- meta_lines[!grepl("^##(genome_url=)", meta_lines)] 
+  meta_lines  <- meta_lines[!grepl("^##(contig=)", meta_lines)]
+  meta_lines  <- meta_lines[!grepl("^##(fileformat=)", meta_lines)]
+
+  "##fileformat=VCFv4.3",
+  sprintf("##fileDate=%s", fileDate),
+
+
+    meta_lines <-c(
+      "##fileformat=VCFv4.3",
+      sprintf("##fileDate=%s", fileDate),
+      meta_lines,
+      paste0("##",Metadata[1]),
+      paste0("##",Metadata[2]),
+      paste0("##",Metadata[3]),
+      paste0("##Brioche_filtering_",Metadata[4]),
+      paste0("##Brioche_filtering_",Metadata[5]),
+      paste0("##Brioche_filtering_",Metadata[6]),
+      paste0("##Brioche_priors_files:",Metadata[7]),
+      paste0("##Brioche_priors_files:",Metadata[8]),
+      paste0("##Brioche_priors_files:",Metadata[9]),
+      paste0("##Brioche_priors_files:",Metadata[10]),
+      paste0("##Brioche_",Metadata[11]))
+
+
   meta_out   <- meta_out[!duplicated(meta_out)]
-  extra_meta <- build_extra_meta(ncbi_meta, genomename)
+  meta_out <- meta_out[!grepl('^##FORMAT=<ID=ORIENTATIONSTATUS,', meta_out)]
+
+  #extra_meta #<- build_extra_meta(ncbi_meta, genomename)
 
   contigs_vec  <- unique(c(order_contigs(fm$CHROM_map), "chrUnk"))
-  contig_lines <- unique(build_contig_lines(contigs_vec, ncbi_meta))
+  contig_lines #<- unique(build_contig_lines(contigs_vec, ncbi_meta))
 
-  if (!any(grepl('^##INFO=<ID=MAPSTATUS,', meta_out))) {
-    meta_out <- c(meta_out,
-      '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Mapping status from anchoring_script.R (Unique_mapping|Failed_to_map_uniquely)">')
+  add_if_missing <- function(vec, line_glob, line_exact) {
+    if (!any(grepl(line_glob, vec))) c(vec, line_exact) else vec
   }
-  if (!any(grepl('^##INFO=<ID=ORIENTATIONSTATUS,', meta_out))) {
-    meta_out <- c(meta_out,
-      '##INFO=<ID=ORIENTATIONSTATUS,Number=1,Type=String,Description="Sticky orientation flag (Yes|No)">')
-  }
+  meta_out <- add_if_missing(meta_out, '^##INFO=<ID=MAPSTATUS,',       '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Unique_mapping|Failed_to_map_uniquely">')
+  meta_out <- add_if_missing(meta_out, '^##INFO=<ID=PriorORIENT,',     '##INFO=<ID=PriorORIENT,Number=1,Type=String,Description="Accumulated strand orientation across runs (plus|minus|none)">')
+
 
   writeLines(c(meta_out, extra_meta, contig_lines, header_line), con = Outputfilename)
 
-  ## -------- stream body (chunk = 5000) ----------
-  ct_all_as_char <- rep("character", length(colnames_vcf))
-  names(ct_all_as_char) <- colnames_vcf
+  ct_all_as_char <- setNames(rep("character", length(colnames_vcf)), colnames_vcf)
 
-  chunk_size <- 5000L
-  is_gz      <- grepl("\\.gz$", raw_in, ignore.case = TRUE)
-  zcat_cmd   <- if (nzchar(Sys.which("zcat"))) "zcat" else "gzip -dc"
+  mf <- if (requireNamespace("fastmatch", quietly = TRUE)) fastmatch::fmatch else base::match
 
-  get_total_lines <- function(path, is_gz, zcmd){
-    cmd <- if (is_gz) sprintf("%s %s | wc -l", zcmd, shQuote(path))
-           else        sprintf("wc -l < %s", shQuote(path))
-    out <- tryCatch(system(cmd, intern = TRUE), error = function(e) NA_character_)
-    as.integer(gsub("[^0-9]", "", out[1]))
+  # Use a single connection and stream forward
+  con <- if (grepl("\\.gz$", raw_in, ignore.case = TRUE)) gzfile(raw_in, "rt") else file(raw_in, "rt")
+  on.exit(try(close(con), silent = TRUE), add = TRUE)
+
+  # Skip header lines already parsed
+  if (header_n > 0L) invisible(readLines(con, n = header_n, warn = FALSE))
+
+  # tune chunk size (bigger = faster until memory says stop)
+  chunk_size <- getOption("ANCHOR_VCF_CHUNK", 5000L)  # you can export ANCHOR_VCF_CHUNK to tweak on HPC
+
+  # helper: read next N data lines as a data.frame via fread(text=...)
+  read_chunk_df <- function(n) {
+    lines <- readLines(con, n = n, warn = FALSE)
+    if (!length(lines)) return(NULL)
+    txt <- paste(lines, collapse = "\n")
+    data.table::fread(
+      text       = txt,
+      sep        = "\t",
+      header     = FALSE,
+      col.names  = colnames_vcf,
+      colClasses = ct_all_as_char,
+      data.table = FALSE,
+      integer64  = "character",
+      showProgress = FALSE
+    )
   }
-  total_lines <- get_total_lines(raw_in, is_gz, zcat_cmd)
-  if (is.na(total_lines) || total_lines < header_n)
-    stop(sprintf("Unable to count lines or file shorter than header: total=%s header_n=%s",
-                 as.character(total_lines), as.character(header_n)))
-
-  first_data_line <- header_n + 1L
-  data_lines      <- max(0L, total_lines - header_n)
-  consumed        <- 0L
 
   repeat {
-    if (consumed >= data_lines) break
-    n_to_read <- min(chunk_size, data_lines - consumed)
-
-    if (!is_gz) {
-      df <- data.table::fread(
-        file       = raw_in, sep = "\t", header = FALSE,
-        skip       = (first_data_line - 1L) + consumed, nrows = n_to_read,
-        col.names  = colnames_vcf, colClasses = ct_all_as_char,
-        data.table = FALSE, integer64 = "character", showProgress = FALSE
-      )
-    } else {
-      cmd <- sprintf("%s %s | tail -n +%d | head -n %d",
-                     zcat_cmd, shQuote(raw_in), first_data_line + consumed, n_to_read)
-      df <- data.table::fread(
-        cmd        = cmd, sep = "\t", header = FALSE,
-        col.names  = colnames_vcf, colClasses = ct_all_as_char,
-        data.table = FALSE, integer64 = "character", showProgress = FALSE
-      )
-    }
-    if (!nrow(df)) break
+    df <- read_chunk_df(chunk_size)
+    if (is.null(df) || !nrow(df)) break
     df <- as.data.frame(df, stringsAsFactors = FALSE, check.names = FALSE)
 
-    IDv      <- df[[ix_ID]]
-    REF_in   <- toupper(df[[ix_REF]])
-    ALT_in   <- as.character(df[[ix_ALT]])   # keep original case for output
-    ALT_inU  <- toupper(ALT_in)
+    IDv    <- df[[ix_ID]]
+    force_drop <- if (length(DROP_IDS)) IDv %in_drop% DROP_IDS else rep(FALSE, length(IDv))
+    REF_in <- toupper(df[[ix_REF]])
+    ALT_in <- as.character(df[[ix_ALT]])
 
-    # Current-map lookup
-    j          <- match(IDv, fm$ID)
+    # fast (f)match into fm
+    j          <- mf(IDv, fm$ID)
     in_map     <- !is.na(j)
     hits       <- ifelse(in_map, fm$MAP_HITS[j], 0L)
     chr_ok     <- in_map & nzchar_safe(fm$CHROM_map[j])
     pos_ok     <- in_map & !is.na(fm$POS_map[j]) & suppressWarnings(as.numeric(fm$POS_map[j]) > 0)
-    mapped_now <- in_map & (hits == 1L) & chr_ok & pos_ok
+    mapped_now <- in_map & (hits == 1L) & chr_ok & pos_ok & !force_drop
 
-    # Overwrite per-iteration coords + QUAL/FILTER (NOT STICKY)
+    # Update CHROM/POS/QUAL/FILTER for this iteration
     df[[ix_CHROM]] <- ifelse(mapped_now, fm$CHROM_map[j], "chrUnk")
     df[[ix_POS]]   <- ifelse(mapped_now, as.character(fm$POS_map[j]), "0")
     if (!is.na(ix_QUAL)) df[[ix_QUAL]] <- ifelse(mapped_now, "100", "0")
     if (!is.na(ix_FIL )) df[[ix_FIL ]] <- ifelse(mapped_now, "PASS", "LowQual")
 
-    # Sticky ORIENTATIONSTATUS read (assume "No" if missing)
-    orient_in_raw <- if (!is.na(ix_INFO)) df[[ix_INFO]] else rep("", nrow(df))
-    orient_in     <- info_get(orient_in_raw, "ORIENTATIONSTATUS")
-    orient_in     <- ifelse(is.na(orient_in) | orient_in == "" | orient_in == ".", "No", orient_in)
-    orient_in_yes <- toupper(orient_in) == "YES"
+    # Pull prior & current strand
+    info_in    <- if (!is.na(ix_INFO)) df[[ix_INFO]] else rep("", nrow(df))
+    prior_raw  <- info_get(info_in, "PriorORIENT")
+    prior      <- pr_norm(prior_raw)                                  # plus|minus|none
+    s_now      <- strand_to_word(ifelse(mapped_now, fm$STRAND[j], NA_character_))  # plus|minus|NA
 
-    # Prepare Brioche alleles (targets) for all rows
+    # Newly mapped this round? set PriorORIENT = s_now; else keep prior
+    prior_out  <- prior
+    set_pr     <- !is.na(s_now)
+    prior_out[set_pr] <- s_now[set_pr]
+
+    # Brioche alleles
     BriocheREF   <- ifelse(mapped_now, toupper(fm$REF_map[j]), NA_character_)
     BriocheALT   <- ifelse(mapped_now, first_alt_uc(fm$ALT_map[j]), NA_character_)
     BriocheREFRC <- revcomp_iupac(BriocheREF)
-    BriocheALTRC <- revcomp_iupac(BriocheALT)
 
-    # ---------- First-iteration orientation (only when ORIENTATIONSTATUS = No) ----------
-    gen_REF <- REF_in
-    gen_ALT <- first_alt_uc(ALT_inU)
+    # Flip REF/ALT if prior != none and orientation changed
+    need_flip <- mapped_now & prior != "none" & !is.na(s_now) & prior != s_now
+    if (any(need_flip)) {
+      REF_cur <- df[[ix_REF]]
+      ALT_cur <- df[[ix_ALT]]
+      REF_cur[need_flip] <- revcomp_iupac(REF_cur[need_flip])
+      # reverse-complement CSV of ALTs
+      if (any(need_flip)) {
+        ALT_cur[need_flip] <- vapply(ALT_cur[need_flip], rc_csv, character(1))
+      }
+      df[[ix_REF]] <- REF_cur
+      df[[ix_ALT]] <- ALT_cur
+    }
 
-    old_alt_single <- !grepl(",", ALT_inU, fixed = TRUE) & nzchar_safe(ALT_inU)
+    # FIRST mapping: prior == 'none' (treat as biallelic initial orientation)
+    ALT_curU       <- toupper(as.character(df[[ix_ALT]]))
+    old_alt_single <- !grepl(",", ALT_curU, fixed = TRUE) & nzchar_safe(ALT_curU)
     bri_alt_single <- mapped_now & nzchar_safe(BriocheALT) &
                       !grepl(",", ifelse(mapped_now, fm$ALT_map[j], ""), fixed = TRUE)
 
-    eligible <- mapped_now & !orient_in_yes & old_alt_single & bri_alt_single & nzchar_safe(BriocheREF)
+    eligible_first <- mapped_now & (prior == "none") & old_alt_single & bri_alt_single & nzchar_safe(BriocheREF)
 
-    cond1 <- eligible & (BriocheREF   == gen_REF)  # keep REF/ALT, no GT change
-    cond2 <- eligible & (BriocheREFRC == gen_REF)  # set REF/ALT to Brioche, no GT change (flip to Brioche alleles)
-    cond3 <- eligible & (BriocheREF   == gen_ALT)  # set REF/ALT to Brioche, swap GT
-    cond4 <- eligible & (BriocheREFRC == gen_ALT)  # set REF/ALT to Brioche, swap GT
+    gen_REF <- toupper(df[[ix_REF]])
+    gen_ALT <- first_alt_uc(ALT_curU)
+
+    cond1 <- eligible_first & (BriocheREF   == gen_REF)
+    cond2 <- eligible_first & (BriocheREFRC == gen_REF)
+    cond3 <- eligible_first & (BriocheREF   == gen_ALT)
+    cond4 <- eligible_first & (BriocheREFRC == gen_ALT)
 
     swap_rows    <- which(cond3 | cond4)
     oriented_now <- cond1 | cond2 | cond3 | cond4
 
-    # Apply REF/ALT updates for first-iteration orientation
-    REF_out <- df[[ix_REF]]
-    ALT_out <- df[[ix_ALT]]
-    idx_bri <- which(cond2 | cond3 | cond4)
-    if (length(idx_bri)) {
-      REF_out[idx_bri] <- BriocheREF[idx_bri]
-      ALT_out[idx_bri] <- BriocheALT[idx_bri]
+    if (any(cond2 | cond3 | cond4)) {
+      idx_bri <- which(cond2 | cond3 | cond4)
+      tmpREF <- df[[ix_REF]]; tmpALT <- df[[ix_ALT]]
+      tmpREF[idx_bri] <- BriocheREF[idx_bri]
+      tmpALT[idx_bri] <- BriocheALT[idx_bri]
+      df[[ix_REF]] <- tmpREF; df[[ix_ALT]] <- tmpALT
     }
-    df[[ix_REF]] <- REF_out
-    df[[ix_ALT]] <- ALT_out
 
-    # Genotype swap for rows needing it (biallelic diploid only)
+    # Genotype swap where needed (apply column-wise; vectorized per column)
     if (length(swap_rows) && length(sample_cols_idx)) {
-      for (jj in sample_cols_idx) {
-        colv <- df[[jj]]
+      for (jjj in sample_cols_idx) {
+        colv <- df[[jjj]]
         colv[swap_rows] <- swap_biallelic_gt_vec(colv[swap_rows])
-        df[[jj]] <- colv
+        df[[jjj]] <- colv
       }
     }
 
-    # ---------- Subsequent-iteration logic (ORIENTATIONSTATUS = Yes) : allow tri+ ----------
-    tri_rows <- which(mapped_now & orient_in_yes & nzchar(BriocheREF))
+    # SUBSEQUENT mapping (same orientation) — allow tri+ remapping
+    tri_rows <- which(mapped_now & prior != "none" & !is.na(s_now) & (prior == s_now) & nzchar(BriocheREF))
     if (length(tri_rows)) {
-      REF_cur <- df[[ix_REF]]
-      ALT_cur <- df[[ix_ALT]]
+      REF_cur2 <- df[[ix_REF]]
+      ALT_cur2 <- df[[ix_ALT]]
 
-      idx_map_by_row <- list()
+      # prepare once to avoid repeated object growth
+      idx_map_by_row <- vector("list", length(tri_rows))
+      names(idx_map_by_row) <- as.character(tri_rows)
       recode_needed  <- logical(length(tri_rows))
 
       for (k in seq_along(tri_rows)) {
         i <- tri_rows[k]
-
-        roC <- REF_cur[i]
-        roU <- toupper(roC)
-
-        altC_vec <- split_alts_csv(as.character(ALT_cur[i]))
+        roC <- REF_cur2[i]; roU <- toupper(roC)
+        altC_vec <- split_alts_csv(as.character(ALT_cur2[i]))
         altU_vec <- toupper(altC_vec)
-
         rn <- BriocheREF[i]
         if (!nzchar(rn)) next
 
-        if (roU == rn) {
-          # Identity: keep as-is
-          next
-        }
+        if (roU == rn) next
 
         m_in_old <- match(rn, altU_vec)
-
         if (!is.na(m_in_old)) {
-          # swap-to-ref with multi-ALT preserved
-          new_alt_vecC <- c(roC, altC_vec[-m_in_old])   # old REF becomes first ALT
-          REF_cur[i]   <- rn
-          ALT_cur[i]   <- if (length(new_alt_vecC)) paste(new_alt_vecC, collapse = ",") else "."
-          idx_map_by_row[[as.character(i)]] <- build_symbol_maps(roU, altU_vec, rn, toupper(new_alt_vecC))
-          recode_needed[k] <- TRUE
+          new_alt_vecC <- c(roC, altC_vec[-m_in_old])     # swap-to-ref
         } else {
-          # tri+ expansion: add rn as new REF; push old REF and all old ALTs to ALT
-          new_alt_vecC <- c(roC, altC_vec)
-          REF_cur[i]   <- rn
-          ALT_cur[i]   <- if (length(new_alt_vecC)) paste(new_alt_vecC, collapse = ",") else "."
-          idx_map_by_row[[as.character(i)]] <- build_symbol_maps(roU, altU_vec, rn, toupper(new_alt_vecC))
-          recode_needed[k] <- TRUE
+          new_alt_vecC <- c(roC, altC_vec)                # expand
         }
+        REF_cur2[i]  <- rn
+        ALT_cur2[i]  <- if (length(new_alt_vecC)) paste(new_alt_vecC, collapse = ",") else "."
+        idx_map_by_row[[as.character(i)]] <- build_symbol_maps(roU, altU_vec, rn, toupper(new_alt_vecC))
+        recode_needed[k] <- TRUE
       }
 
-      # Install updated REF/ALT
-      df[[ix_REF]] <- REF_cur
-      df[[ix_ALT]] <- ALT_cur
+      df[[ix_REF]] <- REF_cur2
+      df[[ix_ALT]] <- ALT_cur2
 
-      # Recode genotypes for rows that changed allele indexing
       if (length(sample_cols_idx) && any(recode_needed)) {
         rows_to_recode <- tri_rows[recode_needed]
-        for (jj in sample_cols_idx) {
-          colv <- df[[jj]]
+        for (jjj in sample_cols_idx) {
+          colv <- df[[jjj]]
           for (rr in rows_to_recode) {
             idx_map <- idx_map_by_row[[as.character(rr)]]
             if (!is.null(idx_map)) colv[rr] <- recode_gt_vec(colv[rr], idx_map)
           }
-          df[[jj]] <- colv
+          df[[jjj]] <- colv
         }
       }
     }
 
-    # ---------- Maintain sticky ORIENTATIONSTATUS + per-iteration MAPSTATUS ----------
+    # INFO fields
     status_val <- ifelse(mapped_now, "Unique_mapping", "Failed_to_map_uniquely")
-    orient_out <- ifelse(orient_in_yes | oriented_now, "Yes", "No")
 
     if (!is.na(ix_INFO)) {
-      df[[ix_INFO]] <- info_strip_keys(df[[ix_INFO]], c("MAPSTATUS","ORIENTATIONSTATUS"))
-      df[[ix_INFO]] <- upsert_info_key_vec(df[[ix_INFO]], "MAPSTATUS",         status_val)
-      df[[ix_INFO]] <- upsert_info_key_vec(df[[ix_INFO]], "ORIENTATIONSTATUS", orient_out)
+      df[[ix_INFO]] <- info_strip_keys(df[[ix_INFO]], c("MAPSTATUS","PriorORIENT"))
+      df[[ix_INFO]] <- upsert_info_key_vec(df[[ix_INFO]], "MAPSTATUS",   status_val)
+      df[[ix_INFO]] <- upsert_info_key_vec(df[[ix_INFO]], "PriorORIENT", prior_out)
     }
 
     data.table::fwrite(df, file = Outputfilename, sep = "\t",
                        append = TRUE, col.names = FALSE, quote = FALSE)
 
-    consumed <- consumed + nrow(df)
     rm(df); gc(FALSE)
   }
-
   message(sprintf("Wrote: %s", Outputfilename))
 }
 
 
-
 # dart file 
+# DArT pathway (raw DArT table -> VCF; record PriorORIENT from sstrand)
 if (isDArTfile) {
 
-  # ---- Helpers required by the DArT pathway ----
-
-  detect_dart_layout_base <- function(path) {
-    # Find the header line containing AlleleID & SNP; detect delimiter; find where genotypes start
-    con <- if (grepl("\\.gz$", path, ignore.case = TRUE)) gzfile(path, "rt") else file(path, "rt")
-    on.exit(try(close(con), silent = TRUE), add = TRUE)
-
-    topskip <- 0L
-    header  <- NULL
-
-    # scan for header
-    for (i in seq_len(10000L)) {
-      ln <- readLines(con, n = 1L, warn = FALSE)
-      if (!length(ln)) break
-      ln <- sub("^\ufeff", "", ln, perl = TRUE)  # strip BOM if present
-      if (!nzchar(ln)) { topskip <- topskip + 1L; next }
-      if (!(grepl("\t", ln, fixed = TRUE) || grepl(",", ln, fixed = TRUE))) { topskip <- topskip + 1L; next }
-
-      delim <- if (grepl("\t", ln, fixed = TRUE)) "\t" else ","
-      toks  <- strsplit(ln, delim, fixed = TRUE)[[1]]
-      toks2 <- trimws(gsub('^"|"$', '', toks))
-      if (any(tolower(toks2) == "alleleid") && any(tolower(toks2) == "snp")) {
-        header <- ln
-        break
-      }
-      topskip <- topskip + 1L
-    }
-    if (is.null(header)) stop("Could not locate DArT header line containing 'AlleleID' and 'SNP'.")
-
-    delim <- if (grepl("\t", header, fixed = TRUE)) "\t" else ","
-    cn    <- strsplit(header, delim, fixed = TRUE)[[1]]
-    cn    <- trimws(gsub('^"|"$', '', cn))
-
-    # read the first data line after header to detect where genotypes start
-    first_data <- ""
-    while (nzchar(first_data) == FALSE) {
-      first_data <- readLines(con, n = 1L, warn = FALSE)
-      if (!length(first_data)) break
-    }
-
-    # default: if no data, assume everything after header could be genotypes
-    if (!length(first_data)) {
-      lastmetric_idx  <- max(which(toupper(cn) %in% c("SNP","ALLELEID")), na.rm = TRUE)
-      if (!is.finite(lastmetric_idx)) lastmetric_idx <- min(3L, length(cn))
-      return(list(topskip = topskip,
-                  lastmetric_idx = lastmetric_idx,
-                  lastmetric_name = cn[lastmetric_idx],
-                  cn = cn))
-    }
-
-    toks <- strsplit(first_data, delim, fixed = TRUE)[[1]]
-    if (length(toks) < length(cn)) toks <- c(toks, rep("", length(cn) - length(toks)))
-    toks <- toks[seq_len(length(cn))]
-
-    is_gtlike <- function(x) {
-      x <- toupper(trimws(x))
-      if (!nzchar(x)) return(FALSE)
-      grepl("^([012]|[012]/[012]|\\./\\.|N|NC|-|AA|TT|GG|CC|[ACGT](/[ACGT])?)$", x, perl = TRUE)
-    }
-
-    idx_snp <- {
-      i <- match("SNP", cn); if (is.na(i)) match("SNP", toupper(cn)) else i
-    }
-    start_scan <- if (!is.na(idx_snp)) idx_snp + 1L else 3L
-
-    first_gt <- NA_integer_
-    for (j in seq.int(start_scan, length(cn))) {
-      if (is_gtlike(toks[j])) { first_gt <- j; break }
-    }
-
-    if (is.na(first_gt)) {
-      # fallback: last known metric-like column
-      metric_candidates <- c("CallRate","Reproducibility","AvgCountRef","AvgCountSnp",
-                             "OneRatioRef","OneRatioSnp","RepAvg","PIC","AvgPIC",
-                             "Pavg","PICavg","AvgDP","AvgDepth","AvgMAPQ")
-      mi <- which(toupper(cn) %in% toupper(metric_candidates))
-      lastmetric_idx <- if (length(mi)) max(mi) else if (!is.na(idx_snp)) idx_snp else 2L
-    } else {
-      lastmetric_idx <- first_gt - 1L
-    }
-
-    lastmetric_idx  <- max(min(lastmetric_idx, length(cn) - 1L), 2L)
-    lastmetric_name <- cn[lastmetric_idx]
-
-    list(topskip = topskip,
-         lastmetric_idx = lastmetric_idx,
-         lastmetric_name = lastmetric_name,
-         cn = cn)
+  strand_to_word <- function(x) {
+    z <- tolower(trimws(as.character(x)))
+    ifelse(is.na(z) | z == "" | z == ".", "none",
+      ifelse(z %in% c("+","plus","pos","positive","p"), "plus",
+        ifelse(z %in% c("-","minus","neg","negative","m"), "minus", "none")))
   }
+  is_blank <- function(x) is.na(x) | x == "" | x == "."
 
-  parse_snp_ref_alt <- function(s) {
-    # DArT SNP strings like "[A/G]" or "A/G" -> REF=A, ALT=G
-    s <- toupper(trimws(gsub("[\\[\\](){} ]", "", s, perl = TRUE)))
-    REF <- rep("N", length(s))
-    ALT <- rep(".", length(s))
+  # ---- existing DArT helpers (detect_dart_layout_base, parse_snp_ref_alt, etc.) remain as in your script ----
 
-    ok <- grepl("^[ACGTN]+/[ACGTN]+$", s)
-    if (any(ok)) {
-      spl <- strsplit(s[ok], "/", fixed = TRUE)
-      REF[ok] <- vapply(spl, `[[`, character(1), 1L)
-      ALT[ok] <- vapply(spl, `[[`, character(1), 2L)
-    }
-    list(REF = REF, ALT = ALT)
-  }
-
-  nzchar_safe <- function(x) !is.na(x) & x != "" & x != "."
-  is_blank    <- function(x) is.na(x) | x == "" | x == "."
-
-  ## Layout detection
   lay <- detect_dart_layout_base(raw_path)
-  message(sprintf("DArT layout: topskip=%s, lastmetric=%s (idx=%s)",
-                  lay$topskip, lay$lastmetric_name, ifelse(is.na(lay$lastmetric_idx), "NA", lay$lastmetric_idx)))
-
   cn  <- lay$cn
   idx_allele <- match("AlleleID", cn)
   idx_snp    <- match("SNP",      cn)
   if (is.na(idx_allele) || is.na(idx_snp))
-    stop("Could not find required columns 'AlleleID' and/or 'SNP' in DArT file header.")
+    stop("DArT header must include AlleleID and SNP.")
 
   g_start  <- lay$lastmetric_idx + 1L
-  if (g_start <= 0L || g_start > length(cn))
-    stop("Computed genotype block start index is invalid.")
   geno_idx <- g_start:length(cn)
 
-  ## Header
   fileDate     <- format(Sys.Date(), "%Y%m%d")
   VCFchroms    <- unique(c(order_contigs(Finalmappings$saccver), "chrUnk"))
-  contig_lines <- unique(build_contig_lines(VCFchroms, ncbi_meta))
-  extra_meta   <- build_extra_meta(ncbi_meta, genomename)
+  contig_lines <- #unique(build_contig_lines(VCFchroms, ncbi_meta))
+  extra_meta   <- #build_extra_meta(ncbi_meta, genomename)
+
+if (nzchar(droplist_path)) {
+  header_lines <- c(header_lines,
+    sprintf('##Brioche_droplist="%s"', basename(droplist_path)))
+}
 
   header_lines <- c(
     "##fileformat=VCFv4.3",
     sprintf("##fileDate=%s", fileDate),
     "##source=Brioche-VCF-build",
+    paste0("##",Metadata[1]),
+    paste0("##",Metadata[2]),
+    paste0("##",Metadata[3]),
+    paste0("##Brioche_filtering_",Metadata[4]),
+    paste0("##Brioche_filtering_",Metadata[5]),
+    paste0("##Brioche_filtering_",Metadata[6]),
+    paste0("##Brioche_priors_files:",Metadata[7]),
+    paste0("##Brioche_priors_files:",Metadata[8]),
+    paste0("##Brioche_priors_files:",Metadata[9]),
+    paste0("##Brioche_priors_files:",Metadata[10]),
+    paste0("##Brioche_",Metadata[11]),
     extra_meta,
     "##FILTER=<ID=LowQual,Description=\"Low quality or ambiguous mapping\">",
-    '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Mapping status from anchoring_script.R (Unique_mapping|Failed_to_map_uniquely)">',
-    '##INFO=<ID=ORIENTATIONSTATUS,Number=1,Type=String,Description="Whether the marker has been oriented w.r.t. reference alleles (Yes|No)">',
+    '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Unique_mapping|Failed_to_map_uniquely">',
+    '##INFO=<ID=PriorORIENT,Number=1,Type=String,Description="Accumulated strand orientation across runs (plus|minus|none)">',
     "##INFO=<ID=MAF,Number=A,Type=Float,Description=\"Minor Allele frequency\">",
     "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes\">",
     "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">",
@@ -1504,20 +1442,21 @@ if (isDArTfile) {
   header_lines <- header_lines[!duplicated(header_lines)]
   writeLines(header_lines, con = Outputfilename)
 
-  cn_fixed   <- make.unique(lay$cn, sep = "...")
+  cn_fixed   <- make.unique(lay$cn, sep = "…")
   sample_ids <- cn_fixed[geno_idx]
   vcf_header <- c("#CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT", sample_ids)
   data.table::fwrite(as.list(vcf_header), file = Outputfilename, sep = "\t",
                      append = TRUE, col.names = FALSE, quote = FALSE)
 
-  ## Mapping frame (unique-hit counts)
+  # Mapping frame (include sstrand)
   fm <- Finalmappings %>%
     dplyr::transmute(
       Name      = qaccver,
       CHROM_map = saccver,
       POS_map   = SNPpos,
       REF_map   = toupper(Ref),
-      ALT_map   = normalize_alt(ALT)
+      ALT_map   = normalize_alt(ALT),
+      STRAND    = sstrand
     )
   fm_hits <- Finalmappings %>% dplyr::count(qaccver, name = "MAP_HITS")
   fm <- fm %>%
@@ -1525,14 +1464,12 @@ if (isDArTfile) {
     dplyr::mutate(MAP_HITS = ifelse(is.na(MAP_HITS), 0L, MAP_HITS))
   fm_Name <- fm$Name
 
-  ## Chunked reader (base R) — strictly biallelic
+  # Stream
   chunk_size <- 1500L
   delim <- if (grepl("\\.(tsv|txt)$", raw_path, ignore.case = TRUE)) "\t" else ","
   con_dart <- if (grepl("\\.gz$", raw_path, ignore.case = TRUE)) gzfile(raw_path, "rt") else file(raw_path, "rt")
   on.exit(try(close(con_dart), silent = TRUE), add = TRUE)
-
-  # Skip the preamble + header line that utils::read.* saw
-  invisible(readLines(con_dart, n = lay$topskip + 1L, warn = FALSE))
+  invisible(readLines(con_dart, n = lay$topskip + 1L, warn = FALSE))  # skip preamble+header
 
   repeat {
     raw_lines <- readLines(con_dart, n = chunk_size, warn = FALSE)
@@ -1541,126 +1478,99 @@ if (isDArTfile) {
     df_all <- utils::read.table(text = raw_lines, sep = delim, header = FALSE,
                                 quote = "", comment.char = "", stringsAsFactors = FALSE,
                                 check.names = FALSE, col.names = cn_fixed, fill = TRUE)
-
-    # keep only AlleleID, SNP and genotype columns
     df <- df_all[, c(idx_allele, idx_snp, geno_idx), drop = FALSE]
 
     Name <- df[[1L]]
+    force_drop <- if (length(DROP_IDS)) Name %in_drop% DROP_IDS else rep(FALSE, length(Name))
     SNP  <- df[[2L]]
     geno <- as.matrix(df[, -(1:2), drop = FALSE])
 
     pa   <- parse_snp_ref_alt(SNP)
     REF_old <- toupper(pa$REF)
-    ALT_old <- toupper(pa$ALT)         # already single ALT from DArT SNP field
+    ALT_old <- toupper(pa$ALT)  # single ALT
 
     idx   <- match(Name, fm_Name)
     has_m <- !is.na(idx)
-
     hits   <- ifelse(has_m, fm$MAP_HITS[idx], 0L)
-    u_map  <- has_m & hits == 1L
+    u_map  <- has_m & hits == 1L & !force_drop
 
     CHROM <- ifelse(u_map, fm$CHROM_map[idx], "chrUnk")
     POS   <- ifelse(u_map, fm$POS_map[idx],   0L)
 
-    ## Candidate Brioche targets (strictly one ALT)
-    BriocheREF <- ifelse(u_map, toupper(fm$REF_map[idx]), NA_character_)
-    BriocheALT <- ifelse(u_map, toupper(sub(",.*$", "", fm$ALT_map[idx])), NA_character_)
+    BriocheREF   <- ifelse(u_map, toupper(fm$REF_map[idx]), NA_character_)
+    BriocheALT   <- ifelse(u_map, toupper(sub(",.*$", "", fm$ALT_map[idx])), NA_character_)
     BriocheREFRC <- ifelse(!is.na(BriocheREF), revcomp_iupac(BriocheREF), NA_character_)
-    BriocheALTRC <- ifelse(!is.na(BriocheALT), revcomp_iupac(BriocheALT), NA_character_)
-
-    # Biallelic viability: one ALT on both sides
-    old_alt_len <- ifelse(is.na(ALT_old) | ALT_old == "" | ALT_old == ".", 0L, 1L)
-    new_alt_len <- ifelse(is.na(BriocheALT) | BriocheALT == "" | BriocheALT == ".", 0L, 1L)
-    bial_ok     <- u_map & (old_alt_len == 1L) & (new_alt_len == 1L)
 
     genotypeREF <- REF_old
     genotypeALT <- ALT_old
 
-    ident    <- bial_ok & !is.na(BriocheREF)   & (BriocheREF   == genotypeREF)
-    ident_rc <- bial_ok & !is.na(BriocheREFRC) & (BriocheREFRC == genotypeREF)
-    swap     <- bial_ok & !is.na(BriocheREF)   & (BriocheREF   == genotypeALT)
-    swap_rc  <- bial_ok & !is.na(BriocheREFRC) & (BriocheREFRC == genotypeALT)
+    ident    <- u_map & !is.na(BriocheREF)   & (BriocheREF   == genotypeREF)
+    ident_rc <- u_map & !is.na(BriocheREFRC) & (BriocheREFRC == genotypeREF)
+    swap     <- u_map & !is.na(BriocheREF)   & (BriocheREF   == genotypeALT)
+    swap_rc  <- u_map & !is.na(BriocheREFRC) & (BriocheREFRC == genotypeALT)
 
     oriented_now <- ident | ident_rc | swap | swap_rc
 
-    # Output REF/ALT: when oriented, force to Brioche REF/ALT; otherwise keep input
     REF_out <- ifelse(oriented_now, BriocheREF, REF_old)
     ALT_out <- ifelse(oriented_now, BriocheALT, ALT_old)
-    ALT_out <- sub(",.*$", "", ALT_out)           # enforce single ALT
-    ALT_out[is.na(ALT_out) | ALT_out == ""] <- "."
+    ALT_out <- sub(",.*$", "", ALT_out); ALT_out[is.na(ALT_out) | ALT_out == ""] <- "."
 
-    ## FILTER/QUAL/INFO based on mapping
     pos_int     <- suppressWarnings(as.integer(POS))
     coord_bad   <- is.na(pos_int) | pos_int <= 0L | is_blank(CHROM)
     unknown_now <- !u_map | coord_bad
 
     QUAL   <- ifelse(unknown_now, 0L, 100L)
     FILTER <- ifelse(unknown_now, "LowQual", "PASS")
-    INFO   <- ifelse(
+
+    # PriorORIENT from current sstrand when uniquely mapped; else 'none'
+    cur_strand <- ifelse(u_map, strand_to_word(fm$STRAND[idx]), "none")
+    INFO <- ifelse(
       unknown_now,
-      "MAPSTATUS=Failed_to_map_uniquely;ORIENTATIONSTATUS=No",
-      ifelse(oriented_now, "MAPSTATUS=Unique_mapping;ORIENTATIONSTATUS=Yes",
-                        "MAPSTATUS=Unique_mapping;ORIENTATIONSTATUS=No")
+      paste0("MAPSTATUS=Failed_to_map_uniquely;PriorORIENT=", cur_strand),
+      paste0("MAPSTATUS=Unique_mapping;PriorORIENT=", cur_strand)
     )
 
-    ## DArT genotypes recode (0,1,2, "./.", "N","NC","-")
+    # Genotype normalization & swap where needed
     geno[] <- toupper(gsub("\\|", "/", geno, perl = TRUE))
     miss <- is.na(geno) | geno == "" | geno == "." | geno == "-" | geno == "N" | geno == "NC"
     if (any(miss)) geno[miss] <- "./."
     dbl <- grepl("^[012]{2}$", geno, perl = TRUE)
     if (any(dbl)) geno[dbl] <- sub("^([012])([012])$", "\\1/\\2", geno[dbl], perl = TRUE)
 
-    # SAME/RC-SAME: no GT change; SWAP/RC-SWAP: flip 0<->2, keep hetero
     rsame <- ifelse(is.na(ident | ident_rc), FALSE, (ident | ident_rc))
     rswap <- ifelse(is.na(swap  | swap_rc ), FALSE, (swap  | swap_rc ))
-
-    if (any(rsame)) {
-      M_same <- matrix(rep(rsame, times = ncol(geno)), nrow = nrow(geno), ncol = ncol(geno))
-      g <- geno
-      d0 <- (g == "0") & M_same;  if (any(d0)) g[d0] <- "0/0"
-      d1 <- (g == "1") & M_same;  if (any(d1)) g[d1] <- "0/1"
-      d2 <- (g == "2") & M_same;  if (any(d2)) g[d2] <- "1/1"
-      geno[M_same] <- g[M_same]
-    }
     if (any(rswap)) {
       M_swap <- matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno), ncol = ncol(geno))
       g <- geno
-      d0 <- (g == "0") & M_swap;  if (any(d0)) g[d0] <- "1/1"
-      d1 <- (g == "1") & M_swap;  if (any(d1)) g[d1] <- "0/1"
-      d2 <- (g == "2") & M_swap;  if (any(d2)) g[d2] <- "0/0"
+      d0 <- (g == "0") & M_swap; if (any(d0)) g[d0] <- "1/1"
+      d1 <- (g == "1") & M_swap; if (any(d1)) g[d1] <- "0/1"
+      d2 <- (g == "2") & M_swap; if (any(d2)) g[d2] <- "0/0"
       geno[M_swap] <- g[M_swap]
     }
-
-    # Normalize any lingering single digits
     i0 <- geno == "0"; if (any(i0)) geno[i0] <- "0/0"
     i1 <- geno == "1"; if (any(i1)) geno[i1] <- "0/1"
     i2 <- geno == "2"; if (any(i2)) geno[i2] <- "1/1"
 
-    ## AC/AN/MAF (strictly biallelic, count allele '1')
+    # AC/AN/MAF
     nr <- nrow(geno); ac1 <- integer(nr); an <- integer(nr)
     for (j in seq_len(ncol(geno))) {
       x <- geno[, j]
-      m <- (x == "./.")
-      a1 <- substr(x, 1L, 1L); a1[m] <- NA_character_
-      a2 <- substr(x, 3L, 3L); a2[m] <- NA_character_
+      msk <- x == "./."
+      a1 <- substr(x, 1L, 1L); a1[msk] <- NA_character_
+      a2 <- substr(x, 3L, 3L); a2[msk] <- NA_character_
       ac1 <- ac1 + as.integer((!is.na(a1)) & (a1 == "1")) + as.integer((!is.na(a2)) & (a2 == "1"))
-      an  <- an  + as.integer(!m) * 2L
+      an  <- an  + as.integer(!msk) * 2L
     }
     AC_str  <- as.character(ac1)
     AF1     <- ifelse(an > 0L, ac1 / an, NA_real_)
     MAF_str <- sprintf("%.6g", AF1)
-    INFO <- ifelse(
-      is.na(INFO) | INFO == ".",
-      paste0("MAF=", MAF_str, ";AC=", AC_str, ";AN=", an),
-      paste0(INFO, ";MAF=", MAF_str, ";AC=", AC_str, ";AN=", an)
-    )
+    INFO <- paste0(INFO, ";MAF=", MAF_str, ";AC=", AC_str, ";AN=", an)
 
     body <- data.table::data.table(
       `#CHROM` = CHROM, POS = POS, ID = Name,
       REF = REF_out, ALT = ALT_out, QUAL = QUAL, FILTER = FILTER, INFO = INFO, FORMAT = "GT"
     )
     body <- cbind(body, data.table::as.data.table(geno))
-
     data.table::fwrite(body, file = Outputfilename, sep = "\t",
                        append = TRUE, col.names = FALSE, quote = FALSE)
 
@@ -1670,6 +1580,7 @@ if (isDArTfile) {
   message(sprintf("Wrote: %s", Outputfilename))
   quit(save = "no")
 }
+
 
 
 

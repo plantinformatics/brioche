@@ -222,9 +222,6 @@ sanitize_rectangular <- function(x) {
 #' @param mappings.file Low filtered mappings file as tsv
 #' @param dogeneticmap whether to use genetic mapping prior
 #' @param geneticmap.file CSV path to genetic mapping prior (MarkerName, Chromosomes_mapped, etc)
-#' @param doorientation Whether to update marker orientation file ("Yes"/"No", case insensitive).
-#' @param orientation.file TSV file with columns ID, Orientation giving current marker orientation.
-#' @param project.dir Project directory where Updated_orientation_file.tsv will be written.
 #' @keywords genome, filter blast strict
 #' @export
 #'
@@ -244,10 +241,7 @@ DoStrictfiltering <-
            blast.hits,
            mappings.file,
            dogeneticmap,
-           geneticmap.file,
-           doorientation     = "No",
-           orientation.file  = NA,
-           project.dir       = output.path)
+           geneticmap.file)
   {    
     # Remember that the header Lines will be stored as an attribute for reattaching later
     blast.out <- read_mixed_csv_base(blast.hits)
@@ -813,85 +807,7 @@ if (dogeneticmap == "Yes") {
     attributes(filtered_mappings)$raw_header_lines <- headerinfo$raw_header_lines
     filtered_mappings_clean <- sanitize_rectangular(filtered_mappings)
     
-
-# orientation update file section
-
-do_orient <- isTRUE(doorientation) ||
-      tolower(as.character(doorientation)) == "yes"
-
-    if (do_orient &&
-        !is.null(orientation.file) &&
-        !is.na(orientation.file) &&
-        nzchar(orientation.file)) {
-
-      if (!file.exists(orientation.file)) {
-        warning("Orientation file not found: ", orientation.file,
-                ". Skipping orientation update.")
-      } else if (nrow(blast_unique) > 0) {
-
-        orient_df <- utils::read.delim(
-          orientation.file,
-          header = TRUE,
-          sep = "\t",
-          stringsAsFactors = FALSE,
-          check.names = FALSE
-        )
-
-        if (!all(c("ID", "Orientation") %in% colnames(orient_df))) {
-          warning(
-            "Orientation file is missing required columns 'ID' and 'Orientation'; ",
-            "skipping orientation update."
-          )
-        } else {
-          # Map from marker ID -> sstrand in final unique mappings
-          # (using qaccver as the marker name, consistent with addSNPdetails)
-          sstrand_map <- stats::setNames(
-            tolower(as.character(blast_unique$sstrand)),
-            blast_unique$qaccver
-          )
-
-          # Orientation current values
-          ori_lower <- tolower(as.character(orient_df$Orientation))
-          marker_sstrand <- sstrand_map[orient_df$ID]
-
-          # Update only where:
-          #  - Orientation is "unknown" (case-insensitive)
-          #  - We have a unique mapping strand for that ID
-          #  - Strand is plus/minus
-          to_update <- !is.na(marker_sstrand) &
-            ori_lower == "unknown" &
-            marker_sstrand %in% c("plus", "minus")
-
-          if (any(to_update)) {
-            orient_df$Orientation[to_update] <- marker_sstrand[to_update]
-          }
-
-          # Decide where to write the updated file
-          proj_dir <- if (!is.null(project.dir) && nzchar(project.dir)) {
-            project.dir
-          } else {
-            output.path
-          }
-
-          if (!dir.exists(proj_dir)) {
-            dir.create(proj_dir, recursive = TRUE, showWarnings = FALSE)
-          }
-
-          out_orient <- file.path(proj_dir, "Updated_orientation_file.tsv")
-
-          # Overwrite allowed (default behaviour of write.table)
-          utils::write.table(
-            orient_df,
-            file      = out_orient,
-            sep       = "\t",
-            quote     = FALSE,
-            row.names = FALSE
-          )
-        }
-      }
-    }
-    
-    
+  
     
     hits.outpath <- file.path(paste0(probe.name, "_with_", genome.name, "_strict_filtering_hits.csv"))
     

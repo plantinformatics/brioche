@@ -24,8 +24,8 @@ Dosumstats <-
            output.path,
            blast.hits,
            mappings.file,
-           target.file)
-  {
+           target.file,
+           metadata = NULL) {
     if (!dir.exists(paste0(output.path,"/Figs")))
       dir.create(paste0(output.path,"/Figs"), recursive = TRUE)
     
@@ -38,6 +38,29 @@ Dosumstats <-
       target_df <- utils::read.csv(target.file, check.names = FALSE, stringsAsFactors = FALSE)
     }
     
+  `%||%` <- function(a, b) if (!is.null(a)) a else b
+
+  normalize_metadata <- function(md) {
+    if (is.null(md)) md <- list()
+    list(
+      brioche_version   = md$brioche_version   %||% "unknown@unknown",
+      brioche_repo_url   = md$brioche_repo_url   %||% "unknown@unknown",
+      brioche_commit_url   = md$brioche_commit_url   %||% "unknown@unknown",
+      coverage          = md$coverage          %||% NA,
+      pident            = md$pident            %||% NA,
+      otherblastoptions = md$otherblastoptions %||% "",
+      usetargetchrom    = md$usetargetchrom    %||% "No",
+      usesharedmarkersmap = md$usesharedmarkersmap %||% "No",
+      useldedgemap      = md$useldedgemap      %||% "No",
+      usegeneticmap     = md$usegeneticmap     %||% "No",
+      run_date          = as.character(md$run_date %||% Sys.time())
+    )
+  }
+
+  md <- normalize_metadata(metadata)
+
+  md$brioche_version <- trimws(sub("^\\s*local@", "", as.character(md$brioche_version)))
+
     markersall <- unique(stringr::str_trim(target_df[[1]]))
     
     sumstatsfile <- as.data.frame(matrix(nrow = length(markersall), ncol = 10))
@@ -569,13 +592,38 @@ int_file <- file.path(output.path,
       failed_full[,   names(template), drop = FALSE]
     )
     
-    write.csv(
-      all_markers_1to1,
-      file = file.path(
-        output.path,
-        paste0(probe.name, "_with_", genome.name, "Brioche_all_markers1to1stagingforvcf.csv")
-      ),
-      quote = FALSE,
-      row.names = FALSE
-    )
+out_1to1 <- file.path(
+  output.path,
+  paste0(probe.name, "_with_", genome.name, "Brioche_all_markers1to1stagingforvcf.csv")
+)
+
+# Build metadata header lines
+meta_lines <- c(
+  "## Brioche mapping metadata",
+  paste0("## brioche_version (commit version)=",   md$brioche_version),
+  paste0("## brioche_repo=",md$brioche_repo_url),
+  paste0("## brioche_branch=",md$brioche_commit_url),
+  paste0("## pident_threshold=",  md$pident),
+  paste0("## coverage_threshold=",md$coverage),
+  paste0("## additional_blast_options=", md$otherblastoptions),
+  paste0("## used_target_chromosome=",   md$usetargetchrom),
+  paste0("## used_shared_markers_map=",  md$usesharedmarkersmap),
+  paste0("## used_ld_edge_map=",         md$useldedgemap),
+  paste0("## used_genetic_map=",         md$usegeneticmap),
+  paste0("## run_date=", md$run_date)
+)
+
+# Write comments + CSV (comments are ignored by our readers via grep -v '^#' or comment.char='#')
+con <- file(out_1to1, open = "wt")
+on.exit(try(close(con), silent = TRUE), add = TRUE)
+writeLines(meta_lines, con = con)
+utils::write.table(
+  all_markers_1to1,
+  file      = con,
+  sep       = ",",
+  quote     = FALSE,
+  row.names = FALSE,
+  col.names = TRUE
+)
+
   }
