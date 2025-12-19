@@ -336,9 +336,6 @@ process ADD_MARKERINFO {
         val  coveragefilter
         val  pidentfilter
         val  istarget3primeend
-        val  doorientation
-        val  forcebiallelic
-        val  orientationfile
     /*
      * Outputs per BLAST chunk to optimise for ultra large file sizes:
      */
@@ -368,10 +365,7 @@ process ADD_MARKERINFO {
            output.path = '\$(pwd)',
            pident.filter=${pidentfilter},
            coverage.filter=${coveragefilter},
-           is3prime=${istarget3primeend},
-           doorientation='${doorientation}',
-           isbiallelic='${forcebiallelic}',
-           orientation.file='${orientationfile}')"
+           is3prime=${istarget3primeend})"
     mv "${probename}_with_${genomename}_all_mappings.csv" ${allmappings}
     mv "${probename}_with_${genomename}_mapping.tsv"      ${mappings}
     mv "${probename}_with_${genomename}_complete_unfiltered_blast_results.csv" ${rawsallmappings}
@@ -814,9 +808,6 @@ process ADVANCED_FILTERING {
         val  ldmapp
         val  usegeneticmap
         val  geneticmap
-        val  doorientation
-        val  orientationfile
-        val  projectdir
 
     output:
         tuple path("${strictmappedcsv}"),
@@ -829,7 +820,7 @@ process ADVANCED_FILTERING {
     pretzelfile       = "${probename}_with_${genomename}_mappings-pretzel-alignment.xlsx"
     """
     R --version
-    Rscript -e "briocheR::DoStrictfiltering(
+      Rscript -e "briocheR::DoStrictfiltering(
             probe.name='${probename}',
             genome.name='${genomename}',
             output.path='${resultsdir}',
@@ -843,10 +834,7 @@ process ADVANCED_FILTERING {
             blast.hits='${filteredmappretzelcsv}',
             mappings.file='${intermediatefilteredmap}',
             dogeneticmap='${usegeneticmap}',
-            geneticmap.file='${geneticmap}',
-            doorientation='${doorientation}',
-            orientation.file='${orientationfile}',
-            project.dir='${projectdir}')"
+            geneticmap.file='${geneticmap}')"
     #mv "name of intermediate mapping blasts" filteredmappretzelcsv 
     #mv "name of intermediate mapping maps" intermediatefilteredmap
     #Generate pretzel files
@@ -889,36 +877,57 @@ process ADVANCED_FILTERING {
     """
 }
 
-/*
-Step8: Gather summary stats for filtering
-*/
 process COLLECT_SUMSTATS {
-    tag "Collect_results"
-    label 'large'
-    publishDir "${params.resultsdirectory}/",mode:'copy'
-    input:
-        path strictmappedcsv
-        path strictmappedtsv
-        val resultsdir
-        val probename
-        val genomename
-        val targetdesign 
-    output:
-        path("${summaryfiltering}")
-    script:
-    summaryfiltering="${probename}_with_${genomename}_summary_filtering.csv"
-    """
-    R --version
-    Rscript -e "briocheR::Dosumstats(
-            probe.name='${probename}',
-            genome.name='${genomename}',
-            output.path='${resultsdir}',
-            blast.hits='${strictmappedcsv}',
-            mappings.file='${strictmappedtsv}',
-            target.file='${targetdesign}')"
-    """
-}
+  tag "Collect_results"
+  label 'large'
+  publishDir "${params.resultsdirectory}/", mode: 'copy'
 
+  input:
+    path strictmappedcsv
+    path strictmappedtsv
+    val  resultsdir
+    val  probename
+    val  genomename
+    val  targetdesign
+    val  brioche_version
+    val  coverage
+    val  pident
+    val  otherblastoptions
+    val  used_targetchrom
+    val  used_sharedmap
+    val  used_ldedge
+    val  used_geneticmap
+    val  brioche_repo_url
+    val  brioche_branch      
+  output:
+    path("${summaryfiltering}")
+  script:
+  summaryfiltering = "${probename}_with_${genomename}_summary_filtering.csv"
+  """
+  R --version
+  Rscript -e "briocheR::Dosumstats(
+      probe.name='${probename}',
+      genome.name='${genomename}',
+      output.path='${resultsdir}',
+      blast.hits='${strictmappedcsv}',
+      mappings.file='${strictmappedtsv}',
+      target.file='${targetdesign}',
+      metadata=list(
+        brioche_version='${brioche_version}',
+        brioche_repo_url='${brioche_repo_url}',
+        brioche_commit_url='${brioche_branch}',
+        coverage=as.numeric(${coverage}),
+        pident=as.numeric(${pident}),
+        otherblastoptions='${otherblastoptions.replace("'", "\\'")}',
+        usetargetchrom='${used_targetchrom}',
+        usesharedmarkersmap='${used_sharedmap}',
+        useldedgemap='${used_ldedge}',
+        usegeneticmap='${used_geneticmap}',
+        run_date=Sys.time()
+      )
+    )"
+  """
+}
 /*
 Step9: make metadata 
 */

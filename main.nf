@@ -45,9 +45,123 @@ include {
   SPLIT_REFGENOME;
   } from './modules.nf'
 
+
+// Adding git monitoring for version recording (probably should move this to the nextflow.config or run.config file sometime soon
+// Git commit version, git url, added branch name, plus cast paramaters information for future incorporation into final 1to1 mappings file used for anchoring
+// Utilises First, Nextflow parameters and secondary failsafe using .git config file 
+def yn = { v ->
+    if (v == null) return 'NO'
+    def s = v.toString().trim().toLowerCase()
+    (s in ['1','true','t','yes','y']) ? 'YES'
+  : (s in ['0','false','f','no','n']) ? 'NO'
+  : s.toUpperCase()
+}
+
+def shortShaFromGit = { File projDir ->
+    try {
+        def head = new File(projDir, '.git/HEAD')
+        if (!head.exists()) return null
+        def txt = head.text.trim()
+        if (txt.startsWith('ref:')) {
+            def refPath = txt.split(':',2)[1].trim()
+            def refFile = new File(projDir, ".git/${refPath}")
+            return refFile.exists() ? refFile.text.trim().take(7) : null
+        } else {
+            return txt.take(7)
+        }
+    } catch (ignored) { null }
+}
+
+def headBranchFromGit = { File projDir ->
+    try {
+        def head = new File(projDir, '.git/HEAD')
+        if (!head.exists()) return null
+        def txt = head.text.trim()
+        if (!txt.startsWith('ref:')) return null
+        def refPath = txt.split(':',2)[1].trim()
+        return refPath.tokenize('/').last()
+    } catch (ignored) { null }
+}
+
+def readGitConfig = { File projDir ->
+    def url = null
+    def branches = []
+    try {
+        def cfg = new File(projDir, '.git/config')
+        if (!cfg.exists()) return [url: null, branches: []]
+        def curSection = ''
+        cfg.eachLine { line ->
+            def ln = line.trim()
+            if (!ln) return
+            def mSec = (ln =~ /^\[(.+?)\]\s*$/)
+            if (mSec.matches()) {
+                curSection = mSec[0][1]
+                return
+            }
+            if (curSection.toLowerCase().startsWith('remote "origin"')) {
+                def mUrl = (ln =~ /^url\s*=\s*(.+)$/)
+                if (mUrl.matches()) url = mUrl[0][1].trim()
+            }
+            if (curSection.toLowerCase().startsWith('branch "')) {
+                def mBr = (curSection =~ /^branch\s+"(.+)"$/)
+                if (mBr.matches()) branches << mBr[0][1]
+            }
+        }
+    } catch (ignored) { /* noop */ }
+    [url: url, branches: branches]
+}
+
+// SAFE normalizer (no regex backrefs)
+def normalizeRepoUrl = { String s ->
+    if (!s) return ''
+    String t = s.toString()
+    if (t.startsWith('git@') && t.contains(':')) {
+        int colon = t.indexOf(':')
+        String host = t.substring('git@'.length(), colon)
+        String path = t.substring(colon + 1)
+        t = "https://${host}/${path}"
+    } else if (t.startsWith('ssh://git@')) {
+        String rest = t.substring('ssh://git@'.length())
+        int slash = rest.indexOf('/')
+        if (slash > 0) {
+            String host = rest.substring(0, slash)
+            String path = rest.substring(slash + 1)
+            t = "https://${host}/${path}"
+        }
+    }
+    if (t.endsWith('.git')) t = t.substring(0, t.length() - 4)
+    return t
+}
+
+final File   _projDir   = new File( (workflow.projectDir ?: '.').toString() )
+final String _repoRaw   = (workflow.repository ?: '').toString()
+final String _commitSha = (workflow.commitId ?: shortShaFromGit(_projDir) ?: '').toString()
+final String _revision  = (workflow.revision ?: '').toString()
+
+final def    _cfg       = readGitConfig(_projDir)
+final String _cfgUrl    = (_cfg.url ?: '')
+final String _cfgBranch = headBranchFromGit(_projDir) ?: (_cfg.branches ? _cfg.branches[0] : '')
+
+final String brioche_repo_url = normalizeRepoUrl( _repoRaw ?: _cfgUrl )
+final String brioche_branch   = (_revision ?: _cfgBranch ?: '')
+
+final String brioche_version = _commitSha
+    ? (brioche_branch ? "${brioche_branch}@${_commitSha.take(7)}" : "local@${_commitSha.take(7)}")
+    : 'unknown@unknown'
+
+log.info "[Brioche] version: ${brioche_version}"
+log.info "[Brioche] repo:    ${brioche_repo_url ?: '(none)'}"
+log.info "[Brioche] branch:  ${brioche_branch ?: '(none)'}"
+log.info "[Brioche] flags (raw):  targetchrom=${params.usetargetchrom}, sharedmap=${params.usesharedmarkersmap}, ldedgemap=${params.useldedgemap}, geneticmap=${params.usegeneticmap}"
+log.info "[Brioche] flags (cast): targetchrom=${yn(params.usetargetchrom)}, sharedmap=${yn(params.usesharedmarkersmap)}, ldedgemap=${yn(params.useldedgemap)}, geneticmap=${yn(params.usegeneticmap)}"
+
+// end of adding git monitoring 
+
+
 /*
  * main pipeline logic
  */
+
 
 workflow {
     // Part 1: Build blast DB
@@ -104,9 +218,6 @@ workflow {
           params.coverage,
           params.pident,
           params.istarget3primeend,
-          params.doorientation,
-          params.forcebiallelic,
-          params.orientationfile
         )
 
         // Split the 5-tuple output from ADD_MARKERINFO into separate channels (need to do this as more separately filtered individual files are present now before the concatenation
@@ -175,22 +286,28 @@ workflow {
             params.ldedgemap,
             params.usegeneticmap,
             params.geneticmap,
-            params.doorientation,
-            params.orientationfile,
-            projectDir
           )
           ADVANCED_FILTERING.out.map{ it -> it[0] }.set { strictmappedcsv }
-          ADVANCED_FILTERING.out.map{ it -> it[1] }.set { strictmappedctsv }
+          ADVANCED_FILTERING.out.map{ it -> it[1] }.set { strictmappedtsv }
 
           COLLECT_SUMSTATS(
             strictmappedcsv,
-            strictmappedctsv,
+            strictmappedtsv,
             params.resultsdirectory,
             params.probename,
             params.genomename,
-            params.targetdesign
+            params.targetdesign,
+            brioche_version,
+            params.coverage,
+            params.pident,
+            (params.otherblastoptions ?: ''),
+            yn(params.usetargetchrom),
+            yn(params.usesharedmarkersmap),
+            yn(params.useldedgemap),
+            yn(params.usegeneticmap),
+            (brioche_repo_url   ?: ''),   
+            (brioche_branch ?: '')    
           )
-
           COLLECT_SUMSTATS.out.collect().set { SUMSTATS_DONE_CH }
 
           // Build run metadata (for run_meta.json)

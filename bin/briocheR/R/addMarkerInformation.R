@@ -119,20 +119,11 @@ checkTarget <-
 #' @param pident.filter Double value to filter hits with small percentage identity.
 #' @param coverage.filter Double value to filter hits with small coverage.
 #' @param is3prime Logical. Does the SNP exist as 3' as part of SNP chip marker mapping.
-#' @param doorientation Logical or character ("Yes"/"No"). If TRUE or "Yes"
-#'   (case-insensitive), marker orientation harmonisation using `orientation.file`
-#'   will be applied.
-#' @param isbiallelic Logical or character ("Yes"/"No"). If TRUE or "Yes"
-#'   (case-insensitive), REF/ALT are re-oriented to be consistent with the
-#'   Cluster A/B nucleotides (using reverse complement if needed).
-#' @param orientation.file Optional path to a TSV file describing the current state
-#'   of marker orientation. Must contain columns `ID` and `Orientation`.
 #' @keywords genome, alternative allele, reference allele
 #' @export
 #'
 #' @return Returns a dataframe with the updated blast results. The returned object
-#'   has attributes `is3prime`, `doorientation`, `isbiallelic`, and
-#'   `orientation.file` attached for downstream use.
+#'   has attributes `is3prime`
 #'
 addSNPdetails <-
   function(blast.path,
@@ -142,10 +133,7 @@ addSNPdetails <-
            output.path = "Mapping_results",
            pident.filter = 90,
            coverage.filter = 50,
-           is3prime,
-           doorientation = FALSE,
-           isbiallelic = FALSE,
-           orientation.file = NULL)
+           is3prime)
   {
     if (!dir.exists(output.path))
       dir.create(output.path, recursive = TRUE)
@@ -162,11 +150,7 @@ addSNPdetails <-
       blast.out <- readRDS(blast.path)
     }
 
-    #Attach orientation / biallelic settings as attributes for downstream use
     attr(blast.out, "is3prime")         <- is3prime
-    attr(blast.out, "doorientation")    <- doorientation
-    attr(blast.out, "isbiallelic")      <- isbiallelic
-    attr(blast.out, "orientation.file") <- orientation.file
 
     #Add Ref coordinates to data frame
     blast.out$Ref <- ref$V2[match(blast.out$SNP.Refpos, ref$V1)]
@@ -217,122 +201,10 @@ addSNPdetails <-
         )
       }
 
-      ## Orientation harmonisation using orientation.file if set by user 
-      do_orient <- isTRUE(doorientation) ||
-        tolower(as.character(doorientation)) == "yes"
-
-      if (do_orient &&
-          !is.null(orientation.file) &&
-          !is.na(orientation.file) &&
-          nzchar(orientation.file)) {
-
-        if (!file.exists(orientation.file)) {
-          warning("orientation.file does not exist: ", orientation.file)
-        } else {
-          # Expect columns: ID, Orientation
-          orient_df <- utils::read.delim(
-            orientation.file,
-            header = TRUE,
-            stringsAsFactors = FALSE
-          )
-
-          if (!all(c("ID", "Orientation") %in% colnames(orient_df))) {
-            warning(
-              "orientation.file does not have required columns 'ID' and 'Orientation'; ",
-              "skipping orientation harmonisation."
-            )
-          } else {
-            # Named vector: marker ID -> orientation
-            ori_map <- orient_df$Orientation
-            names(ori_map) <- orient_df$ID
-
-            marker_ids <- as.character(blast.out$qaccver)
-            marker_ori <- tolower(as.character(ori_map[marker_ids]))
-            sstrand    <- tolower(as.character(blast.out$sstrand))
-
-            # we only care about plus/minus vs plus/minus; unknown = no change
-            valid_strand <- sstrand %in% c("plus", "minus")
-            known_ori    <- marker_ori %in% c("plus", "minus")
-
-            # Different orientation and orientation is known (not 'unknown')
-            mismatch_known <-
-              !is.na(marker_ori) &
-              !is.na(sstrand) &
-              valid_strand &
-              known_ori &
-              (marker_ori != sstrand)
-
-            if (any(mismatch_known)) {
-              # Complement bases A<->T, C<->G in REF and ALT;
-              # punctuation/brackets etc are preserved.
-              comp_vec <- function(x) {
-                x <- as.character(x)
-                na_idx <- is.na(x) | x == "."
-                x[!na_idx] <- chartr("ACGTacgt", "TGCAtgca", x[!na_idx])
-                x
-              }
-
-              blast.out$Ref[mismatch_known] <-
-                comp_vec(blast.out$Ref[mismatch_known])
-
-              if ("ALT" %in% names(blast.out)) {
-                blast.out$ALT[mismatch_known] <-
-                  comp_vec(blast.out$ALT[mismatch_known])
-              }
-            }
-          }
-        }
-      }
 
 
-      ## biallelic REF/ALT re-orientation to match ClusterA_NT / ClusterB_NT
-
-      do_bial <- isTRUE(isbiallelic) ||
-        tolower(as.character(isbiallelic)) == "yes"
-
-      if (do_bial &&
-          all(c("ClusterA_NT", "ClusterB_NT") %in% colnames(blast.out))) {
-
-        A    <- toupper(as.character(blast.out$ClusterA_NT))
-        B    <- toupper(as.character(blast.out$ClusterB_NT))
-        refb <- toupper(as.character(blast.out$Ref))
-        altb <- toupper(as.character(blast.out$ALT))
-
-        comp_base <- function(x) {
-          x <- as.character(x)
-          na_idx <- is.na(x) | x == "."
-          x[!na_idx] <- chartr("ACGTacgt", "TGCAtgca", x[!na_idx])
-          x
-        }
-
-        # check if current REF/ALT already match {A,B} (either order)
-        same_pair <- (!is.na(refb) & !is.na(altb)) &
-          (
-            (refb == A & altb == B) |
-            (refb == B & altb == A)
-          )
-
-        # candidate complemented REF/ALT
-        refc <- comp_base(refb)
-        altc <- comp_base(altb)
-
-        comp_pair <- (!is.na(refc) & !is.na(altc)) &
-          (
-            (refc == A & altc == B) |
-            (refc == B & altc == A)
-          )
-
-        # flip when original doesn't match A/B but complemented pair does
-        flip <- !same_pair & comp_pair
-
-        if (any(flip)) {
-          blast.out$Ref[flip] <- refc[flip]
-          blast.out$ALT[flip] <- altc[flip]
-        }
-      }
     }
-
-    # Generate a copy of blast pre filtering (after any orientation changes)
+    # Generate a copy of blast pre filtering
     blast.outraws <- blast.out
 
     # Drop rows with missing ALT

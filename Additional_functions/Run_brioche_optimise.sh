@@ -67,9 +67,10 @@ emailaddress="user123@mail.mail"
 
 
 ####### Thresholds to test ###################### 
-identity_thresholds=("90" "95" "99") # pident threholds (pairwise identity to the reference genome cut off) 
-coverage_thresholds=("90" "95" "97") # coverage thresholds (minimum coverage of aligned query to reference sequence cut off)
+identity_thresholds=("90" "95") # pident threholds (pairwise identity to the reference genome cut off) 
+coverage_thresholds=("70" "80") # coverage thresholds (minimum coverage of aligned query to reference sequence cut off)
 maxhits=("10") # Maximum allowed secondary hits allowed for filter secondaries stage (will remove all markers with combatable blasthits>maxhits at remove secondaries/hybrids stage [after filtering by identity and coverage])
+wordsize=("13" "17" "19") # Blastn wordsize (smaller size means more blasthits can be returned that are lower average similarity or have smaller chunks of continuous identical sequence, also has a big impact on speed [smaller wordsize is much slower])
 
 #####################
 
@@ -78,28 +79,34 @@ maxhits=("10") # Maximum allowed secondary hits allowed for filter secondaries s
 
 currdir=$(pwd)
 
-for mhit in "${maxhits[@]}"; do
-  for identity in "${identity_thresholds[@]}"; do
-    for coverage in "${coverage_thresholds[@]}"; do
+for word in "${wordsize[@]}"; do
+  for mhit in "${maxhits[@]}"; do
+    for identity in "${identity_thresholds[@]}"; do
+      for coverage in "${coverage_thresholds[@]}"; do
 
-      mkdir -p "${outdir}/${chipname}_${genome}_ident${identity}_cov${coverage}_mhits${mhit}"
-      cd "${outdir}/${chipname}_${genome}_ident${identity}_cov${coverage}_mhits${mhit}"
-      nextflow run "$nextflowpath" -profile slurm \
-        --emailaddress "$emailaddress" \
-        --genomefasta ${genomedir}/${fasta} \
-        --genomename ${genome} \
-        --probename ${chipname} \
-        --targetdesign ${target} \
-        --paramfile "$params" \
-        --resultsdir "${outdir}/${chipname}_${genome}_ident${identity}_cov${coverage}_mhits${mhit}" \
-        --workdir "${outdir}/${chipname}_${genome}_ident${identity}_cov${coverage}_mhits${mhit}" \
-        --markercharacter "D" \
-        --coverage ${coverage} \
-        --pident ${identity} \
-        --maximumhits ${mhit} \
-        --mode prod \
-        --keepduplicates false
-      cd ${currdir}
+        mkdir -p "${outdir}/${chipname}_${genome}_ident${identity}_cov${coverage}_mhits${mhit}_wordsize${word}"
+        mkdir -p "${outdir}/${chipname}_${genome}_ident${identity}_cov${coverage}_mhits${mhit}_wordsize${word}/brioche-results" 
+        cd "${outdir}/${chipname}_${genome}_ident${identity}_cov${coverage}_mhits${mhit}_wordsize${word}"
+        cp ${params} "${outdir}/${chipname}_${genome}_ident${identity}_cov${coverage}_mhits${mhit}_wordsize${word}/brioche-results"
+        nextflow run "$nextflowpath" -profile slurm \
+          --emailaddress "$emailaddress" \
+          --genomefasta ${genomedir}/${fasta} \
+          --genomename ${genome} \
+          --probename ${chipname} \
+          --targetdesign ${target} \
+          --paramfile "$params" \
+          -c "$params" \
+          --otherblastoptions "-word_size '$word'" \
+          --resultsdir "${outdir}/${chipname}_${genome}_ident${identity}_cov${coverage}_mhits${mhit}_wordsize${word}" \
+          --workdir "${outdir}/${chipname}_${genome}_ident${identity}_cov${coverage}_mhits${mhit}_wordsize${word}" \
+          --markercharacter "D" \
+          --coverage ${coverage} \
+          --pident ${identity} \
+          --maximumhits ${mhit} \
+          --mode prod \
+          --keepduplicates false
+        cd ${currdir}
+      done
     done
   done
 done

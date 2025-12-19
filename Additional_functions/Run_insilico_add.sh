@@ -134,13 +134,6 @@ strip_ext() {
 mkdir -p "${outputmasterfolder}"/{intermediate_brioche,anchoring,final/brioche,final/anchored_results}
 
 
-########### Start Brioche ###########
-
-if [[ "${doorientation}" == "Yes" && "${dobiallelic}" != "Yes" ]]; then
-  echo "[INFO] Starting per-genome Brioche runs orientation learning ..."
-
-  first_done=false
-
   while IFS= read -r row || [[ -n "${row:-}" ]]; do
     # skip blanks and comments
     [[ -z "${row// }" ]] && continue
@@ -151,20 +144,10 @@ if [[ "${doorientation}" == "Yes" && "${dobiallelic}" != "Yes" ]]; then
 
     outdir="${outputmasterfolder}/intermediate_brioche/${genomename}_insilico"
     mkdir -p "$outdir"
+    mkdir "$outdir"/brioche-results
+    cp "$params" "$outdir"/brioche-results
 
-    # Decide which orientation file to use
-    if [[ "${first_done}" == false ]]; then
-      # First genome: use user-supplied orientation file
-      orient_arg="${orientationfile}"
-      first_done=true
-      echo "[INFO] Using initial orientation file for first genome: ${orient_arg}"
-    else
-      # Subsequent genomes: use updated orientation file from project directory
-      orient_arg="${projectpath}/Updated_orientation_file.tsv"
-      echo "[INFO] Using updated orientation file for genome ${genomename}: ${orient_arg}"
-    fi
-
-    echo "[INFO] Brioche (orientation mode): ${genomename}"
+    echo "[INFO] Brioche: ${genomename}"
     nextflow run "$nextflowpath" -profile slurm \
       --emailaddress "$emailaddress" \
       --genomefasta "$row" \
@@ -172,58 +155,18 @@ if [[ "${doorientation}" == "Yes" && "${dobiallelic}" != "Yes" ]]; then
       --probename "$chipname" \
       --targetdesign "$target" \
       --paramfile "$params" \
-      --resultsdir "${outdir}/" \
-      --workdir "${outdir}" \
-      --markercharacter "D" \
-      --coverage 70 \
-      --pident 90 \
-      --doinsilico "Yes" \
-      --doorientation "Yes" \
-      --forcebiallelic "No" \
-      --orientationfile "${orient_arg}" \
-      --maximumhits 10 \
-      --mode prod \
-      --keepduplicates false
-
-  done < "$genomelist"
-fi
-
-
-if [[ "${dobiallelic}" == "Yes" && "${doorientation}" != "Yes" ]]; then
-  echo "[INFO] Starting per-genome Brioche runs biallelic-only mode"
-
-  while IFS= read -r row || [[ -n "${row:-}" ]]; do
-    # skip blanks and comments
-    [[ -z "${row// }" ]] && continue
-    [[ "${row:0:1}" == "#" ]] && continue
-
-    fullgenomename="$(basename "$row")"
-    genomename="$(strip_ext "$fullgenomename")"
-
-    outdir="${outputmasterfolder}/intermediate_brioche/${genomename}_insilico"
-    mkdir -p "$outdir"
-
-    echo "[INFO] Brioche (biallelic mode): ${genomename}"
-    nextflow run "$nextflowpath" -profile slurm \
-      --emailaddress "$emailaddress" \
-      --genomefasta "$row" \
-      --genomename "$genomename" \
-      --probename "$chipname" \
-      --targetdesign "$target" \
-      --paramfile "$params" \
+      -c "$params" \
       --resultsdir "${outdir}/" \
       --workdir "${outdir}" \
       --markercharacter "D" \
       --coverage 70 \
       --pident 90 \
       --maximumhits 10 \
-      --doinsilico "Yes" \
-      --doorientation "No" \
-      --forcebiallelic "Yes" \
       --mode prod \
       --keepduplicates false
+
   done < "$genomelist"
-fi
+
 
 
 ############################
@@ -274,6 +217,33 @@ echo "[INFO] Prepared ${#anchorfiles[@]} mapping files (order preserved)."
 #######################
 prev_vcf="$Genotypesfile"
 
+
+### In case first time running, a new conda environment for the R anchoring scripts is required. env yaml in same directory as this file
+eval "$(conda shell.bash hook)"
+conda_path=$(conda info --base)
+conda_base=$(conda info --base)
+conda config --set channel_priority flexible
+
+ENV_NAME="brioche-vcf"
+
+if conda env list | awk '{print $1}' | grep -Fxq "$ENV_NAME"; then
+  echo "Conda env '$ENV_NAME' exists proceeding with anchoring"
+else
+  echo "Conda env '$ENV_NAME' not found will begin download of the environment before beginning anchoring"
+
+  mkdir -p "$conda_path"/envs/brioche-vcf
+
+  env_path="$conda_path"/envs/brioche-vcf
+
+  conda env create --file brioche-vcf.yaml --prefix $env_path --yes
+
+  echo "Conda environment created at: $env_path"
+  echo "Conda environment brioche-vcf fully installed"
+
+fi
+
+conda activate brioche-vcf
+
 for ((i=0; i<${#anchorfiles[@]}; i++)); do
   targetfile="${anchorfiles[$i]}"
   genomename="${anchor_genomes[$i]}"
@@ -290,7 +260,6 @@ for ((i=0; i<${#anchorfiles[@]}; i++)); do
       --IsVCFraws "$isvcf" \
       --IsSNPchip "$issnp" \
       --isDArTfile "$isdart" \
-      --dobiallelic "$isbiallelic" \
       --Outputfilename "$out_vcf" \
       --genomename "$genomename"
   else
@@ -301,7 +270,6 @@ for ((i=0; i<${#anchorfiles[@]}; i++)); do
       --IsVCFraws true \
       --IsSNPchip false \
       --isDArTfile false \
-      --dobiallelic "$isbiallelic" \
       --Outputfilename "$out_vcf" \
       --genomename "$genomename"
   fi
@@ -321,8 +289,6 @@ echo "[INFO] Iterative anchoring complete. Last VCF: $last_iter_vcf"
 final_outdir="${outputmasterfolder}/final/brioche/${finalgenomename}_insilico"
 mkdir -p "$final_outdir"
 
-if [[ "${doorientation}" == "Yes" && "${dobiallelic}" != "Yes" ]]; then
-
 echo "[INFO] Brioche on final reference: $finalgenomename"
     nextflow run "$nextflowpath" -profile slurm \
       --emailaddress "$emailaddress" \
@@ -331,41 +297,15 @@ echo "[INFO] Brioche on final reference: $finalgenomename"
       --probename "$chipname" \
       --targetdesign "$target" \
       --paramfile "$params" \
-      --resultsdir "${final_outdir}/" \
-      --workdir "${final_outdir}" \
-      --markercharacter "D" \
-      --coverage 70 \
-      --pident 90 \
-      --doinsilico "Yes" \
-      --doorientation "Yes" \
-      --forcebiallelic "No" \
-      --orientationfile "${projectpath}/Updated_orientation_file.tsv" \
-      --maximumhits 10 \
-      --mode prod \
-      --keepduplicates false
-fi
-
-if [[ "${dobiallelic}" == "Yes" && "${doorientation}" != "Yes" ]]; then
-
-    nextflow run "$nextflowpath" -profile slurm \
-      --emailaddress "$emailaddress" \
-      --genomefasta "${finalgenomepath}/${finalgenome}" \
-      --genomename "$finalgenomename" \
-      --probename "$chipname" \
-      --targetdesign "$target" \
-      --paramfile "$params" \
+      -c "$params" \
       --resultsdir "${final_outdir}/" \
       --workdir "${final_outdir}" \
       --markercharacter "D" \
       --coverage 70 \
       --pident 90 \
       --maximumhits 10 \
-      --doinsilico "Yes" \
-      --doorientation "No" \
-      --forcebiallelic "Yes" \
       --mode prod \
       --keepduplicates false
-fi
 
 mapfile -t finalmappings < <(
   find "${final_outdir}/brioche-results" -type f \
@@ -387,7 +327,6 @@ Rscript "$ANCHOR_SCRIPT" \
   --IsVCFraws true \
   --IsSNPchip "$issnp" \
   --isDArTfile "$isdart" \
-  --dobiallelic $isbiallelic \
   --Outputfilename "$final_vcf" \
   --genomename "$finalgenomename" \
   --Accession "$finalgenomeACC"

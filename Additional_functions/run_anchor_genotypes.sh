@@ -29,7 +29,33 @@
 # The maximum running time of the job in days-hours:mins:sec
 #SBATCH --time=4:0:00
 
-module load R/
+
+### In case first time running, a new conda environment for the R anchoring scripts is required. env yaml in same directory as this file
+eval "$(conda shell.bash hook)"
+conda_path=$(conda info --base)
+conda_base=$(conda info --base)
+conda config --set channel_priority flexible
+
+ENV_NAME="brioche-vcf"
+
+if conda env list | awk '{print $1}' | grep -Fxq "$ENV_NAME"; then
+  echo "Conda env '$ENV_NAME' exists proceeding with anchoring"
+else
+  echo "Conda env '$ENV_NAME' not found will begin download of the environment before beginning anchoring"
+
+  mkdir -p "$conda_path"/envs/brioche-vcf
+
+  env_path="$conda_path"/envs/brioche-vcf
+
+  conda env create --file brioche-vcf.yaml --prefix $env_path --yes
+
+  echo "Conda environment created at: $env_path"
+  echo "Conda environment brioche-vcf fully installed"
+
+fi
+
+conda activate brioche-vcf
+
 
 date
 
