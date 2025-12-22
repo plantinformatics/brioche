@@ -1154,9 +1154,6 @@ if (is_vcfraws) {
   meta_lines  <- meta_lines[!grepl("^##(contig=)", meta_lines)]
   meta_lines  <- meta_lines[!grepl("^##(fileformat=)", meta_lines)]
 
-  "##fileformat=VCFv4.3",
-  sprintf("##fileDate=%s", fileDate),
-
 
     meta_lines <-c(
       "##fileformat=VCFv4.3",
