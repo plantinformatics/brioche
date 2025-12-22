@@ -1439,7 +1439,7 @@ if (nzchar(droplist_path)) {
   header_lines <- header_lines[!duplicated(header_lines)]
   writeLines(header_lines, con = Outputfilename)
 
-  cn_fixed   <- make.unique(lay$cn, sep = "…")
+  cn_fixed   <- make.unique(lay$cn, sep = "...")
   sample_ids <- cn_fixed[geno_idx]
   vcf_header <- c("#CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT", sample_ids)
   data.table::fwrite(as.list(vcf_header), file = Outputfilename, sep = "\t",
