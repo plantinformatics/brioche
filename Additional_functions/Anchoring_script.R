@@ -702,7 +702,7 @@ build_extra_meta <- function(ncbi_meta, genomename, override_species = NULL, ove
       if (nzchar(asm_url)) sprintf("##genome_url=%s", asm_url) else NULL
     )
   } else {
-    # No NCBI metadata — fall back to user-provided species/url (or unknowns)
+    # No NCBI metadata Â— fall back to user-provided species/url (or unknowns)
     sp <- species_fallback()
     url_out <- override_url %||% ""  # only write this when NCBI meta is absent
 
@@ -1172,7 +1172,7 @@ if (is_vcfraws) {
       paste0("##Brioche_",Metadata[11]))
 
 
-  meta_out   <- meta_out[!duplicated(meta_out)]
+  meta_out   <- meta_lines[!duplicated(meta_lines)]
   meta_out <- meta_out[!grepl('^##FORMAT=<ID=ORIENTATIONSTATUS,', meta_out)]
 
   #extra_meta #<- build_extra_meta(ncbi_meta, genomename)
@@ -1310,7 +1310,7 @@ if (is_vcfraws) {
       }
     }
 
-    # SUBSEQUENT mapping (same orientation) — allow tri+ remapping
+    # SUBSEQUENT mapping (same orientation) Â— allow tri+ remapping
     tri_rows <- which(mapped_now & prior != "none" & !is.na(s_now) & (prior == s_now) & nzchar(BriocheREF))
     if (length(tri_rows)) {
       REF_cur2 <- df[[ix_REF]]
