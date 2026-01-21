@@ -5,6 +5,8 @@
 #' @author James ODwyer
 #' @param probe.name Character. Name of the probe set (used in file names).
 #' @param genome.name Character. Name of the reference genome (used in file names).
+#' @param markers_priorsinformed.hits Table. Table tracking whether each marker was informed through priors and which priors did so
+#' @param duplicationmap.hits Table. Table tracking the number of duplications per marker which were present in the reference genome mapped to
 #' @param output.path Character. Directory where results are read/written (a `Figs/` subdir is created).
 #' @param blast.hits Character. Path to strict-filtered BLAST hits CSV. \emph{Currently not used} (inputs are read from `output.path` by convention).
 #' @param mappings.file Character. Path to strict-filtered mappings TSV. \emph{Currently not used}.
@@ -21,6 +23,8 @@
 Dosumstats <-
   function(probe.name,
            genome.name,
+           markers_priorsinformed.hits,
+           duplicationmap.hits,
            output.path,
            blast.hits,
            mappings.file,
@@ -103,7 +107,7 @@ Dosumstats <-
     
     rm(counts)
     
-    ## ----- 2) Coverage/identity filter counts -----
+    # Coverage/identity filter counts 
     cov_file <- file.path(output.path,
                       paste0(probe.name, "_with_", genome.name, "_all_mappings.csv"))
 
@@ -305,7 +309,7 @@ int_file <- file.path(output.path,
       sumstatsfile <- sumstatsfile[, append(.wo, "Strict_BLASThits", after = .pos_shits - 1), drop = FALSE]
     }
     
-    ## ----- Add BLAST fail flag and re-do coverage/identity summary using cov_counts -----
+    ## Add BLAST fail flag and re-do coverage/identity summary using cov_counts
     sumstatsfile <- sumstatsfile |>
       dplyr::mutate(Filter_BLAST = ifelse(.data$Blast_hits > 0L, "PASS", "FAIL")) |>
       dplyr::relocate(Filter_BLAST, .after = "Markername")
@@ -522,6 +526,52 @@ int_file <- file.path(output.path,
     ggplot2::ggsave(file = paste0(output.path,"/Figs/",probe.name, "_with_", genome.name,"_histogram_hits.png"),
                     dpi = 400)
     
+
+   # Add in information for duplication and NULL markers
+
+ duphitsinfo <- read.table(duplicationmap.hits, sep='\t', header=TRUE)
+
+# weird spelling because I really don't want to write null into a variable name in any way haha.
+ duphitsinfo$nulcall <-NA 
+ 
+ missing_markers <- setdiff(unique(sumstatsfile$Markername), unique(duphitsinfo$qaccver))
+
+# add NA-filled rows for all missing markers. 
+if (length(missing_markers) > 0) {
+  na_rows <- duphitsinfo[0, , drop = FALSE]              # keep same columns/types
+  na_rows <- na_rows[rep(1, length(missing_markers)), ]  # make N empty rows
+  na_rows$qaccver <- missing_markers
+
+  duphitsinfo <- dplyr::bind_rows(duphitsinfo, na_rows)
+}
+
+# Begin populating the required values for NULLS
+duphitsinfo <- dplyr::select(
+  dplyr::mutate(
+    dplyr::left_join(
+      duphitsinfo,
+      dplyr::select(sumstatsfile, Markername, Blast_hits, `Cov-ident_BLASThits`),
+      by = c("qaccver" = "Markername")
+    ),
+    nulcall = ifelse(
+      (!is.na(Blast_hits) & Blast_hits == 0) |
+        (!is.na(`Cov-ident_BLASThits`) & `Cov-ident_BLASThits` == 0),
+      "Yes",
+      NA_character_
+    )
+  ),
+  -Blast_hits,
+  -`Cov-ident_BLASThits`
+)
+    write.table(
+      duphitsinfo,
+      file=(paste0(probe.name, "_with_", genome.name, "_marker_localdups_NULLS_counts.tsv")),
+      quote = FALSE,
+      sep="\t",
+      row.names = FALSE
+    )
+
+
     write.csv(
       sumstatsfile,
       file.path(paste0(probe.name, "_with_", genome.name, "_summary_filtering.csv")),
@@ -529,7 +579,7 @@ int_file <- file.path(output.path,
       row.names = FALSE
     )
     
-    # staging VCF file creation
+    # prepping VCF file creation
     target_ids <- markersall
     
     target_info <- dplyr::tibble(
@@ -613,7 +663,7 @@ meta_lines <- c(
   paste0("## run_date=", md$run_date)
 )
 
-# Write comments + CSV (comments are ignored by our readers via grep -v '^#' or comment.char='#')
+# Write comments + CSV
 con <- file(out_1to1, open = "wt")
 on.exit(try(close(con), silent = TRUE), add = TRUE)
 writeLines(meta_lines, con = con)

@@ -2,8 +2,18 @@
 
 # Usage:
 # Rscript DArT2Brioche_convert.R --dartfile "dart_testing_build_briochefiles.csv" --targetmarker "D"
+# Use to convert DArT report files to brioche input files. 
+# Note: 1. DArT report files can have variable columns and reported variables, this may lead to some errors so double check the results. 
+# Note: 2. DArT report files come in 2 row and 1 row formats (1 row per marker vs 2 rows per marker) This script works for 1 row formats
+# Note 3: DArT reports usually contain both AlleleSequence  and TrimmedSequence columns. This script extracts the longer length full marker sequence reported {AlleleSequence).
+## If you want to change this, change ~Ln93 and ~Ln101 with the new variable
 
 .t0 <- Sys.time()
+
+# install packages if they are missing
+if (!requireNamespace("stringi", quietly = TRUE)) {
+  suppressWarnings(suppressMessages(install.packages("stringi", repos = "https://cloud.r-project.org", quiet = TRUE)))
+}
 
 suppressPackageStartupMessages({
   library(stringi)

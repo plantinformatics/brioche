@@ -370,7 +370,7 @@ process ADD_MARKERINFO {
     mv "${probename}_with_${genomename}_mapping.tsv"      ${mappings}
     mv "${probename}_with_${genomename}_complete_unfiltered_blast_results.csv" ${rawsallmappings}
 
-    # 2) CSV: filter all_mappings -> filteredmappings
+    # 2 CSV: filter all_mappings -> filteredmappings
 
     header_csv=\$(head -n1 ${allmappings})
     snpcol_csv=\$(echo "\$header_csv" | awk -F, '{for(i=1;i<=NF;i++) if(\$i=="qaccver")  print i}')
@@ -387,7 +387,7 @@ process ADD_MARKERINFO {
         exit 1
     fi
 
-    # --- Sort allmappings by qaccver, Coverage (desc), pident (desc) ---
+    #  Sort allmappings by qaccver then Coverage, and pident
     tail -n +2 "${allmappings}" \
       | sort -t, -k\${snpcol_csv},\${snpcol_csv} -k\${covcol_csv},\${covcol_csv}nr -k\${pidcol_csv},\${pidcol_csv}nr \
       > "${allmappings}.sorted"
@@ -400,7 +400,7 @@ process ADD_MARKERINFO {
     mv "${allmappings}.tmp" "${allmappings}"
     rm -f "${allmappings}.sorted"
 
-    # --- First pass: count hits per qaccver (trimmed), independent of Hybridized ---
+    # count hits per qaccver(not including hybridisation)
     awk -F, -v col="\$snpcol_csv" -v mh=${params.maximumhits} '
         NR>1 {
             snp = \$col
@@ -435,10 +435,10 @@ process ADD_MARKERINFO {
             snp = \$col_snp
             if (snp == "") next
 
-            # SNP exceeds maxhits?
+            # SNP count over maxhits thresh for qaccver count
             if (snp in drop) next
 
-            # Hybridized filter (if column present)
+            # Hybridised filter
             hyb = (col_hyb > 0 ? \$col_hyb : "")
             gsub("^[[:space:]]+|[[:space:]]+\$", "", hyb)
             if (col_hyb > 0 && hyb == "No") next
@@ -454,7 +454,7 @@ process ADD_MARKERINFO {
 
     rm -f drop_snps_allmaps.txt
 
-    # 2b) Add Alternate_SNP_ID to full all_mappings CSV (so all csvs have the same columns regardless of analysis stage filtering stopped)
+    # Add Alternate_SNP_ID to full all_mappings CSV (so all csvs have the same columns regardless of analysis stage filtering stopped [maybe redundant but helps in case of returned empty datasets?])
     awk -F, -v OFS=, -v col_snp="\$snpcol_csv" '
       NR==1 {
         for (i=1; i<=NF; i++)
@@ -475,7 +475,7 @@ process ADD_MARKERINFO {
 
     mv "${allmappings}.tmp" "${allmappings}"
 
-    # 2c) Add Alternate_SNP_ID to unfiltered BLAST CSV (as above)
+    # Add Alternate_SNP_ID to unfiltered BLAST CSV (as above)
 
     header_raw=\$(head -n1 ${rawsallmappings})
     snpcol_raw=\$(echo "\$header_raw" | awk -F, '{for(i=1;i<=NF;i++) if(\$i=="qaccver") print i}')
@@ -491,7 +491,7 @@ process ADD_MARKERINFO {
         exit 1
     fi
 
-    # Sort unfiltered BLAST CSV by qaccver, Coverage (desc), pident (desc)
+
     tail -n +2 "${rawsallmappings}" \
       | sort -t, -k\${snpcol_raw},\${snpcol_raw} -k\${covcol_raw},\${covcol_raw}nr -k\${pidcol_raw},\${pidcol_raw}nr \
       > "${rawsallmappings}.sorted"
@@ -524,7 +524,7 @@ process ADD_MARKERINFO {
 
     mv "${rawsallmappings}.tmp2" "${rawsallmappings}"
 
-    # 3) "TSV": filter mappings -> filtered_mappings_tsv
+    # TSV stage
 
     header_tsv=\$(head -n1 ${mappings})
     snpcol_tsv=\$(echo "\$header_tsv" | awk '{for(i=1;i<=NF;i++) if(\$i=="SNP_ID") print i}')
@@ -537,7 +537,7 @@ process ADD_MARKERINFO {
         exit 1
     fi
 
-    # Build new header line, keeping it whitespace-separated
+
     echo "\$header_tsv" | awk -v col_snp="\$snpcol_tsv" 'BEGIN{FS="[[:space:]]+"; OFS=" "}{
         first=1
         for (i=1; i<=NF; i++) {
@@ -636,7 +636,7 @@ process MERGE_MAPPINGS {
     echo "##pident            = ${params.pident}  #Option to filter any hits with pident less than the provided percentage" >> header_params.txt
     echo "##maximumhits       = ${params.maximumhits} #Filter probes with hits more than maximumhits" >> header_params.txt
 
-    # 1) Merge filtered mappings (maxhits + Hybridized)
+    # Merge filtered mappings (maxhits + Hybridized)
     {
       cat header_params.txt
       echo "\$header_filtered"
@@ -646,7 +646,7 @@ process MERGE_MAPPINGS {
       done
     } > "${filteredmappings_out}"
 
-    # 2) merge pident/coverage-filtered mappings
+    # merge pident/coverage-filtered mappings
     {
       cat header_params.txt
       echo "\$header_all"
@@ -656,7 +656,7 @@ process MERGE_MAPPINGS {
       done
     } > "${allmappings_out}"
 
-    # 3) Merge fully unfiltered BLAST mappings ( may need to optimise further)
+    # Merge fully unfiltered BLAST mappings ( may need to optimise further depending on size limitations of sponge)
     {
       cat header_params.txt
       echo "\$header_raw"
@@ -742,7 +742,7 @@ Step6: Perform filtering and generate annotations
 process INTERMEDIATE_FILTERING {
     tag "Apply_intermediate_filters"
     label 'large'
-    publishDir "${params.resultsdirectory}/",mode:'copy'
+    publishDir "${params.resultsdirectory}/", mode: 'copy', pattern: '*_intermediate_filtering_*'
     input:
         path filteredmappings
         path outfile
@@ -758,14 +758,17 @@ process INTERMEDIATE_FILTERING {
         val ldmapp
         val usegeneticmap
         val geneticmap
+        val dupdist
+        val keepdups
     output:
-        tuple path("${filteredmappretzelcsv}"), path("${intermediatefilteredmap}")
+        tuple path("${filteredmappretzelcsv}"), path("${intermediatefilteredmap}"), path("${dupmapinter}")
     script:
     filteredmappretzelcsv="${probename}_with_${genomename}_intermediate_filtering_hits.csv"
     intermediatefilteredmap="${probename}_with_${genomename}_intermediate_filtering_mappings.tsv"
+    dupmapinter="${probename}_with_${genomename}_marker_localduplications_counts.tsv"
     """
     R --version
-    Rscript -e "briocheR::DoIntermediatefiltering(
+        Rscript -e "briocheR::DoIntermediatefiltering(
             probe.name='${probename}',
             genome.name='${genomename}',
             output.path='${resultsdir}',
@@ -779,7 +782,9 @@ process INTERMEDIATE_FILTERING {
             dogeneticmap='${usegeneticmap}',
             geneticmap.file='${geneticmap}',
             blast.hits='${filteredmappings}',
-            mappings.file='${outfile}')"
+            mappings.file='${outfile}',
+            dup.dist='${dupdist}',
+            keeplocalduppos='${keepdups}')"
     #mv "name of intermediate mapping blasts" filteredmappretzelcsv 
     #mv "name of intermediate mapping maps" intermediatefilteredmap
     """
@@ -796,6 +801,7 @@ process ADVANCED_FILTERING {
     input:
         path filteredmappretzelcsv
         path intermediatefilteredmap
+        path dupmapinter
         val  resultsdir
         val  probename
         val  genomename
@@ -812,12 +818,14 @@ process ADVANCED_FILTERING {
     output:
         tuple path("${strictmappedcsv}"),
               path("${strictmappedctsv}"),
-              path("${pretzelfile}")
+              path("${pretzelfile}"),
+              path("${priors_informatives_strict}")
 
     script:
     strictmappedcsv   = "${probename}_with_${genomename}_strict_filtering_hits.csv"
     strictmappedctsv  = "${probename}_with_${genomename}_strict_filtering_mappings.tsv"
     pretzelfile       = "${probename}_with_${genomename}_mappings-pretzel-alignment.xlsx"
+    priors_informatives_strict  = "${probename}_with_${genomename}_priors_informed_strictmapping.tsv"
     """
     R --version
       Rscript -e "briocheR::DoStrictfiltering(
@@ -834,7 +842,8 @@ process ADVANCED_FILTERING {
             blast.hits='${filteredmappretzelcsv}',
             mappings.file='${intermediatefilteredmap}',
             dogeneticmap='${usegeneticmap}',
-            geneticmap.file='${geneticmap}')"
+            geneticmap.file='${geneticmap}',
+            dupmapinter.file='${dupmapinter}')"
     #mv "name of intermediate mapping blasts" filteredmappretzelcsv 
     #mv "name of intermediate mapping maps" intermediatefilteredmap
     #Generate pretzel files
@@ -885,6 +894,8 @@ process COLLECT_SUMSTATS {
   input:
     path strictmappedcsv
     path strictmappedtsv
+    path dupmapinter
+    path priors_informatives_strict
     val  resultsdir
     val  probename
     val  genomename
@@ -900,14 +911,18 @@ process COLLECT_SUMSTATS {
     val  brioche_repo_url
     val  brioche_branch      
   output:
-    path("${summaryfiltering}")
+      tuple path("${summaryfiltering}"),
+            path("${duphitsfile}")
   script:
   summaryfiltering = "${probename}_with_${genomename}_summary_filtering.csv"
+  duphitsfile = "${probename}_with_${genomename}_marker_localdups_NULLS_counts.tsv"
   """
   R --version
-  Rscript -e "briocheR::Dosumstats(
+    Rscript -e "briocheR::Dosumstats(
       probe.name='${probename}',
       genome.name='${genomename}',
+      markers_priorsinformed.hits='${priors_informatives_strict}',
+      duplicationmap.hits='${dupmapinter}',
       output.path='${resultsdir}',
       blast.hits='${strictmappedcsv}',
       mappings.file='${strictmappedtsv}',

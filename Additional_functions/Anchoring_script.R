@@ -9,13 +9,13 @@
 #     --IsVCFraws false \
 #     --IsSNPchip true \
 #     --isDArTfile false \
-#     --dobiallelic false \
 #     --Outputfilename my_output.vcf \
 #     --Accession "" \
 #     --genomename ""\
-#     --reference_species ""\
-#     --reference_url ""\
-#     --droplist ""\
+#     --reference_species "" \
+#     --reference_url "" \
+#     --droplist "" \
+#     --mappriors "marker_unique_map_priors.tsv"
 #
 # Notes:
 #   - --Rawgenotypes : path to the raw genotype table/vcf file. Must have minimum values of Name REF, ALT, and a genotype matrix of data 
@@ -23,13 +23,14 @@
 #   - --IsVCFraws : if TRUE, sample raw genotype file is already in a vcf format
 #   - --IsSNPchip : if TRUE, data being input is from an ilumina SNP chip
 #   - --isDArTfile false : If TRUE, sample raw genotype file is in DArT SNP format. File must be 1 row format from Dart e.g., 1 allele with genotypes coded as 0,1,2 (as opposed to two row where there are two rows for the same allele with one representing the ref and one the alt and genotypes are coded as 1 0 binary
-#   - --dobiallelic false : If TRUE brioche format REF and ALT have been transformed to match only the REF/ALT of the targets file, no RC required in anchoring script.
 #   - --Outputfilename : path/filename to write VCF (default: output.vcf)
 #   - --Accession : Accession of the reference genome used for mapping in Brioche e.g., GCF_000331145.2 (don't do GCA)  If provided, metadata from NCBI will be incorporated into vcf header info
 #   - --genomename :genome name (title) of the reference genome used for mapping in Brioche e.g., Cicar.CDCFrontier_v2.0  If provided, metadata from NCBI will be incorporated into vcf header info. If Accession and genomename are provided, Accession is used first then genomename afterwards if no metadata was found using accession
 #   - --reference_species "" :User can input a specific reference species to be added to the header metadata of the vcf file. (Useful for when not working with an NCBI reference)
 #   - --reference_url "" :User can input a specific reference url to be added to the header metadata of the vcf file. (Useful for when the genome was downloaded from a repository that isn't NCBI)
 #   - --droplist "" :user can provide drop list of markernames which should be changed to unknown Chromosome and position [allow for duplicates to be dealt with]. 
+#   - --mappriors : path to a TSV with columns:qaccver, Trueunique, Chrommarkermap, proximatemarkermap,linkagemarkermap, geneticmapmarkermap, Duplicate_region. Used to differentiate priors derrived unique markers from non priors markers.
+#       
 
 
 # install packages if they are missing
@@ -43,9 +44,6 @@ if (!requireNamespace("getopt", quietly = TRUE)) {
 if (!requireNamespace("stringr", quietly = TRUE)) {
   suppressWarnings(suppressMessages(install.packages("stringr", repos = "https://cloud.r-project.org", quiet = TRUE)))
 }
-if (!requireNamespace("vcfR", quietly = TRUE)) {
-  suppressWarnings(suppressMessages(install.packages("vcfR", repos = "https://cloud.r-project.org", quiet = TRUE)))
-}
 
 if (!requireNamespace("rentrez", quietly = TRUE)) {
   suppressWarnings(suppressMessages(install.packages("rentrez", repos = "https://cloud.r-project.org", quiet = TRUE)))
@@ -53,8 +51,21 @@ if (!requireNamespace("rentrez", quietly = TRUE)) {
 if (!requireNamespace("readr", quietly = TRUE)) {
   suppressWarnings(suppressMessages(install.packages("readr", repos = "https://cloud.r-project.org", quiet = TRUE)))
 }
-if (!requireNamespace("data.table", quietly = TRUE)) {
-  suppressWarnings(suppressMessages(install.packages("readr", repos = "https://cloud.r-project.org", quiet = TRUE)))
+# data.table intentionally NOT loaded; optional via --use_data_table / BRIOCHE_USE_DT
+if (!requireNamespace("tidyverse", quietly = TRUE)) {
+  suppressWarnings(suppressMessages(install.packages("tidyverse", repos = "https://cloud.r-project.org", quiet = TRUE)))
+}
+if (!requireNamespace("stringi", quietly = TRUE)) {
+  suppressWarnings(suppressMessages(install.packages("stringi", repos = "https://cloud.r-project.org", quiet = TRUE)))
+}
+if (!requireNamespace("tidyselect", quietly = TRUE)) {
+  suppressWarnings(suppressMessages(install.packages("tidyselect", repos = "https://cloud.r-project.org", quiet = TRUE)))
+}
+if (!requireNamespace("magrittr", quietly = TRUE)) {
+  suppressWarnings(suppressMessages(install.packages("magrittr", repos = "https://cloud.r-project.org", quiet = TRUE)))
+}
+if (!requireNamespace("tidyr", quietly = TRUE)) {
+  suppressWarnings(suppressMessages(install.packages("tidyr", repos = "https://cloud.r-project.org", quiet = TRUE)))
 }
 
 
@@ -65,7 +76,7 @@ suppressPackageStartupMessages({
   library(vcfR)
   library(rentrez)
   library(readr)
-  library(data.table)
+  # DO NOT: library(data.table)
 })
 
 
@@ -107,8 +118,8 @@ to_bool <- function(x, default = FALSE) {
   tolower(as.character(x)) %in% c("1","true","t","yes","y")
 }
 
-raw_path      <- get_opt(opts, "Rawgenotypes", "Chickpea_ALL_RawGenotypes_filtered.namesTrimmed.tsv")
-map_path      <- get_opt(opts, "Briochemappings", "AVR_Ta_Hv_40K_v1_2_with_cicar.CDCFrontier.gnm3.QT0PBrioche_all_markers1to1stagingforvcf.csv")
+raw_path      <- get_opt(opts, "Rawgenotypes", "")
+map_path      <- get_opt(opts, "Briochemappings", "")
 is_vcfraws    <- to_bool(get_opt(opts, "IsVCFraws", "false"))
 is_snpchip    <- to_bool(get_opt(opts, "IsSNPchip", "true"))
 isDArTfile    <- to_bool(get_opt(opts, "isDArTfile", "false"))
@@ -118,6 +129,9 @@ Accession     <- get_opt(opts, "Accession",  "")
 genomename    <- get_opt(opts, "genomename", "")
 user_species   <- get_opt(opts, "reference_species", "")
 user_genome_url<- get_opt(opts, "reference_url",   "")
+mappriors_path <- get_opt(opts, "mappriors", "")
+# Optional toggle to allow data.table on capable nodes
+use_dt <- tolower(get_opt(opts, "use_data_table", Sys.getenv("BRIOCHE_USE_DT", "false"))) %in% c("1","true","t","yes","y")
 
 message(sprintf("Rawgenotypes   : %s", raw_path))
 message(sprintf("Briochemappings: %s", map_path))
@@ -130,6 +144,29 @@ message(sprintf("genomename     : %s", genomename))
 message(sprintf("reference_species: %s", user_species))
 message(sprintf("reference_url    : %s", user_genome_url))
 message(sprintf("droplist      : %s", droplist_path))
+message(sprintf("mappriors      : %s", mappriors_path))
+message(sprintf("use_data_table : %s", if (use_dt) "true" else "false"))
+
+# ---------- Safe I/O shims (prefer base/readr; optionally data.table if explicitly enabled) ----------
+dt_fread <- function(path, sep="\t", header=TRUE) {
+  if (use_dt && requireNamespace("data.table", quietly=TRUE)) {
+    data.table::fread(path, sep=sep, header=header, data.table=FALSE, showProgress=FALSE)
+  } else {
+    if (identical(sep, "\t")) readr::read_tsv(path, show_col_types=FALSE, progress=FALSE)
+    else if (identical(sep, ",")) readr::read_csv(path, show_col_types=FALSE, progress=FALSE)
+    else utils::read.table(path, sep=sep, header=header, quote="", comment.char="", stringsAsFactors=FALSE, check.names=FALSE)
+  }
+}
+dt_fwrite <- function(df, file, append=TRUE, col.names=FALSE) {
+  if (use_dt && requireNamespace("data.table", quietly=TRUE)) {
+    data.table::fwrite(df, file=file, sep="\t", append=append, col.names=col.names, quote=FALSE)
+  } else {
+    utils::write.table(df, file=file, sep="\t", append=append, col.names=col.names, row.names=FALSE, quote=FALSE)
+  }
+}
+write_header_row <- function(vec, file) {
+  cat(paste(vec, collapse="\t"), "\n", file=file, append=TRUE)
+}
 
 # Functions
 
@@ -282,11 +319,7 @@ normalize_alt <- function(s) {
   is_na <- is.na(s)
   
   s <- gsub("[\\[\\]\\(\\)\\{\\}]", "", s, perl = TRUE)
-  
-  
   s <- gsub("\\s+", "", s, perl = TRUE)
-  
-  
   parts <- strsplit(s, "[/|,]+", perl = TRUE)
   
   s <- vapply(parts, function(v) {
@@ -318,7 +351,7 @@ shift_gt_vec <- function(vec) {
 
 normalize_strand <- function(x) {
   x <- tolower(trimws(as.character(x)))
-  ifelse(startsWith(x, "m") | x == "-", "-",
+  ifelse(startsWith(x, "m") | x == "-", "-", 
          ifelse(startsWith(x, "p") | x == "+", "+", "+"))
 }
 
@@ -702,7 +735,7 @@ build_extra_meta <- function(ncbi_meta, genomename, override_species = NULL, ove
       if (nzchar(asm_url)) sprintf("##genome_url=%s", asm_url) else NULL
     )
   } else {
-    # No NCBI metadata Â— fall back to user-provided species/url (or unknowns)
+    # No NCBI metadata — fall back to user-provided species/url (or unknowns)
     sp <- species_fallback()
     url_out <- override_url %||% ""  # only write this when NCBI meta is absent
 
@@ -781,15 +814,88 @@ build_contig_lines <- function(ids, meta, override_species = NULL) {
 
 
 # If raws genotypes is not a vcf file  
-if (!is_vcfraws & !isDArTfile) {
-  
-  genotypesRAWS  <- read.table(raw_path, header = TRUE, sep = ifelse(grepl("\\.tsv$", raw_path, ignore.case=TRUE), "\t", ""),
-                               check.names = FALSE, quote = "", comment.char = "", stringsAsFactors = FALSE)
-  
+.open_text_con <- function(path) {
+  if (grepl("\\.gz$", path, ignore.case = TRUE)) {
+    return(gzfile(path, open = "rt"))
+  } else {
+    return(file(path, open = "rt"))
+  }
 }
 
+# Helper: infer separator from filename (and fallback to sniffing first line)
+.infer_sep <- function(path) {
+  # strip a trailing .gz (if present) before checking extension
+  base <- sub("\\.gz$", "", basename(path), ignore.case = TRUE)
+  ext  <- tolower(tools::file_ext(base))
+
+  if (ext %in% c("tsv", "tab")) return("\t")
+  if (ext %in% c("csv"))        return(",")
+  if (ext %in% c("txt")) {
+    # Try to guess for .txt (could be tab, comma, semicolon, or whitespace)
+    con <- .open_text_con(path)
+    on.exit(close(con), add = TRUE)
+    first_line <- readLines(con, n = 1, warn = FALSE)
+
+    # count candidate delimiters
+    n_tab <- lengths(regmatches(first_line, gregexpr("\t", first_line, fixed = TRUE)))
+    n_com <- lengths(regmatches(first_line, gregexpr(",",  first_line, fixed = TRUE)))
+    n_sem <- lengths(regmatches(first_line, gregexpr(";",  first_line, fixed = TRUE)))
+
+    best <- max(c(n_tab, n_com, n_sem), na.rm = TRUE)
+    if (best == 0) return("")          # whitespace-delimited
+    if (best == n_tab) return("\t")
+    if (best == n_com) return(",")
+    return(";")
+  }
+
+  # Unknown extension: sniff first line (same logic as .txt)
+  con <- .open_text_con(path)
+  on.exit(close(con), add = TRUE)
+  first_line <- readLines(con, n = 1, warn = FALSE)
+
+  n_tab <- lengths(regmatches(first_line, gregexpr("\t", first_line, fixed = TRUE)))
+  n_com <- lengths(regmatches(first_line, gregexpr(",",  first_line, fixed = TRUE)))
+  n_sem <- lengths(regmatches(first_line, gregexpr(";",  first_line, fixed = TRUE)))
+
+  best <- max(c(n_tab, n_com, n_sem), na.rm = TRUE)
+  if (best == 0) return("")
+  if (best == n_tab) return("\t")
+  if (best == n_com) return(",")
+  return(";")
+}
+
+# Main reader: base R, works for plain/gz, tsv/csv/txt + delimiter sniffing
+read_genotypes_auto <- function(path) {
+  sep <- .infer_sep(path)
+  con <- .open_text_con(path)
+  on.exit(close(con), add = TRUE)
+
+  read.table(
+    con,
+    header = TRUE,
+    sep = sep,
+    check.names = FALSE,
+    quote = "",
+    comment.char = "",
+    stringsAsFactors = FALSE
+  )
+}
+
+# If raw genotypes input is not a vcf file
+if (!is_vcfraws & !isDArTfile) {
+  genotypesRAWS <- read_genotypes_auto(raw_path)
+}
 
 Finalmappings  <- read.csv(map_path, check.names = FALSE, stringsAsFactors = FALSE, comment.char = "#")
+
+MAPPRIORS <- NULL
+if (nzchar(mappriors_path)) {
+  MAPPRIORS <- read.table(
+    mappriors_path,
+    sep = "\t",
+    header = TRUE
+  )
+}
 
 
 # Newly added metadata in lines 1-10 of Brioche (might expand further)
@@ -800,9 +906,6 @@ Metadata <- sub(pattern="## ", replacement="",x=Metadata, fixed =TRUE)
 # Remove extra column at start
 Metadata <- Metadata[-1]
 
-
-
-#VCFchroms <- unique(Finalmappings$saccver)
 VCFchroms <- order_contigs(Finalmappings$saccver)
 
 ncbi_meta <- list(ok = FALSE)
@@ -830,7 +933,7 @@ extra_meta <- build_extra_meta(
   override_url     = if (nzchar(user_genome_url)) user_genome_url else NULL
 )
 
-#Contig lines (always full-shape; uses overrides only when NCBI meta is missing)
+# Contig lines (always full-shape; uses overrides only when NCBI meta is missing)
 VCFchroms <- order_contigs(Finalmappings$saccver)
 contig_lines <- build_contig_lines(
   ids   = VCFchroms,
@@ -844,7 +947,7 @@ contig_lines <- build_contig_lines(
 
 if (!is_vcfraws & is_snpchip) {
 
-  # Helpers
+  # ---------- helpers ----------
   strand_to_word <- function(x) {
     z <- tolower(trimws(as.character(x)))
     ifelse(is.na(z) | z == "" | z == ".", "none",
@@ -853,7 +956,47 @@ if (!is_vcfraws & is_snpchip) {
   }
   is_blank <- function(x) is.na(x) | x == "" | x == "."
 
-  
+  # ---------- precompute MAPPRIORS lookups (optional) ----------
+  pri_flag_by_id <- logical(0)     # named logical: qaccver -> TRUE when qualifies for "Unique_mapping_with_priors_information"
+  dup_label_by_id <- character(0)  # named char:   qaccver -> "LocallyDuplicatedRegion" | "SingleCopy"
+
+  if (is.data.frame(MAPPRIORS)) {
+    n  <- nrow(MAPPRIORS)
+    tp <- MAPPRIORS
+    key <- as.character(tp$qaccver)
+
+    # normalize to vector length n, even if column is NULL/absent
+    is_true_chr <- function(v) tolower(trimws(as.character(v))) == "true"
+    norm_true   <- function(col) if (is.null(col)) rep(FALSE, n) else rep_len(is_true_chr(col), n)
+    norm_is_na  <- function(col) if (is.null(col)) rep(TRUE,  n) else rep_len(is.na(col),        n)
+
+    # prior-based uniqueness flag: Trueunique is NA AND any prior* == "true"
+    tu_na <- norm_is_na(tp$Trueunique)
+    any_prior_true <- norm_true(tp$Chrommarkermap) |
+                      norm_true(tp$proximatemarkermap) |
+                      norm_true(tp$linkagemarkermap) |
+                      norm_true(tp$geneticmapmarkermap)
+
+    # safe setNames helper (no mismatch crashes)
+    safe_set_names <- function(x, nm) {
+      lx <- length(x); ln <- length(nm)
+      if (!lx || !ln) return(x)
+      if (lx == ln)   return(stats::setNames(x, nm))
+      k <- min(lx, ln)
+      stats::setNames(x[seq_len(k)], nm[seq_len(k)])
+    }
+
+    pri_flag_by_id  <- safe_set_names(tu_na & any_prior_true, key)
+
+    # duplication label
+    dup_is_true     <- norm_true(tp$Duplicate_region)
+    dup_label_by_id <- safe_set_names(
+      ifelse(dup_is_true, "LocallyDuplicatedRegion", "SingleCopy"),
+      key
+    )
+  }
+
+  # ---------- header scaffold ----------
   delim <- if (grepl("\\.(tsv|txt)$", raw_path, ignore.case = TRUE)) "\t" else ","
   hdr0  <- utils::read.table(
     file = raw_path, header = TRUE, sep = delim, nrows = 0,
@@ -889,43 +1032,42 @@ if (!is_vcfraws & is_snpchip) {
   fm_Name <- fm$Name
 
   ## ---- 1) Write VCF header ----
-  fileDate     <- format(Sys.Date(), "%Y%m%d")
-  VCFchroms    <- unique(c(order_contigs(Finalmappings$saccver), "chrUnk"))
-  contig_lines #<- unique(build_contig_lines(VCFchroms, ncbi_meta))
-  extra_meta   #<- build_extra_meta(ncbi_meta, genomename)
+  fileDate  <- format(Sys.Date(), "%Y%m%d")
+  VCFchroms <- unique(c(order_contigs(Finalmappings$saccver), "chrUnk"))
 
-header_lines <- c(
-  "##fileformat=VCFv4.3",
-  sprintf("##fileDate=%s", fileDate),
-  "##source=Brioche-VCF-build",
-  paste0("##",Metadata[1]),
-  paste0("##",Metadata[2]),
-  paste0("##",Metadata[3]),
-  paste0("##Brioche_filtering_",Metadata[4]),
-  paste0("##Brioche_filtering_",Metadata[5]),
-  paste0("##Brioche_filtering_",Metadata[6]),
-  paste0("##Brioche_priors_files:",Metadata[7]),
-  paste0("##Brioche_priors_files:",Metadata[8]),
-  paste0("##Brioche_priors_files:",Metadata[9]),
-  paste0("##Brioche_priors_files:",Metadata[10]),
-  paste0("##Brioche_",Metadata[11]),
-  extra_meta,
-  "##FILTER=<ID=LowQual,Description=\"Low quality or ambiguous mapping\">",
-  '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Unique_mapping|Failed_to_map_uniquely">',
-  '##INFO=<ID=PriorORIENT,Number=1,Type=String,Description="Accumulated strand orientation across runs (plus|minus|none)">',
-  "##INFO=<ID=MAF,Number=A,Type=Float,Description=\"Minor Allele frequency per ALT\">",
-  "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count per ALT\">",
-  "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">",
-  "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
-  "##FORMAT=<ID=NU,Number=1,Type=Integer,Description=\"Null allele flag from SNP chip (1= Null allele; 0=otherwise)\">",
-  contig_lines
-)
+  header_lines <- c(
+    "##fileformat=VCFv4.2",
+    sprintf("##fileDate=%s", fileDate),
+    "##source=Brioche-VCF-build",
+    paste0("##",Metadata[1]),
+    paste0("##",Metadata[2]),
+    paste0("##",Metadata[3]),
+    paste0("##Brioche_filtering_",Metadata[4]),
+    paste0("##Brioche_filtering_",Metadata[5]),
+    paste0("##Brioche_filtering_",Metadata[6]),
+    paste0("##Brioche_priors_files:",Metadata[7]),
+    paste0("##Brioche_priors_files:",Metadata[8]),
+    paste0("##Brioche_priors_files:",Metadata[9]),
+    paste0("##Brioche_priors_files:",Metadata[10]),
+    paste0("##Brioche_",Metadata[11]),
+    extra_meta,
+    '##FILTER=<ID=LowQual,Description="Low quality or ambiguous mapping">',
+    '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Unique_mapping|Unique_mapping_with_priors_information|Failed_to_map_uniquely">',
+    '##INFO=<ID=PriorORIENT,Number=1,Type=String,Description="Accumulated strand orientation across runs (plus|minus|none)">',
+    '##INFO=<ID=DUP,Number=1,Type=String,Description="SingleCopy|LocallyDuplicatedRegion">',
+    '##INFO=<ID=MAF,Number=A,Type=Float,Description="Minor Allele frequency per ALT">',
+    '##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count per ALT">',
+    '##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">',
+    '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
+    '##FORMAT=<ID=NU,Number=1,Type=Integer,Description="Null allele flag from SNP chip (1= Null allele; 0=otherwise)">',
+    '##FORMAT=<ID=DU,Number=1,Type=Integer,Description="Number of local duplications of marker detected (0= Marker is single copy; 1+=copies, .=Unknown)">',
+    contig_lines
+  )
   header_lines <- header_lines[!duplicated(header_lines)]
   writeLines(header_lines, con = Outputfilename)
 
   vcf_header <- c("#CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT", sample_ids)
-  data.table::fwrite(as.list(vcf_header), file = Outputfilename, sep = "\t",
-                     append = TRUE, col.names = FALSE, quote = FALSE)
+  write_header_row(vcf_header, Outputfilename)
 
   ## ---- 2) Stream rows ----
   chunk_size <- 1500L
@@ -937,9 +1079,18 @@ header_lines <- c(
     raw_lines <- readLines(con_chunk, n = chunk_size, warn = FALSE)
     if (!length(raw_lines)) break
 
-    df <- utils::read.table(text = raw_lines, sep = delim, header = FALSE,
-                            quote = "", comment.char = "", stringsAsFactors = FALSE,
-                            check.names = FALSE, col.names = cn_fixed, fill = TRUE)
+    # NEW: drop empty/whitespace-only lines (common at the tail of files)
+    raw_lines <- raw_lines[ nzchar(raw_lines) & !grepl("^\\s*$", raw_lines) ]
+    if (!length(raw_lines)) next
+
+    df <- utils::read.table(
+      text = raw_lines, sep = delim, header = FALSE,
+      quote = "", comment.char = "", stringsAsFactors = FALSE,
+      check.names = FALSE, col.names = cn_fixed, fill = TRUE
+    )
+
+    # NEW: if cleaning leaves no rows, skip quietly
+    if (!NROW(df)) next
 
     Name    <- df[[idx_Name]]
     force_drop <- if (length(DROP_IDS)) Name %in_drop% DROP_IDS else rep(FALSE, length(Name))
@@ -958,7 +1109,7 @@ header_lines <- c(
     BriocheREF <- ifelse(u_map, toupper(fm$REF_map[m]), NA_character_)
     BriocheALT <- ifelse(u_map, toupper(sub(",.*$", "", fm$ALT_map[m])), NA_character_)
 
-    # Orientation decision (same as before for SNPchip), but compute PriorORIENT from sstrand
+    # Orientation decision
     BriocheREFRC <- ifelse(!is.na(BriocheREF), revcomp_iupac(BriocheREF), NA_character_)
     genotypeREF  <- REF_old
     genotypeALT  <- ALT_old
@@ -975,20 +1126,42 @@ header_lines <- c(
     ALT_out <- sub(",.*$", "", ALT_out)
     ALT_out[is.na(ALT_out) | ALT_out == ""] <- "."
 
-    # QUAL/FILTER/INFO
+    # QUAL/FILTER/INFO (with MAPPRIORS + DUP)
     pos_int     <- suppressWarnings(as.integer(POS))
     coord_bad   <- is.na(pos_int) | pos_int <= 0L | is_blank(CHROM)
     unknown_now <- !u_map | coord_bad
 
     QUAL   <- ifelse(unknown_now, 0L, 100L)
     FILTER <- ifelse(unknown_now, "LowQual", "PASS")
-    INFO   <- ifelse(unknown_now, "MAPSTATUS=Failed_to_map_uniquely", "MAPSTATUS=Unique_mapping")
+
+    # priors flag lookup per Name
+    if (length(pri_flag_by_id)) {
+      pri_flag <- unname(pri_flag_by_id[Name])
+      pri_flag[is.na(pri_flag)] <- FALSE
+    } else {
+      pri_flag <- rep(FALSE, length(Name))
+    }
+
+    # status: only upgrade to "Unique_mapping_with_priors_information" when we *mapped* this round
+    status_val <- ifelse(
+      unknown_now, "Failed_to_map_uniquely",
+      ifelse(pri_flag, "Unique_mapping_with_priors_information", "Unique_mapping")
+    )
+
+    # DUP label per Name
+    if (length(dup_label_by_id)) {
+      dup_lab <- unname(dup_label_by_id[Name])
+      dup_lab[is.na(dup_lab)] <- "SingleCopy"
+    } else {
+      dup_lab <- rep("SingleCopy", length(Name))
+    }
 
     # PriorORIENT from current sstrand when uniquely mapped; else 'none'
-    cur_strand  <- ifelse(u_map, strand_to_word(fm$STRAND[m]), "none")
-    INFO        <- paste0(INFO, ";PriorORIENT=", cur_strand)
+    cur_strand <- ifelse(u_map, strand_to_word(fm$STRAND[m]), "none")
 
-    ## Genotypes + NU
+    INFO <- paste0("MAPSTATUS=", status_val, ";PriorORIENT=", cur_strand, ";DUP=", dup_lab)
+
+    ## Genotypes + NU + DU (DU presently unknown => '.')
     geno_raw <- as.matrix(df[, sample_idx, drop = FALSE])
     geno_raw_upper <- toupper(trimws(geno_raw))
     NU <- (geno_raw_upper == "N"); storage.mode(NU) <- "integer"; NU[is.na(NU)] <- 0L
@@ -1005,13 +1178,11 @@ header_lines <- c(
     rswap <- ifelse(is.na(swap  | swap_rc ), FALSE, (swap  | swap_rc ))
     if (any(rswap)) {
       g <- geno
-      d0 <- (g == "0") & matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno))
-      d1 <- (g == "1") & matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno))
-      d2 <- (g == "2") & matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno))
-      if (any(d0)) g[d0] <- "1/1"
-      if (any(d1)) g[d1] <- "0/1"
-      if (any(d2)) g[d2] <- "0/0"
-      geno[matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno))] <- g[matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno))]
+      M <- matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno))
+      d0 <- (g == "0") & M; if (any(d0)) g[d0] <- "1/1"
+      d1 <- (g == "1") & M; if (any(d1)) g[d1] <- "0/1"
+      d2 <- (g == "2") & M; if (any(d2)) g[d2] <- "0/0"
+      geno[M] <- g[M]
     }
     i0 <- geno == "0"; if (any(i0)) geno[i0] <- "0/0"
     i1 <- geno == "1"; if (any(i1)) geno[i1] <- "0/1"
@@ -1034,16 +1205,23 @@ header_lines <- c(
 
     ## Write
     NU_chr <- matrix(as.character(NU), nrow = nrow(NU), ncol = ncol(NU)); NU_chr[is.na(NU_chr)] <- "0"
-    geno_df <- as.data.frame(geno, stringsAsFactors = FALSE, check.names = FALSE)
-    for (jj in seq_len(ncol(geno_df))) geno_df[[jj]] <- paste0(geno_df[[jj]], ":", NU_chr[, jj])
+    DU_chr <- matrix(".", nrow = nrow(geno), ncol = ncol(geno))  # unknown duplication count per-sample for now
 
-    body <- data.table::data.table(
+    geno_df <- as.data.frame(geno, stringsAsFactors = FALSE, check.names = FALSE)
+    for (jj in seq_len(ncol(geno_df))) {
+      geno_df[[jj]] <- paste0(geno_df[[jj]], ":", NU_chr[, jj], ":", DU_chr[, jj])
+    }
+
+    body <- data.frame(
       `#CHROM` = CHROM, POS = POS, ID = Name,
-      REF = REF_out, ALT = ALT_out, QUAL = QUAL, FILTER = FILTER, INFO = INFO, FORMAT = "GT:NU"
+      REF = REF_out, ALT = ALT_out, QUAL = QUAL, FILTER = FILTER, INFO = INFO, FORMAT = "GT:NU:DU",
+      stringsAsFactors = FALSE, check.names = FALSE
     )
-    body <- cbind(body, data.table::as.data.table(geno_df))
-    data.table::fwrite(body, file = Outputfilename, sep = "\t",
-                       append = TRUE, col.names = FALSE, quote = FALSE)
+    body <- cbind(body, geno_df, stringsAsFactors = FALSE)
+
+    if (NROW(body)) {
+      dt_fwrite(body, file = Outputfilename, append = TRUE, col.names = FALSE)
+    }
 
     rm(df, geno, geno_df, NU, NU_chr, body, ac1, an); gc(FALSE)
   }
@@ -1053,52 +1231,112 @@ header_lines <- c(
 
 
 
- 
-# vcf pathway 
+# VCF pathway (VCF -> re-anchored VCF using Brioche sstrand and PriorORIENT)
 # VCF pathway (VCF -> re-anchored VCF using Brioche sstrand and PriorORIENT)
 if (is_vcfraws) {
 
-  # Helpers
   strand_to_word <- function(x) {
     z <- tolower(trimws(as.character(x)))
-    ifelse(is.na(z) | z == "" | z == ".", NA_character_,
-      ifelse(z %in% c("+","plus","pos","positive","p"), "plus",
-        ifelse(z %in% c("-","minus","neg","negative","m"), "minus", NA_character_)))
+    ifelse(
+      is.na(z) | z == "" | z == ".",
+      NA_character_,
+      ifelse(
+        z %in% c("+", "plus", "pos", "positive", "p"), "plus",
+        ifelse(z %in% c("-", "minus", "neg", "negative", "m"), "minus", NA_character_)
+      )
+    )
   }
+
   pr_norm <- function(x) {
     z <- tolower(trimws(as.character(x)))
-    ifelse(is.na(z) | z == "" | z == ".", "none",
-      ifelse(z %in% c("plus","+","pos"), "plus",
-        ifelse(z %in% c("minus","-","neg"), "minus", "none")))
+    ifelse(
+      is.na(z) | z == "" | z == ".",
+      "none",
+      ifelse(
+        z %in% c("plus", "+", "pos"), "plus",
+        ifelse(z %in% c("minus", "-", "neg"), "minus", "none")
+      )
+    )
   }
+
   is_blank <- function(x) is.na(x) | x == "" | x == "."
 
   split_alts_csv <- function(s) {
     if (is.na(s) || s == "" || s == ".") character(0) else strsplit(s, ",", fixed = TRUE)[[1]]
   }
+
   rc_csv <- function(csv) {
     v <- split_alts_csv(csv)
     if (!length(v)) return(csv)
     paste(revcomp_iupac(v), collapse = ",")
   }
 
-  # Mapping frame with sstrand
-  req <- c("qaccver","saccver","SNPpos","Ref","ALT","sstrand")
+  add_if_missing <- function(vec, line_glob, line_exact) {
+    if (!any(grepl(line_glob, vec))) c(vec, line_exact) else vec
+  }
+
+  pri_flag_by_id  <- logical(0)   # named logical: qaccver -> TRUE for "Unique_mapping_with_priors_information"
+  dup_label_by_id <- character(0) # named char:   qaccver -> "LocallyDuplicatedRegion" | "SingleCopy"
+
+  if (is.data.frame(MAPPRIORS)) {
+    n  <- nrow(MAPPRIORS)
+    tp <- MAPPRIORS
+    key <- as.character(tp$qaccver)
+
+    # normalize to vector length n, even if column is NULL/absent
+    is_true_chr <- function(v) tolower(trimws(as.character(v))) == "true"
+    norm_true   <- function(col) if (is.null(col)) rep(FALSE, n) else rep_len(is_true_chr(col), n)
+    norm_is_na  <- function(col) if (is.null(col)) rep(TRUE,  n) else rep_len(is.na(col),        n)
+
+    # prior-based uniqueness flag: Trueunique is NA AND any prior* == "true"
+    tu_na <- norm_is_na(tp$Trueunique)
+    any_prior_true <- norm_true(tp$Chrommarkermap) |
+                      norm_true(tp$proximatemarkermap) |
+                      norm_true(tp$linkagemarkermap) |
+                      norm_true(tp$geneticmapmarkermap)
+
+    # safe setNames helper (no mismatch crashes)
+    safe_set_names <- function(x, nm) {
+      lx <- length(x); ln <- length(nm)
+      if (!lx || !ln) return(x)
+      if (lx == ln)   return(stats::setNames(x, nm))
+      k <- min(lx, ln)
+      stats::setNames(x[seq_len(k)], nm[seq_len(k)])
+    }
+
+    pri_flag_by_id  <- safe_set_names(tu_na & any_prior_true, key)
+
+    # duplication label
+    dup_is_true     <- norm_true(tp$Duplicate_region)
+    dup_label_by_id <- safe_set_names(
+      ifelse(dup_is_true, "LocallyDuplicatedRegion", "SingleCopy"),
+      key
+    )
+  }
+
+  req <- c("qaccver", "saccver", "SNPpos", "Ref", "ALT", "sstrand")
   missing <- setdiff(req, names(Finalmappings))
   if (length(missing))
-    stop(sprintf("Finalmappings missing: %s", paste(missing, collapse=", ")))
+    stop(sprintf("Finalmappings missing: %s", paste(missing, collapse = ", ")))
 
   fm_one <- Finalmappings %>%
-    transmute(qaccver, saccver, SNPpos,
-              REF_map = toupper(Ref),
-              ALT_map = normalize_alt(ALT),
-              STRAND  = sstrand) %>%
-    group_by(qaccver) %>% slice(1L) %>% ungroup()
-  fm_hits <- Finalmappings %>% count(qaccver, name = "MAP_HITS")
+    dplyr::transmute(
+      qaccver,
+      saccver,
+      SNPpos,
+      REF_map = toupper(Ref),
+      ALT_map = normalize_alt(ALT),
+      STRAND  = sstrand
+    ) %>%
+    dplyr::group_by(qaccver) %>%
+    dplyr::slice(1L) %>%
+    dplyr::ungroup()
+
+  fm_hits <- Finalmappings %>% dplyr::count(qaccver, name = "MAP_HITS")
 
   fm <- fm_one %>%
-    left_join(fm_hits, by = "qaccver") %>%
-    transmute(
+    dplyr::left_join(fm_hits, by = "qaccver") %>%
+    dplyr::transmute(
       ID        = qaccver,
       CHROM_map = saccver,
       POS_map   = SNPpos,
@@ -1108,7 +1346,7 @@ if (is_vcfraws) {
       MAP_HITS  = ifelse(is.na(MAP_HITS), 0L, MAP_HITS)
     )
 
-  # Read input header
+  # read input header
   read_vcf_header <- function(path) {
     con <- if (grepl("\\.gz$", path, ignore.case = TRUE)) gzfile(path, "rt") else file(path, "rt")
     on.exit(try(close(con), silent = TRUE), add = TRUE)
@@ -1143,54 +1381,56 @@ if (is_vcfraws) {
   stopifnot(!any(is.na(c(ix_CHROM, ix_POS, ix_ID, ix_REF, ix_ALT))))
   sample_cols_idx <- if (is.na(ix_FMT)) integer(0) else (ix_FMT + 1L):length(colnames_vcf)
 
-  fileDate     <- format(Sys.Date(), "%Y%m%d")
+  fileDate <- format(Sys.Date(), "%Y%m%d")
 
-  # New header. Remove old brioche metadata, remove all assembly data, remove old file date, replace with newest. deduplicate etc
-  meta_lines  <- meta_lines[!grepl("^##(fileDate=)", meta_lines)] 
-  meta_lines  <- meta_lines[!grepl("^##(Brioche_)", meta_lines)]
-  meta_lines  <- meta_lines[!grepl("^##(assembly=)", meta_lines)] 
-  meta_lines  <- meta_lines[!grepl("^##(reference=)", meta_lines)] 
-  meta_lines  <- meta_lines[!grepl("^##(genome_url=)", meta_lines)] 
-  meta_lines  <- meta_lines[!grepl("^##(contig=)", meta_lines)]
-  meta_lines  <- meta_lines[!grepl("^##(fileformat=)", meta_lines)]
+  # New header: strip old, add Brioche + new INFO/FORMAT lines, extra_meta and contigs
+  meta_lines <- meta_lines[!grepl("^##(fileDate=)",       meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##(Brioche_)",        meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##(assembly=)",       meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##(reference=)",      meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##(genome_url=)",     meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##(contig=)",         meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##(fileformat=)",     meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##INFO=<ID=MAPSTATUS,",   meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##INFO=<ID=DUP,",         meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##INFO=<ID=PriorORIENT,", meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##FILTER=<ID=LowQual,",   meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##FORMAT=<ID=DU,",        meta_lines)]
 
+  meta_lines <- c(
+    "##fileformat=VCFv4.2",
+    sprintf("##fileDate=%s", fileDate),
+    meta_lines,
+    paste0("##", Metadata[1]),
+    paste0("##", Metadata[2]),
+    paste0("##", Metadata[3]),
+    paste0("##Brioche_filtering_", Metadata[4]),
+    paste0("##Brioche_filtering_", Metadata[5]),
+    paste0("##Brioche_filtering_", Metadata[6]),
+    paste0("##Brioche_priors_files:", Metadata[7]),
+    paste0("##Brioche_priors_files:", Metadata[8]),
+    paste0("##Brioche_priors_files:", Metadata[9]),
+    paste0("##Brioche_priors_files:", Metadata[10]),
+    paste0("##Brioche_", Metadata[11])
+  )
 
-    meta_lines <-c(
-      "##fileformat=VCFv4.3",
-      sprintf("##fileDate=%s", fileDate),
-      meta_lines,
-      paste0("##",Metadata[1]),
-      paste0("##",Metadata[2]),
-      paste0("##",Metadata[3]),
-      paste0("##Brioche_filtering_",Metadata[4]),
-      paste0("##Brioche_filtering_",Metadata[5]),
-      paste0("##Brioche_filtering_",Metadata[6]),
-      paste0("##Brioche_priors_files:",Metadata[7]),
-      paste0("##Brioche_priors_files:",Metadata[8]),
-      paste0("##Brioche_priors_files:",Metadata[9]),
-      paste0("##Brioche_priors_files:",Metadata[10]),
-      paste0("##Brioche_",Metadata[11]))
+  meta_out <- meta_lines[!duplicated(meta_lines)]
 
-
-  meta_out   <- meta_lines[!duplicated(meta_lines)]
-  meta_out <- meta_out[!grepl('^##FORMAT=<ID=ORIENTATIONSTATUS,', meta_out)]
-
-  #extra_meta #<- build_extra_meta(ncbi_meta, genomename)
-
+  # contigs & assembly (already computed earlier in your script)
   contigs_vec  <- unique(c(order_contigs(fm$CHROM_map), "chrUnk"))
-  contig_lines #<- unique(build_contig_lines(contigs_vec, ncbi_meta))
+  # contig_lines (prebuilt above)
+  # extra_meta   (prebuilt above)
 
-  add_if_missing <- function(vec, line_glob, line_exact) {
-    if (!any(grepl(line_glob, vec))) c(vec, line_exact) else vec
-  }
-  meta_out <- add_if_missing(meta_out, '^##INFO=<ID=MAPSTATUS,',       '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Unique_mapping|Failed_to_map_uniquely">')
-  meta_out <- add_if_missing(meta_out, '^##INFO=<ID=PriorORIENT,',     '##INFO=<ID=PriorORIENT,Number=1,Type=String,Description="Accumulated strand orientation across runs (plus|minus|none)">')
-
+  # enforce presence of our updated lines
+  meta_out <- add_if_missing(meta_out, '^##FILTER=<ID=LowQual,', '##FILTER=<ID=LowQual,Description="Low quality or ambiguous mapping">')
+  meta_out <- add_if_missing(meta_out, '^##INFO=<ID=MAPSTATUS,', '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Unique_mapping|Unique_mapping_with_priors_information|Failed_to_map_uniquely">')
+  meta_out <- add_if_missing(meta_out, '^##INFO=<ID=PriorORIENT,', '##INFO=<ID=PriorORIENT,Number=1,Type=String,Description="Accumulated strand orientation across runs (plus|minus|none)">')
+  meta_out <- add_if_missing(meta_out, '^##INFO=<ID=DUP,', '##INFO=<ID=DUP,Number=1,Type=String,Description="SingleCopy|LocallyDuplicatedRegion">')
+  meta_out <- add_if_missing(meta_out, '^##FORMAT=<ID=DU,', '##FORMAT=<ID=DU,Number=1,Type=Integer,Description="Number of local duplications of marker detected (0= Marker is single copy; 1+=copies, .=Unknown)">')
 
   writeLines(c(meta_out, extra_meta, contig_lines, header_line), con = Outputfilename)
 
   ct_all_as_char <- setNames(rep("character", length(colnames_vcf)), colnames_vcf)
-
   mf <- if (requireNamespace("fastmatch", quietly = TRUE)) fastmatch::fmatch else base::match
 
   # Use a single connection and stream forward
@@ -1200,23 +1440,23 @@ if (is_vcfraws) {
   # Skip header lines already parsed
   if (header_n > 0L) invisible(readLines(con, n = header_n, warn = FALSE))
 
-  # tune chunk size (bigger = faster until memory says stop)
-  chunk_size <- getOption("ANCHOR_VCF_CHUNK", 5000L)  # you can export ANCHOR_VCF_CHUNK to tweak on HPC
+  chunk_size <- getOption("ANCHOR_VCF_CHUNK", 5000L)
 
-  # helper: read next N data lines as a data.frame via fread(text=...)
   read_chunk_df <- function(n) {
     lines <- readLines(con, n = n, warn = FALSE)
     if (!length(lines)) return(NULL)
     txt <- paste(lines, collapse = "\n")
-    data.table::fread(
-      text       = txt,
-      sep        = "\t",
-      header     = FALSE,
-      col.names  = colnames_vcf,
-      colClasses = ct_all_as_char,
-      data.table = FALSE,
-      integer64  = "character",
-      showProgress = FALSE
+    utils::read.table(
+      text         = txt,
+      sep          = "\t",
+      header       = FALSE,
+      col.names    = colnames_vcf,
+      colClasses   = "character",
+      quote        = "",
+      comment.char = "",
+      stringsAsFactors = FALSE,
+      check.names  = FALSE,
+      fill         = TRUE
     )
   }
 
@@ -1226,9 +1466,7 @@ if (is_vcfraws) {
     df <- as.data.frame(df, stringsAsFactors = FALSE, check.names = FALSE)
 
     IDv    <- df[[ix_ID]]
-    force_drop <- if (length(DROP_IDS)) IDv %in_drop% DROP_IDS else rep(FALSE, length(IDv))
     REF_in <- toupper(df[[ix_REF]])
-    ALT_in <- as.character(df[[ix_ALT]])
 
     # fast (f)match into fm
     j          <- mf(IDv, fm$ID)
@@ -1236,9 +1474,9 @@ if (is_vcfraws) {
     hits       <- ifelse(in_map, fm$MAP_HITS[j], 0L)
     chr_ok     <- in_map & nzchar_safe(fm$CHROM_map[j])
     pos_ok     <- in_map & !is.na(fm$POS_map[j]) & suppressWarnings(as.numeric(fm$POS_map[j]) > 0)
-    mapped_now <- in_map & (hits == 1L) & chr_ok & pos_ok & !force_drop
+    mapped_now <- in_map & (hits == 1L) & chr_ok & pos_ok
 
-    # Update CHROM/POS/QUAL/FILTER for this iteration
+    # Update CHROM/POS/QUAL/FILTER
     df[[ix_CHROM]] <- ifelse(mapped_now, fm$CHROM_map[j], "chrUnk")
     df[[ix_POS]]   <- ifelse(mapped_now, as.character(fm$POS_map[j]), "0")
     if (!is.na(ix_QUAL)) df[[ix_QUAL]] <- ifelse(mapped_now, "100", "0")
@@ -1247,15 +1485,15 @@ if (is_vcfraws) {
     # Pull prior & current strand
     info_in    <- if (!is.na(ix_INFO)) df[[ix_INFO]] else rep("", nrow(df))
     prior_raw  <- info_get(info_in, "PriorORIENT")
-    prior      <- pr_norm(prior_raw)                                  # plus|minus|none
-    s_now      <- strand_to_word(ifelse(mapped_now, fm$STRAND[j], NA_character_))  # plus|minus|NA
+    prior      <- pr_norm(prior_raw) # plus|minus|none
+    s_now      <- strand_to_word(ifelse(mapped_now, fm$STRAND[j], NA_character_)) # plus|minus|NA
 
     # Newly mapped this round? set PriorORIENT = s_now; else keep prior
     prior_out  <- prior
     set_pr     <- !is.na(s_now)
     prior_out[set_pr] <- s_now[set_pr]
 
-    # Brioche alleles
+    # Alleles from Brioche
     BriocheREF   <- ifelse(mapped_now, toupper(fm$REF_map[j]), NA_character_)
     BriocheALT   <- ifelse(mapped_now, first_alt_uc(fm$ALT_map[j]), NA_character_)
     BriocheREFRC <- revcomp_iupac(BriocheREF)
@@ -1266,7 +1504,6 @@ if (is_vcfraws) {
       REF_cur <- df[[ix_REF]]
       ALT_cur <- df[[ix_ALT]]
       REF_cur[need_flip] <- revcomp_iupac(REF_cur[need_flip])
-      # reverse-complement CSV of ALTs
       if (any(need_flip)) {
         ALT_cur[need_flip] <- vapply(ALT_cur[need_flip], rc_csv, character(1))
       }
@@ -1295,13 +1532,15 @@ if (is_vcfraws) {
 
     if (any(cond2 | cond3 | cond4)) {
       idx_bri <- which(cond2 | cond3 | cond4)
-      tmpREF <- df[[ix_REF]]; tmpALT <- df[[ix_ALT]]
+      tmpREF <- df[[ix_REF]]
+      tmpALT <- df[[ix_ALT]]
       tmpREF[idx_bri] <- BriocheREF[idx_bri]
       tmpALT[idx_bri] <- BriocheALT[idx_bri]
-      df[[ix_REF]] <- tmpREF; df[[ix_ALT]] <- tmpALT
+      df[[ix_REF]] <- tmpREF
+      df[[ix_ALT]] <- tmpALT
     }
 
-    # Genotype swap where needed (apply column-wise; vectorized per column)
+    # Genotype swap where needed (apply per column)
     if (length(swap_rows) && length(sample_cols_idx)) {
       for (jjj in sample_cols_idx) {
         colv <- df[[jjj]]
@@ -1310,13 +1549,12 @@ if (is_vcfraws) {
       }
     }
 
-    # SUBSEQUENT mapping (same orientation) Â— allow tri+ remapping
+    # SUBSEQUENT mapping (same orientation) — allow tri+ remapping
     tri_rows <- which(mapped_now & prior != "none" & !is.na(s_now) & (prior == s_now) & nzchar(BriocheREF))
     if (length(tri_rows)) {
       REF_cur2 <- df[[ix_REF]]
       ALT_cur2 <- df[[ix_ALT]]
 
-      # prepare once to avoid repeated object growth
       idx_map_by_row <- vector("list", length(tri_rows))
       names(idx_map_by_row) <- as.character(tri_rows)
       recode_needed  <- logical(length(tri_rows))
@@ -1359,25 +1597,63 @@ if (is_vcfraws) {
       }
     }
 
-    # INFO fields
+    # ---------- INFO: MAPSTATUS + PriorORIENT + DUP ----------
     status_val <- ifelse(mapped_now, "Unique_mapping", "Failed_to_map_uniquely")
-
-    if (!is.na(ix_INFO)) {
-      df[[ix_INFO]] <- info_strip_keys(df[[ix_INFO]], c("MAPSTATUS","PriorORIENT"))
-      df[[ix_INFO]] <- upsert_info_key_vec(df[[ix_INFO]], "MAPSTATUS",   status_val)
-      df[[ix_INFO]] <- upsert_info_key_vec(df[[ix_INFO]], "PriorORIENT", prior_out)
+    if (length(pri_flag_by_id)) {
+      pri_flag <- unname(pri_flag_by_id[IDv])
+      pri_flag[is.na(pri_flag)] <- FALSE
+      status_val[mapped_now & pri_flag] <- "Unique_mapping_with_priors_information"
+    }
+    dup_lab <- if (length(dup_label_by_id)) {
+      out <- unname(dup_label_by_id[IDv]); out[is.na(out)] <- "SingleCopy"; out
+    } else {
+      rep("SingleCopy", length(IDv))
     }
 
-    data.table::fwrite(df, file = Outputfilename, sep = "\t",
-                       append = TRUE, col.names = FALSE, quote = FALSE)
+    if (!is.na(ix_INFO)) {
+      df[[ix_INFO]] <- info_strip_keys(df[[ix_INFO]], c("MAPSTATUS", "PriorORIENT", "DUP"))
+      df[[ix_INFO]] <- upsert_info_key_vec(df[[ix_INFO]], "MAPSTATUS",   status_val)
+      df[[ix_INFO]] <- upsert_info_key_vec(df[[ix_INFO]], "PriorORIENT", ifelse(is.na(s_now), prior, s_now))
+      df[[ix_INFO]] <- upsert_info_key_vec(df[[ix_INFO]], "DUP",         dup_lab)
+    }
+
+    # ---------- FORMAT: append DU and value '.' (idempotent) ----------
+    if (!is.na(ix_FMT) && length(sample_cols_idx)) {
+      fmt <- df[[ix_FMT]]
+
+      # DU present already?
+      has_DU_before <- grepl("(^|:)DU($|:)", fmt, perl = TRUE)
+
+      # Only add DU for rows where it is missing and FORMAT is non-empty
+      to_add <- !has_DU_before & !is.na(fmt) & fmt != "" & fmt != "."
+
+      if (any(to_add)) {
+        # Append DU to FORMAT
+        fmt[to_add] <- paste0(fmt[to_add], ":DU")
+      }
+      # Always write back FORMAT (with or without changes)
+      df[[ix_FMT]] <- fmt
+
+      # For those same rows, append a single ":." to each sample genotype
+      if (any(to_add)) {
+        for (jj in sample_cols_idx) {
+          colv <- df[[jj]]
+          colv[to_add] <- paste0(colv[to_add], ":.")
+          df[[jj]] <- colv
+        }
+      }
+    }
+
+    dt_fwrite(df, file = Outputfilename, append = TRUE, col.names = FALSE)
 
     rm(df); gc(FALSE)
   }
+
   message(sprintf("Wrote: %s", Outputfilename))
 }
 
 
-# dart file 
+
 # DArT pathway (raw DArT table -> VCF; record PriorORIENT from sstrand)
 if (isDArTfile) {
 
@@ -1389,8 +1665,49 @@ if (isDArTfile) {
   }
   is_blank <- function(x) is.na(x) | x == "" | x == "."
 
-  # ---- existing DArT helpers (detect_dart_layout_base, parse_snp_ref_alt, etc.) remain as in your script ----
+  # ---- MAPPRIORS lookups (optional) ----
+  pri_flag_by_id <- logical(0)     # named logical: qaccver -> TRUE when qualifies for "Unique_mapping_with_priors_information"
+  dup_label_by_id <- character(0)  # named char:   qaccver -> "LocallyDuplicatedRegion" | "SingleCopy"
 
+  if (is.data.frame(MAPPRIORS)) {
+    n  <- nrow(MAPPRIORS)
+    tp <- MAPPRIORS
+    key <- as.character(tp$qaccver)
+
+    # normalize to vector length n, even if column is NULL/absent
+    is_true_chr <- function(v) tolower(trimws(as.character(v))) == "true"
+    norm_true   <- function(col) if (is.null(col)) rep(FALSE, n) else rep_len(is_true_chr(col), n)
+    norm_is_na  <- function(col) if (is.null(col)) rep(TRUE,  n) else rep_len(is.na(col),        n)
+
+    # prior-based uniqueness flag: Trueunique is NA AND any prior* == "true"
+    tu_na <- norm_is_na(tp$Trueunique)
+    any_prior_true <- norm_true(tp$Chrommarkermap) |
+                      norm_true(tp$proximatemarkermap) |
+                      norm_true(tp$linkagemarkermap) |
+                      norm_true(tp$geneticmapmarkermap)
+
+    # safe setNames helper (no mismatch crashes)
+    safe_set_names <- function(x, nm) {
+      lx <- length(x); ln <- length(nm)
+      if (!lx || !ln) return(x)
+      if (lx == ln)   return(stats::setNames(x, nm))
+      k <- min(lx, ln)
+      stats::setNames(x[seq_len(k)], nm[seq_len(k)])
+    }
+
+    pri_flag_by_id  <- safe_set_names(tu_na & any_prior_true, key)
+
+    # duplication label
+    dup_is_true     <- norm_true(tp$Duplicate_region)
+    dup_label_by_id <- safe_set_names(
+      ifelse(dup_is_true, "LocallyDuplicatedRegion", "SingleCopy"),
+      key
+    )
+  }
+
+
+
+  # ---- detect DArT layout (existing helpers assumed present) ----
   lay <- detect_dart_layout_base(raw_path)
   cn  <- lay$cn
   idx_allele <- match("AlleleID", cn)
@@ -1403,16 +1720,13 @@ if (isDArTfile) {
 
   fileDate     <- format(Sys.Date(), "%Y%m%d")
   VCFchroms    <- unique(c(order_contigs(Finalmappings$saccver), "chrUnk"))
-  contig_lines <- #unique(build_contig_lines(VCFchroms, ncbi_meta))
-  extra_meta   <- #build_extra_meta(ncbi_meta, genomename)
 
-if (nzchar(droplist_path)) {
-  header_lines <- c(header_lines,
-    sprintf('##Brioche_droplist="%s"', basename(droplist_path)))
-}
+  # contigs/meta already computed earlier:
+  #   - extra_meta
+  #   - contig_lines
 
   header_lines <- c(
-    "##fileformat=VCFv4.3",
+    "##fileformat=VCFv4.2",
     sprintf("##fileDate=%s", fileDate),
     "##source=Brioche-VCF-build",
     paste0("##",Metadata[1]),
@@ -1427,23 +1741,27 @@ if (nzchar(droplist_path)) {
     paste0("##Brioche_priors_files:",Metadata[10]),
     paste0("##Brioche_",Metadata[11]),
     extra_meta,
-    "##FILTER=<ID=LowQual,Description=\"Low quality or ambiguous mapping\">",
-    '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Unique_mapping|Failed_to_map_uniquely">',
+    '##FILTER=<ID=LowQual,Description="Low quality or ambiguous mapping">',
+    '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Unique_mapping|Unique_mapping_with_priors_information|Failed_to_map_uniquely">',
     '##INFO=<ID=PriorORIENT,Number=1,Type=String,Description="Accumulated strand orientation across runs (plus|minus|none)">',
-    "##INFO=<ID=MAF,Number=A,Type=Float,Description=\"Minor Allele frequency\">",
-    "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes\">",
-    "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">",
-    "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+    '##INFO=<ID=DUP,Number=1,Type=String,Description="SingleCopy|LocallyDuplicatedRegion">',
+    '##INFO=<ID=MAF,Number=A,Type=Float,Description="Minor Allele frequency per ALT">',
+    '##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count per ALT">',
+    '##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">',
+    '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
+    '##FORMAT=<ID=DU,Number=1,Type=Integer,Description="Number of local duplications of marker detected (0= Marker is single copy; 1+=copies, .=Unknown)">',
     contig_lines
   )
+  if (nzchar(droplist_path)) {
+    header_lines <- c(header_lines, sprintf('##Brioche_droplist="%s"', basename(droplist_path)))
+  }
   header_lines <- header_lines[!duplicated(header_lines)]
   writeLines(header_lines, con = Outputfilename)
 
   cn_fixed   <- make.unique(lay$cn, sep = "...")
   sample_ids <- cn_fixed[geno_idx]
   vcf_header <- c("#CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT", sample_ids)
-  data.table::fwrite(as.list(vcf_header), file = Outputfilename, sep = "\t",
-                     append = TRUE, col.names = FALSE, quote = FALSE)
+  write_header_row(vcf_header, Outputfilename)
 
   # Mapping frame (include sstrand)
   fm <- Finalmappings %>%
@@ -1452,7 +1770,7 @@ if (nzchar(droplist_path)) {
       CHROM_map = saccver,
       POS_map   = SNPpos,
       REF_map   = toupper(Ref),
-      ALT_map   = normalize_alt(ALT),
+      ALT_map   = normalize_alt(ALT),  # single ALT will be enforced
       STRAND    = sstrand
     )
   fm_hits <- Finalmappings %>% dplyr::count(qaccver, name = "MAP_HITS")
@@ -1461,7 +1779,7 @@ if (nzchar(droplist_path)) {
     dplyr::mutate(MAP_HITS = ifelse(is.na(MAP_HITS), 0L, MAP_HITS))
   fm_Name <- fm$Name
 
-  # Stream
+  # ---- stream input ----
   chunk_size <- 1500L
   delim <- if (grepl("\\.(tsv|txt)$", raw_path, ignore.case = TRUE)) "\t" else ","
   con_dart <- if (grepl("\\.gz$", raw_path, ignore.case = TRUE)) gzfile(raw_path, "rt") else file(raw_path, "rt")
@@ -1477,14 +1795,14 @@ if (nzchar(droplist_path)) {
                                 check.names = FALSE, col.names = cn_fixed, fill = TRUE)
     df <- df_all[, c(idx_allele, idx_snp, geno_idx), drop = FALSE]
 
-    Name <- df[[1L]]
+    Name <- df[[1L]]  # qaccver
     force_drop <- if (length(DROP_IDS)) Name %in_drop% DROP_IDS else rep(FALSE, length(Name))
     SNP  <- df[[2L]]
     geno <- as.matrix(df[, -(1:2), drop = FALSE])
 
-    pa   <- parse_snp_ref_alt(SNP)
-    REF_old <- toupper(pa$REF)
-    ALT_old <- toupper(pa$ALT)  # single ALT
+    pa       <- parse_snp_ref_alt(SNP)        # existing helper
+    REF_old  <- toupper(pa$REF)
+    ALT_old  <- toupper(pa$ALT)               # single ALT
 
     idx   <- match(Name, fm_Name)
     has_m <- !is.na(idx)
@@ -1521,10 +1839,24 @@ if (nzchar(droplist_path)) {
 
     # PriorORIENT from current sstrand when uniquely mapped; else 'none'
     cur_strand <- ifelse(u_map, strand_to_word(fm$STRAND[idx]), "none")
-    INFO <- ifelse(
-      unknown_now,
-      paste0("MAPSTATUS=Failed_to_map_uniquely;PriorORIENT=", cur_strand),
-      paste0("MAPSTATUS=Unique_mapping;PriorORIENT=", cur_strand)
+
+    # MAPSTATUS with priors, DUP from priors table (default SingleCopy)
+    status_val <- ifelse(unknown_now, "Failed_to_map_uniquely", "Unique_mapping")
+    if (length(pri_flag_by_id)) {
+      pri_flag <- unname(pri_flag_by_id[Name])
+      pri_flag[is.na(pri_flag)] <- FALSE
+      status_val[u_map & pri_flag] <- "Unique_mapping_with_priors_information"
+    }
+    dup_lab <- if (length(dup_label_by_id)) {
+      out <- unname(dup_label_by_id[Name]); out[is.na(out)] <- "SingleCopy"; out
+    } else {
+      rep("SingleCopy", length(Name))
+    }
+
+    INFO <- paste0(
+      "MAPSTATUS=", status_val,
+      ";PriorORIENT=", cur_strand,
+      ";DUP=", dup_lab
     )
 
     # Genotype normalization & swap where needed
@@ -1563,28 +1895,30 @@ if (nzchar(droplist_path)) {
     MAF_str <- sprintf("%.6g", AF1)
     INFO <- paste0(INFO, ";MAF=", MAF_str, ";AC=", AC_str, ";AN=", an)
 
-    body <- data.table::data.table(
-      `#CHROM` = CHROM, POS = POS, ID = Name,
-      REF = REF_out, ALT = ALT_out, QUAL = QUAL, FILTER = FILTER, INFO = INFO, FORMAT = "GT"
-    )
-    body <- cbind(body, data.table::as.data.table(geno))
-    data.table::fwrite(body, file = Outputfilename, sep = "\t",
-                       append = TRUE, col.names = FALSE, quote = FALSE)
+    # Append DU subfield to FORMAT and samples (unknown for DArT => '.')
+    FORMAT <- "GT:DU"
+    geno_df <- as.data.frame(geno, stringsAsFactors = FALSE, check.names = FALSE)
+    for (jj in seq_len(ncol(geno_df))) {
+      geno_df[[jj]] <- paste0(geno_df[[jj]], ":.")
+    }
 
-    rm(df_all, df, geno, body, ac1, an); gc(FALSE)
+    body <- data.frame(
+      `#CHROM` = CHROM, POS = POS, ID = Name,
+      REF = REF_out, ALT = ALT_out, QUAL = QUAL, FILTER = FILTER, INFO = INFO, FORMAT = FORMAT,
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+    body <- cbind(body, geno_df, stringsAsFactors = FALSE)
+
+    dt_fwrite(body, file = Outputfilename, append = TRUE, col.names = FALSE)
+
+    rm(df_all, df, geno, geno_df, body, ac1, an); gc(FALSE)
   }
 
   message(sprintf("Wrote: %s", Outputfilename))
   quit(save = "no")
 }
 
-
-
-
 # Come back to this section to add in more diverse datatypes for non SNP chip output. 
 if(!is_snpchip & !is_vcfraws & !isDArTfile) {
-  
   message(sprintf("Wrote: %s", "Hello world"))
-  
 }
-
