@@ -21,7 +21,7 @@ read_mixed_csv_base <- function(path,
                                 parse_kv = TRUE,
                                 ...) {
 
-  # ---- 1) Read only the leading "##" header lines ----
+  # Read the leading "##"
   con <- file(path, open = "r", encoding = "UTF-8")
   on.exit(close(con), add = TRUE)
 
@@ -40,7 +40,6 @@ read_mixed_csv_base <- function(path,
     }
   }
 
-  # ---- 2) Read the data section directly from disk ----
   # If there were header lines, skip them; otherwise read from top.
   if (n_header > 0L) {
     df <- utils::read.csv(
@@ -61,7 +60,7 @@ read_mixed_csv_base <- function(path,
     )
   }
 
-  # ---- 3) Optionally parse "## key = value" lines into header_meta ----
+  # parse ##  into header_meta
   if (parse_kv && length(header_lines)) {
     kv_lines <- sub("^##\\s*", "", header_lines)
     kv_lines <- kv_lines[grepl("=", kv_lines, fixed = TRUE)]
@@ -88,7 +87,6 @@ read_mixed_csv_base <- function(path,
     }
   }
 
-  # ---- 4) Always keep the raw header lines too ----
   attr(df, "raw_header_lines") <- header_lines
   df
 }
@@ -223,9 +221,7 @@ sanitize_rectangular <- function(x) {
       x[[nm]] <- vapply(seq_len(n), function(i) {
         paste(unlist(subdf[i, , drop = FALSE]), collapse = ";")
       }, FUN.VALUE = character(1), USE.NAMES = FALSE)
-    }
-    
-    # After coercions, enforce column length == n
+    }    
     if (length(x[[nm]]) == 1L) x[[nm]] <- rep(x[[nm]], n)
     if (length(x[[nm]]) != n)  x[[nm]] <- as.character(x[[nm]])[seq_len(n)]
   }
@@ -233,11 +229,6 @@ sanitize_rectangular <- function(x) {
   rownames(x) <- NULL
   x
 }
-
-
-
-
-
 
 
 
@@ -259,6 +250,8 @@ sanitize_rectangular <- function(x) {
 #' @param mappings.file Low filtered mappings file as tsv
 #' @param dogeneticmap whether to use genetic mapping prior
 #' @param geneticmap.file CSV path to genetic mapping prior (MarkerName, Chromosomes_mapped, etc)
+#' @param dup.dist distance for detection of local duplications
+#' @param keeplocalduppos yes or no for whether to keep markers which contain local duplications if there are no other hits and all hits show a consensus variant site
 #' @keywords genome, filter blast intermediate
 #' @return Returns an object which has been filtered using given priors to remove/keep best hits per marker
 #' @export
@@ -276,7 +269,9 @@ DoIntermediatefiltering <-
            blast.hits,
            mappings.file,
            dogeneticmap,
-           geneticmap.file)
+           geneticmap.file,
+           dup.dist,
+           keeplocalduppos)
   {
     
     hdr <- readLines(blast.hits, n = 100L, warn = FALSE)
@@ -825,5 +820,113 @@ if (has_ld || has_gmap || has_tchr || has_neigh) {
     
     cat("\nNumber of rows in intermediate filtering results blast table:", nrow(top_hits_clean), "\n")
     cat("\nMapping results written to ", output.path)
-   
+
+
+   ###################
+   # Adding new section to track the putative presence of local duplication 
+   ###################
+
+  
+   duplications <- as.data.frame(matrix(nrow=(length(unique(top_hits$qaccver))),ncol=4))
+   colnames(duplications) <- c("qaccver","copy_number","consensusbase", "keep")
+
+
+top_hits2 <- dplyr::mutate(
+  top_hits,
+  .row_id = dplyr::row_number()
+)
+
+group_info <- dplyr::summarise(
+  dplyr::group_by(top_hits2, qaccver),
+  n_rows    = dplyr::n(),
+  n_saccver = dplyr::n_distinct(saccver),
+  .groups   = "drop"
+)
+
+# Choose highest bitscore; if tied, keep the earliest row in the original data
+anchor <- dplyr::transmute(
+  dplyr::ungroup(
+    dplyr::slice(
+      dplyr::arrange(
+        dplyr::filter(
+          dplyr::group_by(top_hits2, qaccver),
+          dplyr::n() > 1,
+          dplyr::n_distinct(saccver) == 1
+        ),
+        dplyr::desc(bitscore),
+        .row_id,
+        .by_group = TRUE
+      ),
+      1
+    )
+  ),
+  qaccver,
+  saccver,
+  anchor_sstart = sstart
+)
+
+dup.dist <- as.numeric(dup.dist)
+
+in_range <- dplyr::filter(
+  dplyr::inner_join(top_hits2, anchor, by = c("qaccver", "saccver")),
+  !is.na(sstart),
+  !is.na(anchor_sstart),
+  sstart >= pmax(anchor_sstart - dup.dist, 0),
+  sstart <= (anchor_sstart + dup.dist)
+)
+
+counts_in_range <- dplyr::count(in_range, qaccver, name = "copy_number")
+
+# Consensus base check in range (TRUE only if all Ref values identical AND none are NA)
+consensus_in_range <- dplyr::summarise(
+  dplyr::group_by(in_range, qaccver),
+  consensusbase = dplyr::if_else(
+    all(!is.na(Ref)) && dplyr::n_distinct(Ref) == 1,
+    "true",
+    "false"
+  ),
+  .groups = "drop"
+)
+
+# Build duplications table with required NA behaviour when multiple saccver exist
+duplications <- dplyr::select(
+  dplyr::mutate(
+    dplyr::left_join(
+      dplyr::left_join(group_info, counts_in_range, by = "qaccver"),
+      consensus_in_range,
+      by = "qaccver"
+    ),
+    copy_number = dplyr::case_when(
+      n_rows == 1 ~ 1L,
+      n_rows > 1 & n_saccver == 1 ~ as.integer(copy_number),
+      n_rows > 1 & n_saccver > 1 ~ NA_integer_,
+      TRUE ~ NA_integer_
+    ),
+    consensusbase = dplyr::case_when(
+      n_rows == 1 ~ "true",
+      n_rows > 1 & n_saccver == 1 ~ consensusbase,
+      n_rows > 1 & n_saccver > 1 ~ NA_character_,
+      TRUE ~ NA_character_
+    )
+  ),
+  qaccver,
+  copy_number,
+  consensusbase
+)
+
+if (keeplocalduppos == "yes") {
+  duplications$keep <- ifelse(
+    !is.na(duplications$copy_number) &
+      duplications$copy_number > 0 &
+      duplications$consensusbase == "true",
+    "yes",
+    "no"
+  )
+} else {
+  duplications$keep <- "NA"
+}
+       
+   write.table(x = duplications, file = paste0(probe.name, "_with_", genome.name, "_marker_localduplications_counts.tsv"),sep="\t",quote=FALSE,row.names=FALSE)
+
+
   }

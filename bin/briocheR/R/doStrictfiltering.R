@@ -222,6 +222,7 @@ sanitize_rectangular <- function(x) {
 #' @param mappings.file Low filtered mappings file as tsv
 #' @param dogeneticmap whether to use genetic mapping prior
 #' @param geneticmap.file CSV path to genetic mapping prior (MarkerName, Chromosomes_mapped, etc)
+#' @param dupmapinter.file file tracking the presence of local duplications of markers in each genome. multi column header tsv
 #' @keywords genome, filter blast strict
 #' @export
 #'
@@ -241,19 +242,39 @@ DoStrictfiltering <-
            blast.hits,
            mappings.file,
            dogeneticmap,
-           geneticmap.file)
+           geneticmap.file,
+           dupmapinter.file)
   {    
     # Remember that the header Lines will be stored as an attribute for reattaching later
     blast.out <- read_mixed_csv_base(blast.hits)
     headerinfo <- attributes(blast.out)
     mappings.out <- read.table(mappings.file,sep="\t",header = TRUE)
+    dupmapinter.in <- read.table(dupmapinter.file,sep="\t",header = TRUE)
  
+
+
     blast.out$bitscore <- as.numeric(blast.out$bitscore)
     
     saveRDS(blast.out, "blastout.RDS")
     saveRDS(mappings.out, "mappingsout.RDS")
 
-    
+    # Create a new tracking for what markers are actually being removed and what are being 
+    # saved by different priors files.
+    strictmarkernames <- as.data.frame(matrix(nrow=(length(unique(blast.out$qaccver))),ncol=7))
+    colnames(strictmarkernames) <- c("qaccver","Trueunique","Chrommarkermap","proximatemarkermap","linkagemarkermap","geneticmapmarkermap","Duplicate_region")
+    strictmarkernames$qaccver <- unique(blast.out$qaccver)
+      # I do have to run the fairly intense dplyr function again for this though
+      uniqonly <- blast.out |>
+        dplyr::add_count(qaccver, name = "n") |>
+        dplyr::filter(n == 1) |>
+        dplyr::select(-n)
+
+    strictmarkernames$Trueunique <- ifelse(
+      strictmarkernames$qaccver %in% uniqonly$qaccver,
+      "True",
+      NA_character_
+    )
+
     if (!dir.exists(output.path))
       dir.create(output.path, recursive = T)
     
@@ -425,7 +446,15 @@ DoStrictfiltering <-
       keep_nameschromchrom <- intersect(top_hits$Alternate_SNP_ID, blast.out$Alternate_SNP_ID)
       keep_namescombined <- append(keep_namescombined, keep_nameschromchrom)
 
-      
+    
+      strictmarkernames$Chrommarkermap <- ifelse(
+        strictmarkernames$qaccver %in% top_hits_knowntargetchroms_strict$qaccver,
+        "True",
+        NA_character_
+    )
+
+
+  
     }
     
  
@@ -519,6 +548,17 @@ if (dogeneticmap == "Yes") {
 
   keep_namescombined   <- append(keep_namescombined,   keep_names_gmap)
   remove_namescombined <- append(remove_namescombined, remove_names_gmap)
+
+
+  strictmarkernames$geneticmapmarkermap <- ifelse(
+    strictmarkernames$qaccver %in% top_hits_gmap_strict$qaccver,
+    "True",
+    NA_character_
+  )
+
+
+
+
 }
 
     
@@ -627,10 +667,18 @@ if (dogeneticmap == "Yes") {
       keep_namessimmarkers <- intersect(top_hits$Alternate_SNP_ID, blast.out$Alternate_SNP_ID)
       keep_namescombined <- append(keep_namescombined, keep_namessimmarkers)
 
+    
+      strictmarkernames$proximatemarkermap<- ifelse(
+      strictmarkernames$qaccver %in% filteredtop_hits_neighbour_strict$qaccver,
+      "True",
+      NA_character_
+      )
+
 
     }
     
-    
+
+
     if(doldedge=="Yes") {
       
       ## 1) Build prior: for each SNP_A, pick the most frequent chromosome of its SNP_B partners (note less meningful relationships have been prefiltered already)
@@ -773,6 +821,14 @@ if (dogeneticmap == "Yes") {
       keep_namesld <- intersect(top_hits$Alternate_SNP_ID, blast.out$Alternate_SNP_ID)
       keep_namescombined <- append(keep_namescombined, keep_namesld)
 
+      strictmarkernames$linkagemarkermap<- ifelse(
+      strictmarkernames$qaccver %in% top_hits$qaccver,
+      "True",
+      NA_character_
+      )
+
+
+
     }
     
     # Here is where the intermitten deviates from the strict. Intermittent was a filter keep, here we want a remove all so we will tally all the names of failed markers
@@ -794,14 +850,76 @@ if (dogeneticmap == "Yes") {
     blast_unique <- blast.out |>
       dplyr::filter((Alternate_SNP_ID %in% keep_namescombined))
 
+# Add in markers which were assigned as keep duplicates.
+missing_q <- setdiff(
+  unique(
+    dplyr::pull(
+      dplyr::filter(dupmapinter.in, keep == "yes"),
+      qaccver
+    )
+  ),
+  unique(blast_unique$qaccver)
+)
+
+
+locdups <- subset(dupmapinter.in, !is.na(copy_number) & copy_number > 1)
+
+extra_rows <- dplyr::select(
+  dplyr::ungroup(
+    dplyr::slice(
+      dplyr::group_by(
+        dplyr::arrange(
+          dplyr::filter(
+            dplyr::mutate(blast.out, .row_id = dplyr::row_number()),
+            qaccver %in% missing_q
+          ),
+          qaccver, sstart, .row_id
+        ),
+        qaccver
+      ),
+      1
+    )
+  ),
+  -.row_id
+)
+
+    # Final dataframe pt 1
+    blast_unique1 <- dplyr::bind_rows(blast_unique, extra_rows)
+
+      strictmarkernames$Duplicate_region<- ifelse(
+      strictmarkernames$qaccver %in% locdups$qaccver,
+      "True",
+      NA_character_
+      )
+
+
+# It is possible that local dups fails the consensus detection but the priors/ racre circumstances in intermediate lead to a single marker passing into the strict. We now want to remove any markers where the consensus sequence
+## is FALSE. 
+
+q_to_remove <- unique(
+  dplyr::pull(
+    dplyr::filter(dupmapinter.in, consensusbase == "false"),
+    qaccver
+  )
+)
+
+q_to_remove <- intersect(q_to_remove, unique(blast_unique1$qaccver))
+
+# Final dataframe pt 2 
+blast_unique2 <- dplyr::filter(
+  blast_unique1,
+  !(blast_unique1$qaccver %in% q_to_remove)
+)
+
+
 
     # Filter to have only SNPs present in blast_unique present in the mappings file
     filtered_mappings <- mappings.out |>
-      dplyr::filter(Alternate_SNP_ID %in% blast_unique$Alternate_SNP_ID)
+      dplyr::filter(Alternate_SNP_ID %in% blast_unique2$Alternate_SNP_ID)
     
     
-    attributes(blast_unique)$raw_header_lines <- headerinfo$raw_header_lines
-    blast_unique_clean <- sanitize_rectangular(blast_unique)
+    attributes(blast_unique2)$raw_header_lines <- headerinfo$raw_header_lines
+    blast_unique_clean <- sanitize_rectangular(blast_unique2)
     
     
     attributes(filtered_mappings)$raw_header_lines <- headerinfo$raw_header_lines
@@ -823,6 +941,11 @@ if (dogeneticmap == "Yes") {
                            path = mappings.outpath,sep="\t",quote=FALSE)
     
     
+    markerfiltextra.outpath <- file.path(paste0(probe.name, "_with_", genome.name, "_priors_informed_strictmapping.tsv"))
+
+    write.table(x = strictmarkernames, file = markerfiltextra.outpath, sep= "\t",quote=FALSE,row.names=FALSE)
+
+
     cat("\nNumber of rows in final filtering results blast table:", nrow(blast_unique_clean), "\n")
     
   }

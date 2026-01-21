@@ -11,7 +11,7 @@ set -euo pipefail
 #   --fragmentsize N           Half-window size (bp) for extraction around POS. Total length = 2*N + 1. Default: 150.
 #   --chrommapping file.tsv    (Optional) Two-column TSV mapping VCF chromosome name -> reference chromosome name:
 #                                vcfchromname<TAB>genomechromname
-#                                e.g.,   1<TAB>Chr1
+#                                e.g.,   1<TAB>Chr1 (OPTIONAL file only required if the reference used has differently named chromosomes)
 #   --outdir /path/to/outdir   Output directory for intermediates and results.
 #
 # BEHAVIOUR:
@@ -110,7 +110,7 @@ else
 fi
 # chrom_pos_marker.tsv columns: CHROM \t POS \t ID
 
-# Apply chromosome-name mapping if provided 
+# Apply chromosome-name mapping if avail
 
 if [[ -n "${CHROMCHROMMAPPING:-}" ]]; then
   echo "Applying chromosome mapping from: ${CHROMCHROMMAPPING}"

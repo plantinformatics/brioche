@@ -48,7 +48,8 @@ include {
 
 // Adding git monitoring for version recording (probably should move this to the nextflow.config or run.config file sometime soon
 // Git commit version, git url, added branch name, plus cast paramaters information for future incorporation into final 1to1 mappings file used for anchoring
-// Utilises First, Nextflow parameters and secondary failsafe using .git config file 
+// Utilises First, Nextflow parameters and secondary failsafe using .git config file
+// Note: I've tested this part and it seems robust but it's mostly ChatGPT, I'm not familiar enough with Nextflow and nextflow standard parameters to break down every component of it 
 def yn = { v ->
     if (v == null) return 'NO'
     def s = v.toString().trim().toLowerCase()
@@ -267,13 +268,17 @@ workflow {
             params.useldedgemap,
             params.ldedgemap,
             params.usegeneticmap,
-            params.geneticmap 
+            params.geneticmap,
+            params.localdupdist,
+            params.keeplocalduppos
           )
           INTERMEDIATE_FILTERING.out.map{it->it[0]}.set{filteredmappretzelcsv}
           INTERMEDIATE_FILTERING.out.map{it->it[1]}.set{intermediatefilteredmap}
+          INTERMEDIATE_FILTERING.out.map{it->it[2]}.set{dupmapinter}
           ADVANCED_FILTERING(
             filteredmappretzelcsv,
             intermediatefilteredmap,
+            dupmapinter,
             params.resultsdirectory,
             params.probename,
             params.genomename,
@@ -289,10 +294,13 @@ workflow {
           )
           ADVANCED_FILTERING.out.map{ it -> it[0] }.set { strictmappedcsv }
           ADVANCED_FILTERING.out.map{ it -> it[1] }.set { strictmappedtsv }
+          ADVANCED_FILTERING.out.map{ it -> it[3] }.set { priors_informatives_strict }
 
           COLLECT_SUMSTATS(
             strictmappedcsv,
             strictmappedtsv,
+            dupmapinter,
+            priors_informatives_strict,
             params.resultsdirectory,
             params.probename,
             params.genomename,
