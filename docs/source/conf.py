@@ -21,12 +21,17 @@ extensions = [
 templates_path = ['_templates']
 exclude_patterns = []
 
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "markdown",
+}
+
 
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'furo'
+html_theme = 'alabaster'
 html_static_path = ['_static']
 
 
@@ -35,3 +40,4 @@ html_theme_options = {
     "source_branch": "main",
     "source_directory": "docs/source/",
 }
+
