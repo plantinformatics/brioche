@@ -1,7 +1,8 @@
-# Installation
+Installation
+============
 
 Downloading brioche:
-====================
+--------------------
 
 Brioche can be downloaded directly from the github page as shown below.
 
@@ -25,7 +26,7 @@ Here you will have a folder structure laid out like the following:
 
 
 Software dependencies:
-======================
+----------------------
 
 Brioche uses Nextflow as a workflow manager. Brioche also uses conda as a package manager and git for recording relevant metadata. Each of these are required to be installed either as modules on the HPC system 
 or directly by the user.
@@ -89,7 +90,7 @@ This software environment is used to do additional insilico and other functional
 
 
 File layout:
-============
+------------
 
 Brioche comes with a number of different files and folders but only a small number are important for the user to be aware of. 
 

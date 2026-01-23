@@ -3,7 +3,7 @@ Setting up a run
 
 
 Brioche inputs:
-===============
+---------------
 
 Brioche has one required input file (the brioche targets file) which is formatted as a tsv file with the following columns. 
 1. ID  (the name of each marker)
@@ -56,7 +56,7 @@ e.g.,
 
 
 Parameters file:
-================
+----------------
 
 The parameters file for each run of brioche is found in the file params.config.
 
@@ -132,7 +132,7 @@ usegeneticmap (whether to use a genetic mapping file to infirm on the relative p
 geneticmap (the path to a multicolumn csv with the first column being the marker name, the second the number of chromosomes this marker mapped to, the next 5 being the chromosome names it mapped to, and the next 5 columns being the counts which each chromosome was mapped to for the marker, see example_files/genetic_mapping_input.csv. Note, also requires chromchrommatch to be present to convert chrom names between old and new references)
 
 Run parameters and goals
-========================
+------------------------
 
 The run configuration you choose depends on your workflow goal. We provide a more detailed breakdown of how some settings can be changed to best run for different usecases below but in general the settings desired should reflect
 
@@ -169,7 +169,7 @@ Other specific goals and scenarios can be seen in the example of different useca
 
 
 Simple runs 
-===========
+-----------
 
 Once parameters are set and the targets file (Brioche input file) is created running Brioche is very straight forward. 
 

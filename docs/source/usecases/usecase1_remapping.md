@@ -91,7 +91,7 @@ This allows the user to easily see if the Mapping was unique through provided pr
 
 
 Other usecases
-==============
+--------------
 
 If you are interested in other usecases see.
 

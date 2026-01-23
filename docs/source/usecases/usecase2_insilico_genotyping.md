@@ -106,7 +106,7 @@ Now the file 'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf_sorted.vcf' ca
 
 
 Other usecases
-============== \
+--------------
 
 If you are interested in other usecases see.
 

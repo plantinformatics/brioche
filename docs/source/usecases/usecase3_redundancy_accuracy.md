@@ -54,7 +54,7 @@ and then run Brioche on a new reference genome iteratively restricting the datas
 
 
 Other usecases
-==============
+--------------
 
 If you are interested in other usecases see.
 
