@@ -47,7 +47,7 @@ Extensions
 
 If the user is interested in identifying the most strictly mapped markers to design future markers from, this script allows for exploring what are the most strict parameters for a given marker dataset
 
-After identifying strict settings, the user can then anchor the results as described in usecase 1 {doc}`Usecase1: Remapping data across reference genomes <usecases/usecase1_remapping>`
+After identifying strict settings, the user can then anchor the results as described in usecase 1 :doc:`Usecase1: Remapping data across reference genomes <usecase1_remapping>`
 take the VCF of only mapped reads and extract markers from it using the Additional_functions/run_convert_vcf_to_brioche_input.sh
 and then run Brioche on a new reference genome iteratively restricting the dataset to only the best mapping markers across all reference genomes
 
@@ -59,15 +59,15 @@ Other usecases
 If you are interested in other usecases see.
 
 1. If you are interested in easy remapping of markers across any distinct reference genome and the reanchoring of genotypes to the new reference genome 
-{doc}`Usecase1: Remapping data across reference genomes <usecases/usecase1_remapping>`
+:doc:`Usecase1: Remapping data across reference genomes <usecase1_remapping>`
 
 2. If you are interested in extracting genotype calls from one or multiple reference genomes and adding them to your population genomics study go to 
-{doc}`Usecase2: In silico genotyping of reference genomes <usecases/usecase2_insilico_genotyping>`
+:doc:`Usecase2: In silico genotyping of reference genomes <usecase2_insilico_genotyping>`
 
 5. If you are interested in the mapping of multiple different datasets to a unified reference genome allowing for merging across shared loci and other downstream applications (e.g., imputations)
-{doc}`Usecase4: Merge datasets <usecases/usecase4_merge_datasets>`
+:doc:`Usecase4: Merge datasets <usecase4_merge_datasets>`
 
 
-otherwise, to return to the Introduction page go to {doc}`Introduction <../Introduction>`
+otherwise, to return to the Introduction page go to :doc:`Introduction <../introduction>`
 
 

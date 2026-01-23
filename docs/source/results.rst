@@ -160,30 +160,30 @@ Now that the basic results structure is understood, we can show how these result
 
 
 1. If you are interested in producing a VCF file of your results mapped to the new reference genome with reanchored genotype calls go to
-{doc}`Usecase1: Remapping data across reference genomes <usecases/usecase1_remapping>`
+:doc:`Usecase1: Remapping data across reference genomes <usecases/usecase1_remapping>`
 
 
 2. If you are interested in extracting genotype calls from one or multiple reference genomes and adding them to your population genomics study go to 
-{doc}`Usecase2: In silico genotyping of reference genomes <usecases/usecase2_insilico_genotyping>`
+:doc:`Usecase2: In silico genotyping of reference genomes <usecases/usecase2_insilico_genotyping>`
 
 
 3. If you are interested in determining whether an existing marker dataset might be amplifying redundant regions under varied settings go to
-{doc}`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
+:doc:`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
 
 
 4. If you are interested in the creation of custom marker datasets from existing analyses and testing the likely redundancy of newly designed markers against a wide range of reference genomes for a target species (similar process as 3.) go to
-{doc}`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
+:doc:`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
 
 
 5. If you are interested in the mapping of multiple different datasets to a unified reference genome allowing for merging across shared loci and other downstream applications (e.g., imputations)
-{doc}`Usecase4: Merge datasets <usecases/usecase4_merge_datasets>`
+:doc:`Usecase4: Merge datasets <usecases/usecase4_merge_datasets>`
 
 
 
 
 
 
-Alternatively, to return to how to set up a run: go to {doc}`Setting up a run <setting_up_a_run>`
+Alternatively, to return to how to set up a run: go to :doc:`Setting up a run <setting_up_a_run>`
 
 
 

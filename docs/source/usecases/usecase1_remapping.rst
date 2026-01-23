@@ -5,18 +5,18 @@ This usecase describes how to use Brioche to remap any population dataset agains
 
 The usecase assumes that a Brioche run has been completed. For more information about creating a Brioche run and results see
 
-Setting up a run {doc}`Setting up a run <../setting_up_a_run>`
+Setting up a run :doc:`Setting up a run <../setting_up_a_run>`
 
-Results of a run {doc}`Results folder structure <../results>`
+Results of a run :doc:`Results folder structure <../results>`
 
 
 Requirements 
 ~~~~~~~~~~~~
 
 1. Brioche to have been run and the files below are present
-'*_Brioche_all_markers1to1stagingforvcf.csv'
-'*_marker_localdups_NULLS_counts.tsv'
-'*_priors_informed_strictmapping.tsv'
+'\*_Brioche_all_markers1to1stagingforvcf.csv'
+'\*_marker_localdups_NULLS_counts.tsv'
+'\*_priors_informed_strictmapping.tsv'
 
 2. The genotype data file you have is in one of the following three forms 
 	a) Raw genotypes with the below format type (tsv separated). REF/ALT defined as ACGT ACGT, samples as columns, markers as rows genotype coded as 0,1,2, NC as missing data and N as Null alleles
@@ -41,7 +41,7 @@ Additional instructions are provided in the file but the main components to chan
 
 2) the values of variable set in the section Variables to set in the script. There are 13 variables to set but most are changing the file paths and names of input/output files to the names generated in the specific brioche run
 
-.. image:: Images/Variables_anchoring_script.png
+.. image:: ../Images/Variables_anchoring_script.png
    :alt: Parameters file
    :width: 300px
    :align: center
@@ -64,7 +64,7 @@ Outputs
 The VCF file produced contains metadata from the brioche run as well as multiple specifics to Brioche outputs to assist with results interpretation
 At the top of the VCF file we can see Brioche metadata included as well as some NCBI derived data for the reference genome. This reference data is queried from NCBI so requires the user to provide the Accession or genome name in the input variables when they run the script.
 
-.. image:: Images/Anchored_vcf_output_headerCasestudy1.png
+.. image:: ../Images/Anchored_vcf_output_headerCasestudy1.png
    :alt: Parameters file
    :width: 300px
    :align: center
@@ -84,7 +84,7 @@ Brioche VCF outputs as a result take the format 1/1:0:. or 0/0:0:. or ./.:1:. as
 e.g., MAPSTATUS=;PriorORIENT=;DUP=SingleCopy
 This allows the user to easily see if the Mapping was unique through provided priors or not, whether the marker mapped positively or negatively to the reference genome, and whether there were local duplicates in the reference genome
 
-.. image:: Images/Anchored_vcf_output_bodyCasestudy1.png
+.. image:: ../Images/Anchored_vcf_output_bodyCasestudy1.png
    :alt: Parameters file
    :width: 300px
    :align: center
@@ -97,19 +97,19 @@ If you are interested in other usecases see.
 
 
 2. If you are interested in extracting genotype calls from one or multiple reference genomes and adding them to your population genomics study go to 
-{doc}`Usecase2: In silico genotyping of reference genomes <usecases/usecase2_insilico_genotyping>`
+:doc:`Usecase2: In silico genotyping of reference genomes <usecase2_insilico_genotyping>`
 
 
 3. If you are interested in determining whether an existing marker dataset might be amplifying redundant regions under varied settings go to
-{doc}`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
+:doc:`Usecase3: Testing redundancy/accuracy in marker datasets <usecase3_redundancy_accuracy>`
 
 
 4. If you are interested in the creation of custom marker datasets from existing analyses and testing the likely redundancy of newly designed markers against a wide range of reference genomes for a target species (similar process as 3.) go to
-{doc}`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
+:doc:`Usecase3: Testing redundancy/accuracy in marker datasets <usecase3_redundancy_accuracy>`
 
 
 5. If you are interested in the mapping of multiple different datasets to a unified reference genome allowing for merging across shared loci and other downstream applications (e.g., imputations)
-{doc}`Usecase4: Merge datasets <usecases/usecase4_merge_datasets>`
+:doc:`Usecase4: Merge datasets <usecase4_merge_datasets>`
 
 
-otherwise, to return to the Introduction page go to {doc}`Introduction <../Introduction>`
+otherwise, to return to the Introduction page go to :doc:`Introduction <../introduction>`
