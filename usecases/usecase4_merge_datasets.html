@@ -40,22 +40,23 @@
 <h2>Requirements<a class="headerlink" href="#requirements" title="Link to this heading">¶</a></h2>
 <p>Per dataset of interest:</p>
 <p>1. Brioche to have been run and the files below are present
-‘*_Brioche_all_markers1to1stagingforvcf.csv’
-‘*_marker_localdups_NULLS_counts.tsv’
-‘*_priors_informed_strictmapping.tsv’</p>
-<ol class="arabic simple" start="2">
-<li><dl class="simple">
-<dt>The genotype data file you have is in one of the following three forms</dt><dd><p>a) Raw genotypes with the below format type (tsv separated). REF/ALT defined as ACGT ACGT, samples as columns, markers as rows genotype coded as 0,1,2, NC as missing data and N as Null alleles
-“””
-Name    REF     ALT     Sample1 Sample2 etc
-Marker1 T       C       2       1
-Marker2 T       G       0       N
-Marker3 A       C       NC      1
-“””
-b) A VCF file (any vcf compatible format)
-c) DArTseq Report 1 row format.</p>
-</dd>
-</dl>
+<em>‘*_Brioche_all_markers1to1stagingforvcf.csv’</em></p>
+<p><em>‘*_marker_localdups_NULLS_counts.tsv’</em></p>
+<p><em>‘*_priors_informed_strictmapping.tsv’</em></p>
+<ol class="arabic" start="2">
+<li><p>The genotype data file you have is in one of the following three forms:</p>
+<ol class="loweralpha">
+<li><p>Raw genotypes in the format below (tab-separated). <code class="docutils literal notranslate"><span class="pre">REF</span></code>/<code class="docutils literal notranslate"><span class="pre">ALT</span></code> are defined as ACGT/ACGT, samples are columns, markers are rows, genotypes are coded as <code class="docutils literal notranslate"><span class="pre">0</span></code>, <code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">2</span></code>, <code class="docutils literal notranslate"><span class="pre">NC</span></code> as missing data, and <code class="docutils literal notranslate"><span class="pre">N</span></code> as null alleles.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Name    REF  ALT  Sample1  Sample2  etc
+Marker1 T    C    2        1
+Marker2 T    G    0        N
+Marker3 A    C    NC       1
+</pre></div>
+</div>
+</li>
+<li><p>A VCF file (any VCF-compatible format).</p></li>
+<li><p>A DArTseq report (1-row format).</p></li>
+</ol>
 </li>
 </ol>
 </section>
@@ -84,12 +85,14 @@ Additional instructions are provided in the file but the main components to chan
 <li><p>A VCF with mapped markers which have numeric chromosomes</p></li>
 <li><p>A VCF with mapped markers which have numeric chromosomes which are sorted</p></li>
 </ol>
-<p>For each of the analysed datasets the user can take
-4) A VCF with mapped markers which have numeric chromosomes which are sorted</p>
+<p>For each of the analysed datasets the user can take</p>
+<ol class="arabic simple" start="4">
+<li><p>A VCF with mapped markers which have numeric chromosomes which are sorted</p></li>
+</ol>
 <p>and if there is sufficient overlap in markers the user can directly merge the new datasets</p>
-<p>e.g., through first activating the brioche-vcf conda environment and then running bcftools
-‘union_two_datasets.vcf.gz’ will have all markers and all samples across both datasets
-‘isec_merged_results’ will be a folder with 3 vcf files, one for unique markers in dataset1, one for unique in dataset2, and one for shared markers</p>
+<p>e.g., through first activating the brioche-vcf conda environment and then running bcftools</p>
+<p><em>‘union_two_datasets.vcf.gz’</em> will have all markers and all samples across both datasets</p>
+<p><em>‘isec_merged_results’</em> will be a folder with 3 vcf files, one for unique markers in dataset1, one for unique in dataset2, and one for shared markers</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">conda activate brioche-vcf</span>
 <span class="go">gzip dataset1.vcf</span>
 <span class="go">gzip dataset2.vcf</span>

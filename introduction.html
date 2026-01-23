@@ -45,32 +45,32 @@ and Grains Research and Development Corporation (GRDC) that aims to unlock the g
 </section>
 <section id="key-features">
 <h2>Key features:<a class="headerlink" href="#key-features" title="Link to this heading">¶</a></h2>
-<p><strong>Efficient workflow management</strong>: Nextflow, a domain-specific language designed for workflows, orchestrates processing steps with clarity and precision.
-<strong>Formalized process definition</strong>: Each step, from input to output, is clearly defined within the pipeline, ensuring transparency and reproducibility.
-<strong>Automated job submission and connection</strong>: Nextflow seamlessly handles job execution and data flow between steps, freeing you from manual task management.
-<strong>Datatype/species agnostic</strong>: Brioche has been designed to work with a wide range of SNP data types including probe capture data, DArT sequencing methods, and GBS sequencing results for any species.
-<strong>Comprehensive summaries</strong> helping users derive more clear conclusions from their data and help plan future sequencing runs.</p>
+<p><strong>Efficient workflow management</strong>: Nextflow, a domain-specific language designed for workflows, orchestrates processing steps with clarity and precision.</p>
+<p><strong>Formalized process definition</strong>: Each step, from input to output, is clearly defined within the pipeline, ensuring transparency and reproducibility.</p>
+<p><strong>Automated job submission and connection</strong>: Nextflow seamlessly handles job execution and data flow between steps, freeing you from manual task management.</p>
+<p><strong>Datatype/species agnostic</strong>: Brioche has been designed to work with a wide range of SNP data types including probe capture data, DArT sequencing methods, and GBS sequencing results for any species.</p>
+<p><strong>Comprehensive summaries</strong> helping users derive more clear conclusions from their data and help plan future sequencing runs.</p>
 <p>Extensive metadata recording: Brioche effectively captures Metadata for settings used within the run and helps build VCF files containing relevant information about target reference genomes and run metadata.</p>
 </section>
 <section id="key-use-cases">
 <h2>Key use cases:<a class="headerlink" href="#key-use-cases" title="Link to this heading">¶</a></h2>
 <p>Brioche is designed for five main usecases briefly highlighted below (see tabs for more indepth descriptions)</p>
-<p>1. Easy remapping of markers across any distinct reference genome and the reanchoring of genotypes to the new reference genome
+<p><em>1</em>. Easy remapping of markers across any distinct reference genome and the reanchoring of genotypes to the new reference genome
 <a class="reference internal" href="usecases/usecase1_remapping.html"><span class="doc">Usecase1: Remapping data across reference genomes</span></a></p>
-<p>2. The insilico genotyping of dozens + of reference genomes to generate equivalent genotype matricies for any given reference and allowing for whole genomes to be directly analysed alongside user sample genotypes
+<p><em>2</em>. The insilico genotyping of dozens + of reference genomes to generate equivalent genotype matricies for any given reference and allowing for whole genomes to be directly analysed alongside user sample genotypes
 <a class="reference internal" href="usecases/usecase2_insilico_genotyping.html"><span class="doc">Usecase2: In silico genotyping of reference genomes</span></a></p>
-<p>3. Remapping of markers using a wide range of filters designed to identify which markers are hitting redundant parts of a genome and therefore are less reliable for use in certain downstream analyses
+<p><em>3</em>. Remapping of markers using a wide range of filters designed to identify which markers are hitting redundant parts of a genome and therefore are less reliable for use in certain downstream analyses
 <a class="reference internal" href="usecases/usecase3_redundancy_accuracy.html"><span class="doc">Usecase3: Testing redundancy/accuracy in marker datasets</span></a></p>
-<p>4. The creation of custom marker datasets from existing analyses and testing the likely redundancy of newly designed markers against a wide range of reference genomes for a target species.
+<p><em>4</em>. The creation of custom marker datasets from existing analyses and testing the likely redundancy of newly designed markers against a wide range of reference genomes for a target species.
 <a class="reference internal" href="usecases/usecase3_redundancy_accuracy.html"><span class="doc">Usecase3: Testing redundancy/accuracy in marker datasets</span></a></p>
-<p>5. The mapping of multiple different datasets to a unified reference genome allowing for merging across shared loci and other downstream applications (e.g., imputations)
+<p><em>5</em>. The mapping of multiple different datasets to a unified reference genome allowing for merging across shared loci and other downstream applications (e.g., imputations)
 <a class="reference internal" href="usecases/usecase4_merge_datasets.html"><span class="doc">Usecase4: Merge datasets</span></a></p>
 </section>
 <section id="workflow-summary">
 <h2>Workflow summary:<a class="headerlink" href="#workflow-summary" title="Link to this heading">¶</a></h2>
 <p>At it’s core, brioche utilises BLASTn to map desired markers onto all possible positions of a given reference genome. After mapping markers, a series of layered filters are applied to identify the most probable marker position and where not determinable will position the marker as unplaced.</p>
 <p>Brioche has five main filtering stages briefly outlined below (although, see <a class="reference internal" href="setting_up_a_run.html"><span class="doc">Setting up a run</span></a> for a detailed rundown of how to updated run settings and see <a class="reference internal" href="citations.html"><span class="doc">Citations</span></a> .</p>
-<a class="reference internal image-reference" href="_images/Brioche_process_only_dag.png"><img alt="Brioche dag" class="align-center" src="_images/Brioche_process_only_dag.png" style="width: 300px;" />
+<a class="reference internal image-reference" href="_images/Brioche_process_only_dag.png"><img alt="Brioche dag" class="align-center" src="_images/Brioche_process_only_dag.png" style="width: 400px;" />
 </a>
 <section id="blastn-output">
 <h3>Blastn output:<a class="headerlink" href="#blastn-output" title="Link to this heading">¶</a></h3>
@@ -82,8 +82,10 @@ and Grains Research and Development Corporation (GRDC) that aims to unlock the g
 </section>
 <section id="secondary-hits-hybridisation">
 <h3>Secondary hits/hybridisation:<a class="headerlink" href="#secondary-hits-hybridisation" title="Link to this heading">¶</a></h3>
-<p>Blastn hits are then filtered by one-two filtered dependent on settings applied. If the user has selected settings for Probe capture design (setting istarget3primeend=TRUE) hits will be filtered to remove any which do not have the minimum set number of identical bases
-immediately before the target SNP site (setting extendablebps). Any markers with over 10 possible hits remaining at this stage are placed as not determinable</p>
+<p>Blastn hits are then filtered by one-two filtered dependent on settings applied.
+If the user has selected settings for Probe capture design (setting istarget3primeend=TRUE) hits will be filtered to remove any which do not have the minimum set number of identical bases
+immediately before the target SNP site (setting extendablebps).
+Any markers with over 10 possible hits remaining at this stage are placed as not determinable</p>
 </section>
 <section id="intermediary-filters">
 <h3>Intermediary filters:<a class="headerlink" href="#intermediary-filters" title="Link to this heading">¶</a></h3>
@@ -91,7 +93,7 @@ immediately before the target SNP site (setting extendablebps). Any markers with
 </section>
 <section id="strict-filters">
 <h3>Strict filters:<a class="headerlink" href="#strict-filters" title="Link to this heading">¶</a></h3>
-<p>The following filtering step changes depending on whether priors files are provided to inform marker position. In general, if a marker has one clear best BLASTn hit, the marker is positioned there. If there are more than two possible positions the marker is moved to unplaced</p>
+<p>The following filtering step changes depending on whether priors files are provided to inform marker position. In general, if a marker has one clear best BLASTn hit, the marker is positioned there. If there are more than two possible positions the marker is moved to unplaced.</p>
 </section>
 </section>
 <section id="user-guide">

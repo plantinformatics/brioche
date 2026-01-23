@@ -80,11 +80,13 @@ or directly by the user.</p>
 </pre></div>
 </div>
 <p>Brioche is currently written to work within <strong>slurm</strong> HPC systems so will not run out of the box on other systems.
-If the user is interested in working with other HPC management systems individual .sh files will need to have their headers updated and the nextflow.config parameters updated manually</p>
+If the user is interested in working with other HPC management systems individual .sh files will need to have their headers
+updated and the nextflow.config parameters updated manually.</p>
 <p>During the first run of Brioche, the main conda environment will be built automatically from the conda_environment.yml file provided in the brioche directory.
 NOTE: this means that the launch partition of Brioche (e.g., example_run_script_brioche.sh) needs to have access to the internet so set the partition to one which can download.</p>
 <p>Some additional software is required for extended functionality in Brioche. This can be found in the Additional_functions folder and will be installed as a conda environment using the file brioche-vcf.yaml
-This software environment is used to do additional insilico and other functionality. This will install when running these scripts, or you can install it manually by running build_brioche-vcf_env.sh</p>
+This software environment is used to do additional insilico and other functionality.</p>
+<p>This will install when running these scripts, or you can install it manually by running build_brioche-vcf_env.sh</p>
 </section>
 <section id="file-layout">
 <h2>File layout:<a class="headerlink" href="#file-layout" title="Link to this heading">¶</a></h2>
@@ -100,11 +102,12 @@ and 2. Running specialised Brioche runs including testing the parameter space fo
 <p>Each of these scripts contains a short description of how to run in the file and what settings to change but additional details can be found in the relevant usecase described in this User guide.</p>
 <a class="reference internal image-reference" href="_images/Additional_functions.png"><img alt="Additional_functions folder" class="align-center" src="_images/Additional_functions.png" style="width: 300px;" />
 </a>
-<p>The following files are useful for the user</p>
+<p>The following files are useful for the user:</p>
 <p>params.config</p>
 <p>This file contains a list of all parameters that can be changed in Brioche allowing for greater control of a run</p>
 <p>nextflow.config</p>
-<p>This file contains additional details about resource allocation for the different types of runs Brioche can do. This can be edited to allocated great/less memory, CPUs etc per individual run if extremely large/small datasets
+<p>This file contains additional details about resource allocation for the different types of runs Brioche can do.
+This can be edited to allocated great/less memory, CPUs etc per individual run if extremely large/small datasets
 and reference genomes are being used and standard allocations are not efficient.</p>
 <p>example_run_script_brioche.sh</p>
 <p>This file contains a simple run script for how to run Brioche. It can be opened, the slurm settings updated and then launched with sbatch commands.</p>

@@ -37,19 +37,25 @@
 <h1>Setting up a run<a class="headerlink" href="#setting-up-a-run" title="Link to this heading">¶</a></h1>
 <section id="brioche-inputs">
 <h2>Brioche inputs:<a class="headerlink" href="#brioche-inputs" title="Link to this heading">¶</a></h2>
-<p>Brioche has one required input file (the brioche targets file) which is formatted as a tsv file with the following columns.
-1. ID  (the name of each marker)
-2. Sequence (the sequence to test for uniqueness and mapping in Brioche with the target SNP position replaced with a set not ACGT character e.g., D or X
-3. Target.bp (the position of the SNP site of interest in the sequence provided
-4. Target.base (a description of the REF/ALT of the expected SNP in the format [REF/ALT] for the marker)</p>
+<p>Brioche has one required input file (the brioche targets file) which is formatted as a TSV file with the following columns:</p>
+<ol class="arabic simple">
+<li><p><strong>ID</strong> — the name of each marker</p></li>
+<li><p><strong>Sequence</strong> — the sequence to test for uniqueness and mapping in Brioche, with the target SNP position replaced with a non-ACGT character (e.g., <code class="docutils literal notranslate"><span class="pre">D</span></code> or <code class="docutils literal notranslate"><span class="pre">X</span></code>)</p></li>
+<li><p><strong>Target.bp</strong> — the position of the SNP site of interest in the sequence provided</p></li>
+<li><p><strong>Target.base</strong> — a description of the REF/ALT of the expected SNP in the format <code class="docutils literal notranslate"><span class="pre">[REF/ALT]</span></code> for the marker</p></li>
+</ol>
 <a class="reference internal image-reference" href="_images/brioche_targets_file.png"><img alt="Targets file" class="align-center" src="_images/brioche_targets_file.png" style="width: 300px;" />
 </a>
-<p>This file can be created manually by the user, or some of the scripts in the Additional_funtions/ folder may assist</p>
-<p>e.g., If you have a VCF file and want to extract sequences from it to run Brioche you can run the file run_convert_vcf_to_brioche_input.sh e.g.,
-vcfin= Your vcf file
-refgenome= The reference genome you want to extract flanking sequence from
-fragmentsize= The size of the fragment around the SNP to return e.g., 75bp dowsntream and 75bp upstream of SNP is 150
-chrommapping= If the VCF has different chromosome names than tha reference, this file contains the pairwise comparison on names</p>
+<p>This file can be created manually by the user.</p>
+<p>Alternatively some of the scripts in the Additional_funtions/ folder may assist</p>
+<p>e.g., If you have a VCF file and want to extract sequences from it to run Brioche you can run the file run_convert_vcf_to_brioche_input.sh</p>
+<p>Options:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--vcfin</span></code> — your VCF file</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--refgenome</span></code> — the reference genome to extract flanking sequence from</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--fragmentsize</span></code> — size of the fragment around the SNP to return (e.g. 75 bp upstream + 75 bp downstream = 150)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--chrommapping</span></code> — pairwise chromosome-name mapping file (use if the VCF chrom names differ from the reference)</p></li>
+</ol>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">cd Additional_funtions/</span>
 <span class="go">bash run_convert_vcf_to_brioche_input.sh \</span>
 <span class="go">--vcfin file.vcf.gz \</span>
@@ -59,11 +65,13 @@ chrommapping= If the VCF has different chromosome names than tha reference, this
 <span class="go">--outdir ./brioche_out</span>
 </pre></div>
 </div>
-<p>Or if you have a DArT report (1 row format). This requires R +v4.0.0 to either be installed as a module or for the user to install through conda. It also requires the installation of the R package “stringi” which occurs inside the script
-Note: this will extract the AlleleSequence from the DArT report, the TrimmedSequence can be used instead if preferred by changing 2 lines in the script (Ln 93,101 See Usage documentation inside the script)
-dartfile= the path and name of the 1 row format dart report file being read in
-targetmarker= the letter to replace the SNP site with (e.g., D or X or N)</p>
-<p>e.g.,</p>
+<p>Or if you have a DArT report (1 row format). This requires R +v4.0.0 to either be installed as a module or for the user to install through conda. It also requires the installation of the R package “stringi” which occurs inside the script</p>
+<p>Note: this will extract the AlleleSequence from the DArT report, the TrimmedSequence can be used instead if preferred by changing 2 lines in the script (Ln 93,101 See Usage documentation inside the script)</p>
+<p>Options:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--dartfile</span></code> — path to the 1-row format DArT report file</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--targetmarker</span></code> — letter to replace the SNP site with (e.g. <code class="docutils literal notranslate"><span class="pre">D</span></code> or <code class="docutils literal notranslate"><span class="pre">X</span></code> or <code class="docutils literal notranslate"><span class="pre">N</span></code>)</p></li>
+</ol>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">cd Additional_funtions/</span>
 <span class="go">module load R4.4.0</span>
 <span class="go">Rscript DArT2Brioche_convert.R \</span>
@@ -77,56 +85,68 @@ targetmarker= the letter to replace the SNP site with (e.g., D or X or N)</p>
 <p>The parameters file for each run of brioche is found in the file params.config.</p>
 <p>This file can be found in the brioche/ directory and has been populated with a number of default settings allowing for quick running of data.</p>
 <p>This file can be renamed so long as the variable –paramfile in the nextflow run (e.g., example_run_script_brioche.sh) is updated to the new name; otherwise the run will default to params.config.</p>
-<p>There are 41 different parameter settings that can be changed in Brioche with a description of what each does and what each can be set to within the parameters file</p>
+<p>There are 41 different parameter settings that can be changed in Brioche with a description of what each does and what each can be set to within the parameters file.</p>
 <a class="reference internal image-reference" href="_images/paramsfile.png"><img alt="Parameters file" class="align-center" src="_images/paramsfile.png" style="width: 300px;" />
 </a>
-<p>These parameters can broadly be categorised into 6 groups of variables with some of the main listed below</p>
+<p>These parameters can broadly be categorised into 6 groups of variables with some of the main listed below.</p>
 <section id="run-execution-settings">
 <h3>1. Run execution settings<a class="headerlink" href="#run-execution-settings" title="Link to this heading">¶</a></h3>
-<p>mode (whether to run as test or prod for real or test data)
-notifications (whether to receive an email upon completion)
-resultsdir (where to save results)</p>
+<ol class="arabic simple">
+<li><p>mode (whether to run as test or prod for real or test data)</p></li>
+<li><p>notifications (whether to receive an email upon completion)</p></li>
+<li><p>resultsdir (where to save results)</p></li>
+</ol>
 </section>
 <section id="slurm-settings">
 <h3>2. slurm settings<a class="headerlink" href="#slurm-settings" title="Link to this heading">¶</a></h3>
-<p>hpcaccount (the account name sbatch jobs should have to run)
-shortqueue (the queue/partition for jobs which take &lt;12 hours)
-longqueue (the queue/partition for jobs which take &gt;12 hours)
-queuesize (the maximum number of slurmjobs to submit at any given time)</p>
+<ol class="arabic simple">
+<li><p>hpcaccount (the account name sbatch jobs should have to run)</p></li>
+<li><p>shortqueue (the queue/partition for jobs which take &lt;12 hours)</p></li>
+<li><p>longqueue (the queue/partition for jobs which take &gt;12 hours)</p></li>
+<li><p>queuesize (the maximum number of slurmjobs to submit at any given time)</p></li>
+</ol>
 </section>
 <section id="blastn-settings">
 <h3>3. BLASTn settings<a class="headerlink" href="#blastn-settings" title="Link to this heading">¶</a></h3>
-<p>evalue (minimum evalue to report BLASTn hits)
-dust (whether to filter highly redundant sequences and not return any results e.g., long strings of CGCG or Ns)
-otherblastoptions (any other BLASTn specific parameter to use e.g., –wordsize)
-querychuncksize (Maximum number of markers parsed to BLASTn. If increased, memory requirements increase but can lead to small increases in speed)</p>
+<ol class="arabic simple">
+<li><p>evalue (minimum evalue to report BLASTn hits)</p></li>
+<li><p>dust (whether to filter highly redundant sequences and not return any results e.g., long strings of CGCG or Ns)</p></li>
+<li><p>otherblastoptions (any other BLASTn specific parameter to use e.g., –wordsize)</p></li>
+<li><p>querychuncksize (Maximum number of markers parsed to BLASTn. If increased, memory requirements increase but can lead to small increases in speed)</p></li>
+</ol>
 </section>
 <section id="filtering-options">
 <h3>4. Filtering options<a class="headerlink" href="#filtering-options" title="Link to this heading">¶</a></h3>
-<p>coverage (the minimum coverage required to pass the coverage filter)
-pident (the minimum pairwise identity between the marker sequence and reference genome segment to pass the identity filter)
-maximumhits (the maximum number of BLASTn hits a marker can have before the marker is filtered out
-istarget3primeend (whether to filter sequences which have mutations at the 3’ end of the sequence, relevant for probe and SNP chip design data)
-extendablebps (the number of bases required to be identical from 3’ if istarget3primend is set to TRUE)
-keeplocalduppos (whether to treat local duplications within a small range of the genome as unique and map to the first copy or redundant and filter [will filter if the SNP site differs regardless of what this is set to])
-localdupdist (the distance upstream and downstream in base pairs to search for local duplications if keeplocalduppos is set to ‘yes’)</p>
+<ol class="arabic simple">
+<li><p>coverage (the minimum coverage required to pass the coverage filter)</p></li>
+<li><p>pident (the minimum pairwise identity between the marker sequence and reference genome segment to pass the identity filter)</p></li>
+<li><p>maximumhits (the maximum number of BLASTn hits a marker can have before the marker is filtered out)</p></li>
+<li><p>istarget3primeend (whether to filter sequences which have mutations at the 3’ end of the sequence, relevant for probe and SNP chip design data)</p></li>
+<li><p>extendablebps (the number of bases required to be identical from 3’ if istarget3primend is set to TRUE)</p></li>
+<li><p>keeplocalduppos (whether to treat local duplications within a small range of the genome as unique and map to the first copy or redundant and filter [will filter if the SNP site differs regardless of what this is set to])</p></li>
+<li><p>localdupdist (the distance upstream and downstream in base pairs to search for local duplications if keeplocalduppos is set to ‘yes’)</p></li>
+</ol>
 </section>
 <section id="anaylsis-scope-restricting-settings">
 <h3>5. Anaylsis scope restricting settings<a class="headerlink" href="#anaylsis-scope-restricting-settings" title="Link to this heading">¶</a></h3>
-<p>restrict2chrom (only analyse hits against this chromosome of the reference genome)
-chromstoexclude (a list of chromosomes to exclude from the reference genome)</p>
+<ol class="arabic simple">
+<li><p>restrict2chrom (only analyse hits against this chromosome of the reference genome)</p></li>
+<li><p>chromstoexclude (a list of chromosomes to exclude from the reference genome)</p></li>
+</ol>
 </section>
 <section id="providing-supplemental-biological-information-to-assist-with-determining-optimal-marker-positions">
 <h3>6. Providing supplemental biological information to assist with determining optimal marker positions<a class="headerlink" href="#providing-supplemental-biological-information-to-assist-with-determining-optimal-marker-positions" title="Link to this heading">¶</a></h3>
-<p>usetargetchrom (whether to use a pairwise list of preference chromosomes to match each marker to. Will result in equal quality hits across multiple chromosomes being preferenced to target chromosome and uniquely positioned)
-markertargetsites (two column csv which lists each marker and the chromosome to map to [chromosomes can be in the old reference genome chromosome name], see example_files/targetchromsknownmarkers.csv)
-chromchrommatch (a two column csv listing the names of the original reference genome chromosomes and the equivalent chromosome name for the new genome, see example_files/Chromesome-chromosome_mappings.csv)</p>
-<p>usesharedmarkersmap (whether to use a csv list of closely linked marker names to inform the relative position of each marker. Will result in equal quality hits across multiple chromosomes/within a chromosome being preferenced to target a position closest in bp on the reference genome to the given linked markers and causing this marker to report as uniquely positioned)
-similarmarkersmap (a multicolumn csv file which lists the target marker in the leftmost column and closely linked markers in the following columns, see example_files/linkedSNPs.csv)</p>
-<p>useldedgemap (whether to use a raw linkage disequilibrium table between markers to match the optimal marker position on the genome. Will result in equal quality hits across/within chromosomes being preferenced to target the position which has the lowest bp distance from the most closely linked markers and cause this marker to report as uniquely positioned)
-ldedgemap (the path to a pairwise linkage disequilibrium output table [format PLINK, TASSEL, HAPLOVIEW long tables] for linkage disequilibrium scores, see example_files/examplelinkagedisequalibriumfile.ld )</p>
-<p>usegeneticmap (whether to use a genetic mapping file to infirm on the relative position of each marker. Will result in equal quality hits across multiple chromosomes being preferenced to target the identified chromosome by genetic mapping. Will also result in markers which map across multiple chromosomes in genetic mapping to be marked as not unique if any hits to those secondary chromosomes and which passed identity/coverage filtering  were found from BLASTn)
-geneticmap (the path to a multicolumn csv with the first column being the marker name, the second the number of chromosomes this marker mapped to, the next 5 being the chromosome names it mapped to, and the next 5 columns being the counts which each chromosome was mapped to for the marker, see example_files/genetic_mapping_input.csv. Note, also requires chromchrommatch to be present to convert chrom names between old and new references)</p>
+<ol class="arabic simple">
+<li><p>usetargetchrom (whether to use a pairwise list of preference chromosomes to match each marker to. Will result in equal quality hits across multiple chromosomes being preferenced to target chromosome and uniquely positioned)</p></li>
+<li><p>markertargetsites (two column csv which lists each marker and the chromosome to map to [chromosomes can be in the old reference genome chromosome name], see example_files/targetchromsknownmarkers.csv)</p></li>
+<li><p>chromchrommatch (a two column csv listing the names of the original reference genome chromosomes and the equivalent chromosome name for the new genome, see example_files/Chromesome-chromosome_mappings.csv)</p></li>
+<li><p>usesharedmarkersmap (whether to use a csv list of closely linked marker names to inform the relative position of each marker. Will result in equal quality hits across multiple chromosomes/within a chromosome being preferenced to target a position closest in bp on the reference genome to the given linked markers and causing this marker to report as uniquely positioned)</p></li>
+<li><p>similarmarkersmap (a multicolumn csv file which lists the target marker in the leftmost column and closely linked markers in the following columns, see example_files/linkedSNPs.csv)</p></li>
+<li><p>useldedgemap (whether to use a raw linkage disequilibrium table between markers to match the optimal marker position on the genome. Will result in equal quality hits across/within chromosomes being preferenced to target the position which has the lowest bp distance from the most closely linked markers and cause this marker to report as uniquely positioned)</p></li>
+<li><p>ldedgemap (the path to a pairwise linkage disequilibrium output table [format PLINK, TASSEL, HAPLOVIEW long tables] for linkage disequilibrium scores, see example_files/examplelinkagedisequalibriumfile.ld )</p></li>
+<li><p>usegeneticmap (whether to use a genetic mapping file to infirm on the relative position of each marker. Will result in equal quality hits across multiple chromosomes being preferenced to target the identified chromosome by genetic mapping. Will also result in markers which map across multiple chromosomes in genetic mapping to be marked as not unique if any hits to those secondary chromosomes and which passed identity/coverage filtering  were found from BLASTn)</p></li>
+<li><p>geneticmap (the path to a multicolumn csv with the first column being the marker name, the second the number of chromosomes this marker mapped to, the next 5 being the chromosome names it mapped to, and the next 5 columns being the counts which each chromosome was mapped to for the marker, see example_files/genetic_mapping_input.csv. Note, also requires chromchrommatch to be present to convert chrom names between old and new references)</p></li>
+</ol>
 </section>
 </section>
 <section id="run-parameters-and-goals">
@@ -146,8 +166,8 @@ geneticmap (the path to a multicolumn csv with the first column being the marker
 <h3>3. Settings are not linear conservative/liberal<a class="headerlink" href="#settings-are-not-linear-conservative-liberal" title="Link to this heading">¶</a></h3>
 <p>Lastly, consider that certain settings may result in more/fewer markers being mapped uniquely but this relationship is not necessarily linear. e</p>
 <p>e.g., while increasing the pident and coverage thresholds increases the number of markers which failed at this early filtering step, it might also remove poorly mapping hits for markers resulting in only unique hits remaining and increasing the final
-number of uniquely mapping markers.
-This is why either setting setting to reflect the nature of the data (point 1) or exploring the results of multiple runs is recommended (see Additional_functions/Run_brioche_optimise.sh)</p>
+number of uniquely mapping markers.</p>
+<p>This is why either setting setting to reflect the nature of the data (point 1) or exploring the results of multiple runs is recommended (see Additional_functions/Run_brioche_optimise.sh)</p>
 <p>Other specific goals and scenarios can be seen in the example of different usecases.</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="usecases/usecase1_remapping.html"><span class="doc">Usecase1: Remapping data across reference genomes</span></a></p></li>
@@ -161,63 +181,73 @@ This is why either setting setting to reflect the nature of the data (point 1) o
 <h2>Simple runs<a class="headerlink" href="#simple-runs" title="Link to this heading">¶</a></h2>
 <p>Once parameters are set and the targets file (Brioche input file) is created running Brioche is very straight forward.</p>
 <p>In the brioche landing directory there is an example .sh file for running Brioche, example_run_script_brioche.sh</p>
-<p>In this file you will need to</p>
-<ol class="arabic simple">
-<li><p>Update the slurm sbatch commands</p></li>
+<p>In this file you will need to:</p>
+<ol class="arabic">
+<li><p>Update the Slurm <code class="docutils literal notranslate"><span class="pre">sbatch</span></code> commands:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Multithreaded (SMP) job: must run on one node</span>
+<span class="c1">#SBATCH --nodes=1</span>
+
+<span class="c1"># The name of the job:</span>
+<span class="c1">#SBATCH --job-name=&quot;example_slurmjob&quot;</span>
+
+<span class="c1"># The project ID which this job should run under:</span>
+<span class="c1">#SBATCH --account=&quot;default&quot;</span>
+
+<span class="c1"># The partition in which to submit the job:</span>
+<span class="c1">#SBATCH --partition=&quot;batch&quot;</span>
+
+<span class="c1"># Maximum number of tasks/CPU cores used by the job:</span>
+<span class="c1">#SBATCH --ntasks=1</span>
+<span class="c1">#SBATCH --cpus-per-task=8</span>
+
+<span class="c1"># The total amount of memory in the job:</span>
+<span class="c1">#SBATCH --mem=40GB</span>
+
+<span class="c1"># Send yourself an email when the job fails:</span>
+<span class="c1">#SBATCH --mail-type=FAIL</span>
+<span class="c1">#SBATCH --mail-user=user123@mail.mail</span>
+
+<span class="c1"># The maximum running time:</span>
+<span class="c1">#SBATCH --time=24:0:00</span>
+</pre></div>
+</div>
+</li>
+<li><p>Update the run settings (paths, targets file, and required modules).</p>
+<p>Paying special attention to the targets file and making sure Nextflow, conda, and git are available (via <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">load</span></code> or your own installation):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Build target table for the new brioche format</span>
+<span class="nv">target</span><span class="o">=</span>/filepath/briochetargetdesign.tsv
+
+<span class="c1"># Used in naming of results files</span>
+<span class="nv">chipname</span><span class="o">=</span><span class="s2">&quot;probename&quot;</span>
+
+<span class="c1"># Directory of reference genome</span>
+<span class="nv">genomedir</span><span class="o">=</span>/filepathgenome/
+
+<span class="c1"># Genome name without extension</span>
+<span class="nv">genome</span><span class="o">=</span><span class="s2">&quot;genomename&quot;</span>
+
+<span class="c1"># Genome name with extension</span>
+<span class="nv">fasta</span><span class="o">=</span><span class="s2">&quot;genomename.fa&quot;</span>
+
+<span class="c1"># Param file can be set as anything, but if not set in the Nextflow command below,</span>
+<span class="c1"># it will default to the params.config in the same directory as main.nf</span>
+<span class="nv">params</span><span class="o">=</span><span class="s2">&quot;/filepath/brioche/params.config&quot;</span>
+<span class="nv">briochemain</span><span class="o">=</span><span class="s2">&quot;/filepath/brioche/main.nf&quot;</span>
+
+<span class="c1"># Required modules</span>
+module<span class="w"> </span>load<span class="w"> </span>Nextflow
+module<span class="w"> </span>load<span class="w"> </span>Miniconda3
+module<span class="w"> </span>load<span class="w"> </span>git
+
+<span class="nv">workdir</span><span class="o">=</span><span class="s2">&quot;/filepath/brioche/results/</span><span class="si">${</span><span class="nv">genome</span><span class="si">}</span><span class="s2">_</span><span class="si">${</span><span class="nv">chipname</span><span class="si">}</span><span class="s2">/&quot;</span>
+<span class="nv">resultsdir</span><span class="o">=</span><span class="s2">&quot;/filepath/brioche/results/</span><span class="si">${</span><span class="nv">genome</span><span class="si">}</span><span class="s2">_</span><span class="si">${</span><span class="nv">chipname</span><span class="si">}</span><span class="s2">/&quot;</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">resultsdir</span><span class="si">}</span><span class="s2">&quot;</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">workdir</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">workdir</span><span class="si">}</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+</li>
 </ol>
-<p>“””</p>
-<p># Multithreaded (SMP) job: must run on one node
-#SBATCH –nodes=1</p>
-<p># The name of the job:
-#SBATCH –job-name=”example_slurmjob”</p>
-<p># The project ID which this job should run under:
-#SBATCH –account=”default”</p>
-<p># The partition in which to submit the job:
-#SBATCH –partition=”batch”</p>
-<p># Maximum number of tasks/CPU cores used by the job:
-#SBATCH –ntasks=1
-#SBATCH –cpus-per-task=8</p>
-<p># The total amount of memory in megabytes in the job:
-#SBATCH –mem=40GB</p>
-<p># Send yourself an email when the job:
-# aborts abnormally (fails)
-#SBATCH –mail-type=FAIL</p>
-<p># Use this email address:
-#SBATCH <a class="reference external" href="mailto:--mail-user=user123&#37;&#52;&#48;mail&#46;mail">–mail-user=user123<span>&#64;</span>mail<span>&#46;</span>mail</a></p>
-<p># The maximum running time of the job in days-hours:mins:sec
-#SBATCH –time=24:0:00</p>
-<p>“””</p>
-<ol class="arabic simple" start="2">
-<li><p>update some settings</p></li>
-</ol>
-<p>Paying special attention to the target file (brioche targets file), the file paths needed,
-and making sure the three programs Nextflow, conda, and git are loaded in however you installed them e.g., through module load or source activate.</p>
-<p>“””
-#Build target table for the new brioche format
-target=/filepath/briochetargetdesign.tsv</p>
-<p># Used in naming of results files
-chipname=”probename”</p>
-<p># directory of reference genome
-genomedir=/filepathgenome/</p>
-<p># Genome name without extension
-genome=”genomename”</p>
-<p># genome name with
-fasta=”genomename.fa”</p>
-<p># param file can be set as anything but if not set in the nextflow run command below will default to the params.config present in the same directory as the main.nf
-params=”/filepath/brioche/params.config”
-briochemain=”/filepath/brioche/main.nf”</p>
-<p># required modules
-module load Nextflow
-module load Miniconda3
-module load git</p>
-<blockquote>
-<div><p>workdir=”/filepath/brioche/results/${genome}_${chipname}/”
-resultsdir=”/filepath/brioche/results/${genome}_${chipname}/”
-mkdir -p ${resultsdir}
-mkdir -p ${workdir}
-cd ${workdir}</p>
-</div></blockquote>
-<p>“””</p>
 <p>After updating the script can be run from a terminal with</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">sbatch example_run_script_brioche.sh</span>
 </pre></div>

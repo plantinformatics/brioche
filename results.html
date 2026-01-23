@@ -60,7 +60,7 @@ The third showing the BLASTn count distributions of all markers after each filte
 <p>Below are examples of 1, and 3.</p>
 <a class="reference internal image-reference" href="_images/Fig1_results_output_markerspassed_blurred.png"><img alt="Brioche summary report Fig1" class="align-center" src="_images/Fig1_results_output_markerspassed_blurred.png" style="width: 300px;" />
 </a>
-<a class="reference internal image-reference" href="_images/Fig1_results_output_markerspassed_blurred.png"><img alt="Brioche summary report Fig1" class="align-center" src="_images/Fig1_results_output_markerspassed_blurred.png" style="width: 300px;" />
+<a class="reference internal image-reference" href="_images/Fig3_results_output_markerspassed.png"><img alt="Brioche summary report Fig1" class="align-center" src="_images/Fig3_results_output_markerspassed.png" style="width: 300px;" />
 </a>
 </section>
 <section id="table-of-results-files">
@@ -76,42 +76,51 @@ The third showing the BLASTn count distributions of all markers after each filte
 <section id="intermediate-results">
 <h3>1. Intermediate results<a class="headerlink" href="#intermediate-results" title="Link to this heading">¶</a></h3>
 <p>In this category of results we have the markers and blast hits which represent all markers which passed each filtering step.</p>
-<p>e.g.,
-‘Examplerun_with_examplereference_blastmappings_unfiltered.csv’ Represents the raw blast output of all markers before filtering steps are applied. This file contains the standard blast output columns plus additional columns tracking whether the SNP end is conserved (hybridisation), what the reference base of SNP is in positive strand, and any other mutations present in the marker and their positions</p>
-<p>‘Examplerun_with_examplereference_all_mappings.csv’ Represents the first round of filtering, removing any hits which fail the %identity and %coverage thresholds set. This file is formatted like ‘Examplerun_with_examplereference_blastmappings_unfiltered.csv’</p>
-<p>‘Examplerun_with_examplereference_filtered_mappings.csv’ Represents the second round of filtering removing any hits/markers from ‘Examplerun_with_examplereference_all_mappings.csv’ which failed either the secondary hits filter, or the hybridisation filter
-‘Examplerun_with_examplereference_mappings.tsv’ Represents a simpler version of ‘Examplerun_with_examplereference_filtered_mappings.csv’ with the majority of columns cut for ease of viewing.</p>
-<p>‘Examplerun_with_examplereference_intermediate_filtering_hits.csv’ Represents the third round of filtering removing any hits/markers from ‘Examplerun_with_examplereference_filtered_mappings.csv’ which fail either through the priors files (e.g., linkage files) or through non identical local duplication (if local duplication is set), or through falling below a bitscore threshold calculated per chromosome per marker if no priors files are given.
-‘Examplerun_with_examplereference_intermediate_filtering_mappings.tsv’ Represents a simpler version of ‘Examplerun_with_examplereference_intermediate_filtering_hits.csv’ with the majority of columns cut for ease of viewing.
-‘Examplerun_with_examplereference_mappings-pretzel-alignment.xlsx’ Represents a results xlsx file of the results of intermediate filtering which is compatible for upload with the program pretzel for visual cross genome comparisons (see <a class="reference external" href="https://agg.plantinformatics.io/">https://agg.plantinformatics.io/</a> )</p>
+<ol class="arabic simple">
+<li><p><em>‘Examplerun_with_examplereference_blastmappings_unfiltered.csv’</em> Represents the raw blast output of all markers before filtering steps are applied. This file contains the standard blast output columns plus additional columns tracking whether the SNP end is conserved (hybridisation), what the reference base of SNP is in positive strand, and any other mutations present in the marker and their positions</p></li>
+<li><p><em>‘Examplerun_with_examplereference_all_mappings.csv’</em> Represents the first round of filtering, removing any hits which fail the %identity and %coverage thresholds set. This file is formatted like ‘Examplerun_with_examplereference_blastmappings_unfiltered.csv’</p></li>
+<li><p><em>‘Examplerun_with_examplereference_filtered_mappings.csv’</em> Represents the second round of filtering removing any hits/markers from ‘Examplerun_with_examplereference_all_mappings.csv’ which failed either the secondary hits filter, or the hybridisation filter</p></li>
+<li><p><em>‘Examplerun_with_examplereference_mappings.tsv’</em> Represents a simpler version of ‘Examplerun_with_examplereference_filtered_mappings.csv’ with the majority of columns cut for ease of viewing.</p></li>
+<li><p><em>‘Examplerun_with_examplereference_intermediate_filtering_hits.csv’</em> Represents the third round of filtering removing any hits/markers from ‘Examplerun_with_examplereference_filtered_mappings.csv’ which fail either through the priors files (e.g., linkage files) or through non identical local duplication (if local duplication is set), or through falling below a bitscore threshold calculated per chromosome per marker if no priors files are given.</p></li>
+<li><p><em>‘Examplerun_with_examplereference_intermediate_filtering_mappings.tsv’</em> Represents a simpler version of ‘Examplerun_with_examplereference_intermediate_filtering_hits.csv’ with the majority of columns cut for ease of viewing.</p></li>
+<li><p><em>‘Examplerun_with_examplereference_mappings-pretzel-alignment.xlsx’</em> Represents a results xlsx file of the results of intermediate filtering which is compatible for upload with the program pretzel for visual cross genome comparisons (see <a class="reference external" href="https://agg.plantinformatics.io/">https://agg.plantinformatics.io/</a> )</p></li>
+</ol>
 </section>
 <section id="final-results">
 <h3>2. Final results<a class="headerlink" href="#final-results" title="Link to this heading">¶</a></h3>
 <p>In this category of results we have run summary files and final marker results for 1:1 mappings.</p>
 <p>e.g.,</p>
-<p>‘Examplerun_with_examplereference_strict_filtering_hits.csv’ Represents the final round of filtering with blast hits results from only the markers where a single hit and position can be determined.
-‘Examplerun_with_examplereference_strict_filtering_mappings.tsv’ Represents a simpler version of ‘Examplerun_with_examplereference_strict_filtering_hits.csv’</p>
-<p>‘Examplerun_with_examplereference_summary_filtering.csv’ Is a csv file which contains a list of all markers, the hits per marker at each stage of filtering and whether they pass a filtering step’
-“””
-Marker1,PASS,4,PASS,4,PASS,4,PASS,1,PASS,1
+<ol class="arabic simple">
+<li><p><em>‘Examplerun_with_examplereference_strict_filtering_hits.csv’</em> Represents the final round of filtering with blast hits results from only the markers where a single hit and position can be determined.</p></li>
+<li><p><em>‘Examplerun_with_examplereference_strict_filtering_mappings.tsv’</em> Represents a simpler version of ‘Examplerun_with_examplereference_strict_filtering_hits.csv’</p></li>
+<li><p><em>‘Examplerun_with_examplereference_summary_filtering.csv’</em> Is a csv file which contains a list of all markers, the hits per marker at each stage of filtering and whether they pass a filtering step’</p></li>
+</ol>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Marker1,PASS,4,PASS,4,PASS,4,PASS,1,PASS,1
 Marker2,PASS,3,PASS,3,PASS,3,PASS,1,PASS,1
-“””</p>
-<p>‘Examplerun_with_examplereference_priors_informed_strictmapping.tsv’ Is a tsv file containing additional information about whether priors files contributed to each individual marker being unique or not during the brioche analysis. Multiple priors can individually lead to the inclusion of a marker and so multiple ‘True’ results can return per marker
-This file is used in downstream processes for anchoring and building VCFs (see the usecases section)
-“””
-qaccver Trueunique      Chrommarkermap  proximatemarkermap      linkagemarkermap        geneticmapmarkermap     Duplicate_region
-Marker1 NA      NA      TRUE    NA      NA      True
-Marker2 True    NA      NA      NA      NA      NA
-“””</p>
-<p>‘Examplerun_with_examplereference_marker_localdups_NULLS_counts.tsv’ Is a tsv file which tracks the presence of local duplications of markers (inside the given bp region in the params.config file) as well as whether they all share the same base at the SNP site and lastly if the reference genome mapped against did not appear to have a real mapping for the marker (indicitive of a null allele in the reference genome)
-This file is used in downstream processes for insilico genotyping (see the usecases section)
-“””
-qaccver copy_number consensusbase keep nulcall
-Marker1 2 true yes NA
-Marker2 1 true yes NA
-“””</p>
-<p>‘Examplerun_with_examplereference_Brioche_all_markers1to1stagingforvcf.csv’ Is a csv file with required metadata of the run as well as an output file with one row per target marker input (targets file) in the pipeline where all unique markers are present and all markers failed to map uniquely are placed as chrUnk with NA for relevant fields
-This file is the main file used to reanchor genotypes (see the usecases section)</p>
+</pre></div>
+</div>
+<ol class="arabic simple">
+<li><p><em>‘Examplerun_with_examplereference_priors_informed_strictmapping.tsv’</em> Is a tsv file containing additional information about whether priors files contributed to each individual marker being unique or not during the brioche analysis. Multiple priors can individually lead to the inclusion of a marker and so multiple ‘True’ results can return per marker</p></li>
+</ol>
+<p>This file is used in downstream processes for anchoring and building VCFs (see the usecases section)</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>qaccver  Trueunique  Chrommarkermap  proximatemarkermap  linkagemarkermap  geneticmapmarkermap  Duplicate_region
+Marker1  NA          NA              TRUE               NA                NA                   True
+Marker2  True        NA              NA                 NA                NA                   NA
+</pre></div>
+</div>
+<ol class="arabic simple">
+<li><p><em>‘Examplerun_with_examplereference_marker_localdups_NULLS_counts.tsv’</em> Is a tsv file which tracks the presence of local duplications of markers (inside the given bp region in the params.config file) as well as whether they all share the same base at the SNP site and lastly if the reference genome mapped against did not appear to have a real mapping for the marker (indicitive of a null allele in the reference genome)</p></li>
+</ol>
+<p>This file is used in downstream processes for insilico genotyping (see the usecases section)</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>qaccver  copy_number  consensusbase  keep  nulcall
+Marker1  2            true          yes   NA
+Marker2  1            true          yes   NA
+</pre></div>
+</div>
+<ol class="arabic simple">
+<li><p><em>‘Examplerun_with_examplereference_Brioche_all_markers1to1stagingforvcf.csv’</em> Is a csv file with required metadata of the run as well as an output file with one row per target marker input (targets file) in the pipeline where all unique markers are present and all markers failed to map uniquely are placed as chrUnk with NA for relevant fields</p></li>
+</ol>
+<p>This file is the main file used to reanchor genotypes (see the usecases section)</p>
 <a class="reference internal image-reference" href="_images/brioche1to1mappingfilecsv_top.png"><img alt="Brioche summary report Fig1" class="align-center" src="_images/brioche1to1mappingfilecsv_top.png" style="width: 300px;" />
 </a>
 <a class="reference internal image-reference" href="_images/brioche1to1mappingfilecsv_bottom.png"><img alt="Brioche summary report Fig1" class="align-center" src="_images/brioche1to1mappingfilecsv_bottom.png" style="width: 300px;" />
@@ -121,7 +130,7 @@ This file is the main file used to reanchor genotypes (see the usecases section)
 <section id="other-results-files">
 <h2>Other results files<a class="headerlink" href="#other-results-files" title="Link to this heading">¶</a></h2>
 <p>In the brioche-results folder there are some additional files of note for run tracking/optimisation.</p>
-<p>In brioche-results/Reports you will find the ‘[date:time]_timeline.html’ and ‘[date:time]_report.html’ files. These contain a breakdown of the brioche run, resources used and time taken</p>
+<p>In brioche-results/Reports you will find the <em>‘[date:time]_timeline.html’</em> and <em>‘[date:time]_report.html’</em> files. These contain a breakdown of the brioche run, resources used and time taken.</p>
 </section>
 <section id="brioche-usecases">
 <h2>Brioche usecases<a class="headerlink" href="#brioche-usecases" title="Link to this heading">¶</a></h2>

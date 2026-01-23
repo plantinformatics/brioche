@@ -22,13 +22,15 @@ This file will allow the user to set multiple values for four variables to test 
 
 Additional instructions are provided in the script but the main components to change are
 
-1) The Slurm sbatch header commands e.g., #SBATCH --job-name="example_runbriocheoptimise"
+1) The Slurm ``sbatch`` header commands (e.g., ``#SBATCH --job-name="example_runbriocheoptimise"``)
 
-2) The different variable settings 
-	a) Brioche specific settings (lines 34-63, 9 settings)
-	b) Update the method for calling the required software (Nextflow, conda, and git) (Lines 64-71) currently written as module load 
-	c) Thresholds to test (lines 73-79, 4 variable types) 
+2) The different variable settings:
 
+   a) Brioche-specific settings (lines 34-63, 9 settings).
+
+   b) Update the method for calling the required software (Nextflow, conda, and git) (lines 64-71). These are currently written as ``module load`` statements.
+
+   c) Thresholds to test (lines 73-79, 4 variable types).
 
 
 

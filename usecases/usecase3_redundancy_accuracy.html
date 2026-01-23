@@ -50,15 +50,13 @@
 This file will allow the user to set multiple values for four variables to test as combinations to investigate how the proportion of uniquely mapping markers changes</p>
 <p>Additional instructions are provided in the script but the main components to change are</p>
 <ol class="arabic simple">
-<li><p>The Slurm sbatch header commands e.g., #SBATCH –job-name=”example_runbriocheoptimise”</p></li>
-<li><dl class="simple">
-<dt>The different variable settings</dt><dd><ol class="loweralpha simple">
-<li><p>Brioche specific settings (lines 34-63, 9 settings)</p></li>
-<li><p>Update the method for calling the required software (Nextflow, conda, and git) (Lines 64-71) currently written as module load</p></li>
-<li><p>Thresholds to test (lines 73-79, 4 variable types)</p></li>
+<li><p>The Slurm <code class="docutils literal notranslate"><span class="pre">sbatch</span></code> header commands (e.g., <code class="docutils literal notranslate"><span class="pre">#SBATCH</span> <span class="pre">--job-name=&quot;example_runbriocheoptimise&quot;</span></code>)</p></li>
+<li><p>The different variable settings:</p>
+<ol class="loweralpha simple">
+<li><p>Brioche-specific settings (lines 34-63, 9 settings).</p></li>
+<li><p>Update the method for calling the required software (Nextflow, conda, and git) (lines 64-71). These are currently written as <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">load</span></code> statements.</p></li>
+<li><p>Thresholds to test (lines 73-79, 4 variable types).</p></li>
 </ol>
-</dd>
-</dl>
 </li>
 </ol>
 </section>
