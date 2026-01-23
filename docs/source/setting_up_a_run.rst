@@ -161,10 +161,10 @@ This is why either setting setting to reflect the nature of the data (point 1) o
 
 Other specific goals and scenarios can be seen in the example of different usecases.
 
-- {doc}`Usecase1: Remapping data across reference genomes <usecases/usecase1_remapping>`
-- {doc}`Usecase2: In silico genotyping of reference genomes <usecases/usecase2_insilico_genotyping>`
-- {doc}`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
-- {doc}`Usecase5: Merge datasets <usecases/usecase4_merge_datasets>`
+- :doc:`Usecase1: Remapping data across reference genomes <usecases/usecase1_remapping>`
+- :doc:`Usecase2: In silico genotyping of reference genomes <usecases/usecase2_insilico_genotyping>`
+- :doc:`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
+- :doc:`Usecase5: Merge datasets <usecases/usecase4_merge_datasets>`
 
 
 
@@ -266,12 +266,12 @@ After updating the script can be run from a terminal with
 Introduction:
 ~~~~~~~~~~~~~
 
-To return to the Installation page go to {doc}`Installation <installation>`
+To return to the Installation page go to :doc:`Installation <installation>`
 
 
 
 Results:
 ~~~~~~~~
 
-For investigating the results of a run go to {doc}`Results <results>`
+For investigating the results of a run go to :doc:`Results <results>`
 
