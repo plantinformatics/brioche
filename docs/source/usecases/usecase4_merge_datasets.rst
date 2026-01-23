@@ -11,20 +11,26 @@ Requirements
 Per dataset of interest:
 
 1. Brioche to have been run and the files below are present
-'\*_Brioche_all_markers1to1stagingforvcf.csv'
-'\*_marker_localdups_NULLS_counts.tsv'
-'\*_priors_informed_strictmapping.tsv'
+*'\*_Brioche_all_markers1to1stagingforvcf.csv'*
 
-2. The genotype data file you have is in one of the following three forms 
-	a) Raw genotypes with the below format type (tsv separated). REF/ALT defined as ACGT ACGT, samples as columns, markers as rows genotype coded as 0,1,2, NC as missing data and N as Null alleles
-	"""
-	Name	REF	ALT	Sample1	Sample2	etc
-	Marker1	T	C	2	1
-	Marker2	T	G	0	N
-	Marker3	A	C	NC	1
-	"""
-	b) A VCF file (any vcf compatible format)
-	c) DArTseq Report 1 row format. 
+*'\*_marker_localdups_NULLS_counts.tsv'*
+
+*'\*_priors_informed_strictmapping.tsv'*
+
+2. The genotype data file you have is in one of the following three forms:
+
+   a) Raw genotypes in the format below (tab-separated). ``REF``/``ALT`` are defined as ACGT/ACGT, samples are columns, markers are rows, genotypes are coded as ``0``, ``1``, ``2``, ``NC`` as missing data, and ``N`` as null alleles.
+
+      .. code-block:: text
+
+         Name    REF  ALT  Sample1  Sample2  etc
+         Marker1 T    C    2        1
+         Marker2 T    G    0        N
+         Marker3 A    C    NC       1
+
+   b) A VCF file (any VCF-compatible format).
+
+   c) A DArTseq report (1-row format).
 
 
 Runfile
@@ -57,19 +63,25 @@ Brioche will produce a number of outputs similar to casestudy2 :doc:`Usecase2: I
 These are 
 
 1) a VCF output with all markers
+
 2) A VCF with only mapped markers
+
 3) A VCF with mapped markers which have numeric chromosomes
+
 4) A VCF with mapped markers which have numeric chromosomes which are sorted 
 
 
 For each of the analysed datasets the user can take 
+
 4) A VCF with mapped markers which have numeric chromosomes which are sorted
 
 and if there is sufficient overlap in markers the user can directly merge the new datasets
 
 e.g., through first activating the brioche-vcf conda environment and then running bcftools
-'union_two_datasets.vcf.gz' will have all markers and all samples across both datasets
-'isec_merged_results' will be a folder with 3 vcf files, one for unique markers in dataset1, one for unique in dataset2, and one for shared markers
+
+*'union_two_datasets.vcf.gz'* will have all markers and all samples across both datasets
+
+*'isec_merged_results'* will be a folder with 3 vcf files, one for unique markers in dataset1, one for unique in dataset2, and one for shared markers
 
 .. code-block:: console
 

@@ -7,10 +7,10 @@ Brioche inputs:
 
 Brioche has one required input file (the brioche targets file) which is formatted as a TSV file with the following columns:
 
-#. **ID** â€” the name of each marker
-#. **Sequence** â€” the sequence to test for uniqueness and mapping in Brioche, with the target SNP position replaced with a non-ACGT character (e.g., ``D`` or ``X``)
-#. **Target.bp** â€” the position of the SNP site of interest in the sequence provided
-#. **Target.base** â€” a description of the REF/ALT of the expected SNP in the format ``[REF/ALT]`` for the marker
+#. **ID** — the name of each marker
+#. **Sequence** — the sequence to test for uniqueness and mapping in Brioche, with the target SNP position replaced with a non-ACGT character (e.g., ``D`` or ``X``)
+#. **Target.bp** — the position of the SNP site of interest in the sequence provided
+#. **Target.base** — a description of the REF/ALT of the expected SNP in the format ``[REF/ALT]`` for the marker
 
 
 .. image:: Images/brioche_targets_file.png
@@ -27,10 +27,10 @@ e.g., If you have a VCF file and want to extract sequences from it to run Brioch
 
 Options:
 
-#. ``--vcfin`` â€” your VCF file
-#. ``--refgenome`` â€” the reference genome to extract flanking sequence from
-#. ``--fragmentsize`` â€” size of the fragment around the SNP to return (e.g. 75 bp upstream + 75 bp downstream = 150)
-#. ``--chrommapping`` â€” pairwise chromosome-name mapping file (use if the VCF chrom names differ from the reference)
+#. ``--vcfin`` — your VCF file
+#. ``--refgenome`` — the reference genome to extract flanking sequence from
+#. ``--fragmentsize`` — size of the fragment around the SNP to return (e.g. 75 bp upstream + 75 bp downstream = 150)
+#. ``--chrommapping`` — pairwise chromosome-name mapping file (use if the VCF chrom names differ from the reference)
 
 .. code-block:: console
 
@@ -49,8 +49,9 @@ Note: this will extract the AlleleSequence from the DArT report, the TrimmedSequ
 
 Options:
 
-#. ``--dartfile`` â€” path to the 1-row format DArT report file
-#. ``--targetmarker`` â€” letter to replace the SNP site with (e.g. ``D`` or ``X`` or ``N``)
+#. ``--dartfile`` — path to the 1-row format DArT report file
+#. ``--targetmarker`` — letter to replace the SNP site with (e.g. ``D`` or ``X`` or ``N``)
+e.g., 
 
 .. code-block:: console
 

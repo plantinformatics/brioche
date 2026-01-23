@@ -78,7 +78,8 @@ or (asssuming Debian/Ubuntu Linux)
 
 
 Brioche is currently written to work within **slurm** HPC systems so will not run out of the box on other systems. 
-If the user is interested in working with other HPC management systems individual .sh files will need to have their headers updated and the nextflow.config parameters updated manually
+If the user is interested in working with other HPC management systems individual .sh files will need to have their headers 
+updated and the nextflow.config parameters updated manually.
 
 
 During the first run of Brioche, the main conda environment will be built automatically from the conda_environment.yml file provided in the brioche directory. 
@@ -86,7 +87,9 @@ NOTE: this means that the launch partition of Brioche (e.g., example_run_script_
 
 
 Some additional software is required for extended functionality in Brioche. This can be found in the Additional_functions folder and will be installed as a conda environment using the file brioche-vcf.yaml 
-This software environment is used to do additional insilico and other functionality. This will install when running these scripts, or you can install it manually by running build_brioche-vcf_env.sh
+This software environment is used to do additional insilico and other functionality. 
+
+This will install when running these scripts, or you can install it manually by running build_brioche-vcf_env.sh
 
 
 File layout:
@@ -107,6 +110,7 @@ example_files contains example formatted files for each optional and mandatory i
 
 
 
+
 Additional_functions/
 
 Additional_functions contains a collection of helpful bash and R scripts designed to expand the regular use of Brioche through 1. helping create input files from diverse datatypes (e.g.,run_convert_vcf_to_brioche_input.sh)
@@ -120,7 +124,7 @@ Each of these scripts contains a short description of how to run in the file and
    :align: center
 
 
-The following files are useful for the user 
+The following files are useful for the user:
 
 params.config
 
@@ -128,7 +132,8 @@ This file contains a list of all parameters that can be changed in Brioche allow
 
 nextflow.config
 
-This file contains additional details about resource allocation for the different types of runs Brioche can do. This can be edited to allocated great/less memory, CPUs etc per individual run if extremely large/small datasets
+This file contains additional details about resource allocation for the different types of runs Brioche can do. 
+This can be edited to allocated great/less memory, CPUs etc per individual run if extremely large/small datasets
 and reference genomes are being used and standard allocations are not efficient.
 
 

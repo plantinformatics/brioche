@@ -52,7 +52,7 @@ Below are examples of 1, and 3.
    :align: center
 
 
-.. image:: Images/Fig1_results_output_markerspassed_blurred.png
+.. image:: Images/Fig3_results_output_markerspassed.png
    :alt: Brioche summary report Fig1 
    :width: 300px
    :align: center
@@ -81,17 +81,16 @@ Brioche outputs several results files in the brioche-results directory which are
 
 In this category of results we have the markers and blast hits which represent all markers which passed each filtering step. 
 
-e.g., 
-'Examplerun_with_examplereference_blastmappings_unfiltered.csv' Represents the raw blast output of all markers before filtering steps are applied. This file contains the standard blast output columns plus additional columns tracking whether the SNP end is conserved (hybridisation), what the reference base of SNP is in positive strand, and any other mutations present in the marker and their positions
+#. *'Examplerun_with_examplereference_blastmappings_unfiltered.csv'* Represents the raw blast output of all markers before filtering steps are applied. This file contains the standard blast output columns plus additional columns tracking whether the SNP end is conserved (hybridisation), what the reference base of SNP is in positive strand, and any other mutations present in the marker and their positions
 
-'Examplerun_with_examplereference_all_mappings.csv' Represents the first round of filtering, removing any hits which fail the %identity and %coverage thresholds set. This file is formatted like 'Examplerun_with_examplereference_blastmappings_unfiltered.csv'
+#. *'Examplerun_with_examplereference_all_mappings.csv'* Represents the first round of filtering, removing any hits which fail the %identity and %coverage thresholds set. This file is formatted like 'Examplerun_with_examplereference_blastmappings_unfiltered.csv'
 
-'Examplerun_with_examplereference_filtered_mappings.csv' Represents the second round of filtering removing any hits/markers from 'Examplerun_with_examplereference_all_mappings.csv' which failed either the secondary hits filter, or the hybridisation filter
-'Examplerun_with_examplereference_mappings.tsv' Represents a simpler version of 'Examplerun_with_examplereference_filtered_mappings.csv' with the majority of columns cut for ease of viewing.
+#. *'Examplerun_with_examplereference_filtered_mappings.csv'* Represents the second round of filtering removing any hits/markers from 'Examplerun_with_examplereference_all_mappings.csv' which failed either the secondary hits filter, or the hybridisation filter
+#. *'Examplerun_with_examplereference_mappings.tsv'* Represents a simpler version of 'Examplerun_with_examplereference_filtered_mappings.csv' with the majority of columns cut for ease of viewing.
 
-'Examplerun_with_examplereference_intermediate_filtering_hits.csv' Represents the third round of filtering removing any hits/markers from 'Examplerun_with_examplereference_filtered_mappings.csv' which fail either through the priors files (e.g., linkage files) or through non identical local duplication (if local duplication is set), or through falling below a bitscore threshold calculated per chromosome per marker if no priors files are given.
-'Examplerun_with_examplereference_intermediate_filtering_mappings.tsv' Represents a simpler version of 'Examplerun_with_examplereference_intermediate_filtering_hits.csv' with the majority of columns cut for ease of viewing.
-'Examplerun_with_examplereference_mappings-pretzel-alignment.xlsx' Represents a results xlsx file of the results of intermediate filtering which is compatible for upload with the program pretzel for visual cross genome comparisons (see https://agg.plantinformatics.io/ )
+#. *'Examplerun_with_examplereference_intermediate_filtering_hits.csv'* Represents the third round of filtering removing any hits/markers from 'Examplerun_with_examplereference_filtered_mappings.csv' which fail either through the priors files (e.g., linkage files) or through non identical local duplication (if local duplication is set), or through falling below a bitscore threshold calculated per chromosome per marker if no priors files are given.
+#. *'Examplerun_with_examplereference_intermediate_filtering_mappings.tsv'* Represents a simpler version of 'Examplerun_with_examplereference_intermediate_filtering_hits.csv' with the majority of columns cut for ease of viewing.
+#. *'Examplerun_with_examplereference_mappings-pretzel-alignment.xlsx'* Represents a results xlsx file of the results of intermediate filtering which is compatible for upload with the program pretzel for visual cross genome comparisons (see https://agg.plantinformatics.io/ )
 
 
 2. Final results
@@ -101,33 +100,39 @@ In this category of results we have run summary files and final marker results f
 
 e.g., 
 
-'Examplerun_with_examplereference_strict_filtering_hits.csv' Represents the final round of filtering with blast hits results from only the markers where a single hit and position can be determined.
-'Examplerun_with_examplereference_strict_filtering_mappings.tsv' Represents a simpler version of 'Examplerun_with_examplereference_strict_filtering_hits.csv'
+#. *'Examplerun_with_examplereference_strict_filtering_hits.csv'* Represents the final round of filtering with blast hits results from only the markers where a single hit and position can be determined.
+#. *'Examplerun_with_examplereference_strict_filtering_mappings.tsv'* Represents a simpler version of 'Examplerun_with_examplereference_strict_filtering_hits.csv'
 
 
-'Examplerun_with_examplereference_summary_filtering.csv' Is a csv file which contains a list of all markers, the hits per marker at each stage of filtering and whether they pass a filtering step' 
-"""
-Marker1,PASS,4,PASS,4,PASS,4,PASS,1,PASS,1
-Marker2,PASS,3,PASS,3,PASS,3,PASS,1,PASS,1
-"""
+#. *'Examplerun_with_examplereference_summary_filtering.csv'* Is a csv file which contains a list of all markers, the hits per marker at each stage of filtering and whether they pass a filtering step' 
 
-'Examplerun_with_examplereference_priors_informed_strictmapping.tsv' Is a tsv file containing additional information about whether priors files contributed to each individual marker being unique or not during the brioche analysis. Multiple priors can individually lead to the inclusion of a marker and so multiple 'True' results can return per marker
+.. code-block:: text
+
+   Marker1,PASS,4,PASS,4,PASS,4,PASS,1,PASS,1
+   Marker2,PASS,3,PASS,3,PASS,3,PASS,1,PASS,1
+
+#. *'Examplerun_with_examplereference_priors_informed_strictmapping.tsv'* Is a tsv file containing additional information about whether priors files contributed to each individual marker being unique or not during the brioche analysis. Multiple priors can individually lead to the inclusion of a marker and so multiple 'True' results can return per marker
+
 This file is used in downstream processes for anchoring and building VCFs (see the usecases section)
-"""
-qaccver	Trueunique	Chrommarkermap	proximatemarkermap	linkagemarkermap	geneticmapmarkermap	Duplicate_region
-Marker1	NA	NA	TRUE	NA	NA	True
-Marker2	True	NA	NA	NA	NA	NA
-"""
 
-'Examplerun_with_examplereference_marker_localdups_NULLS_counts.tsv' Is a tsv file which tracks the presence of local duplications of markers (inside the given bp region in the params.config file) as well as whether they all share the same base at the SNP site and lastly if the reference genome mapped against did not appear to have a real mapping for the marker (indicitive of a null allele in the reference genome) 
+.. code-block:: text
+
+   qaccver  Trueunique  Chrommarkermap  proximatemarkermap  linkagemarkermap  geneticmapmarkermap  Duplicate_region
+   Marker1  NA          NA              TRUE               NA                NA                   True
+   Marker2  True        NA              NA                 NA                NA                   NA
+
+#. *'Examplerun_with_examplereference_marker_localdups_NULLS_counts.tsv'* Is a tsv file which tracks the presence of local duplications of markers (inside the given bp region in the params.config file) as well as whether they all share the same base at the SNP site and lastly if the reference genome mapped against did not appear to have a real mapping for the marker (indicitive of a null allele in the reference genome) 
+
 This file is used in downstream processes for insilico genotyping (see the usecases section)
-"""
-qaccver copy_number consensusbase keep nulcall
-Marker1 2 true yes NA
-Marker2 1 true yes NA
-"""
 
-'Examplerun_with_examplereference_Brioche_all_markers1to1stagingforvcf.csv' Is a csv file with required metadata of the run as well as an output file with one row per target marker input (targets file) in the pipeline where all unique markers are present and all markers failed to map uniquely are placed as chrUnk with NA for relevant fields
+.. code-block:: text
+
+   qaccver  copy_number  consensusbase  keep  nulcall
+   Marker1  2            true          yes   NA
+   Marker2  1            true          yes   NA
+
+#. *'Examplerun_with_examplereference_Brioche_all_markers1to1stagingforvcf.csv'* Is a csv file with required metadata of the run as well as an output file with one row per target marker input (targets file) in the pipeline where all unique markers are present and all markers failed to map uniquely are placed as chrUnk with NA for relevant fields
+
 This file is the main file used to reanchor genotypes (see the usecases section)
 
  
@@ -148,7 +153,7 @@ Other results files
 
 In the brioche-results folder there are some additional files of note for run tracking/optimisation. 
 
-In brioche-results/Reports you will find the '[date:time]_timeline.html' and '[date:time]_report.html' files. These contain a breakdown of the brioche run, resources used and time taken
+In brioche-results/Reports you will find the *'[date:time]_timeline.html'* and *'[date:time]_report.html'* files. These contain a breakdown of the brioche run, resources used and time taken.
 
 
 
