@@ -140,11 +140,11 @@ This file contains a simple run script for how to run Brioche. It can be opened,
 Introduction:
 ~~~~~~~~~~~~~
 
-To return to the Introduction page go to {doc}`Introduction <Introduction>`
+To return to the Introduction page go to :doc:`Introduction <introduction>`
 
 
 Run setup:
 ~~~~~~~~~~
 
-For setting up a run go to {doc}`Setting up a run <setting_up_a_run>`
+For setting up a run go to :doc:`Setting up a run <setting_up_a_run>`
 

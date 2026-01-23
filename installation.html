@@ -15,7 +15,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Setting up a run" href="setting_up_a_run.html" />
-    <link rel="prev" title="#Introduction" href="introduction.html" />
+    <link rel="prev" title="Introduction" href="introduction.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -38,41 +38,47 @@
 <section id="downloading-brioche">
 <h2>Downloading brioche:<a class="headerlink" href="#downloading-brioche" title="Link to this heading">¶</a></h2>
 <p>Brioche can be downloaded directly from the github page as shown below.</p>
-<p>.. code-block:: console</p>
-<p>git clone https://github.com/plantinformatics/brioche.git</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">git clone https://github.com/plantinformatics/brioche.git</span>
+</pre></div>
+</div>
 <p>after downloading you can navigate to the brioche folder.</p>
-<p>.. code-block:: console</p>
-<p>cd brioche</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">cd brioche</span>
+</pre></div>
+</div>
 <p>Here you will have a folder structure laid out like the following:</p>
-<p>.. image:: Images/Brioche_github_downloaded.png
-:alt: Brioche downloaded from github
-:width: 300px
-:align: center</p>
+<a class="reference internal image-reference" href="_images/Brioche_github_downloaded.png"><img alt="Brioche downloaded from github" class="align-center" src="_images/Brioche_github_downloaded.png" style="width: 300px;" />
+</a>
 </section>
 <section id="software-dependencies">
 <h2>Software dependencies:<a class="headerlink" href="#software-dependencies" title="Link to this heading">¶</a></h2>
 <p>Brioche uses Nextflow as a workflow manager. Brioche also uses conda as a package manager and git for recording relevant metadata. Each of these are required to be installed either as modules on the HPC system
 or directly by the user.</p>
 <p>e.g.,</p>
-<p>.. code-block:: console</p>
-<p>module load Nextflow</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">module load Nextflow</span>
+</pre></div>
+</div>
 <p>or to download nextflow</p>
-<p>.. code-block:: console</p>
-<p>wget -qO- https://get.nextflow.io | bash</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">wget -qO- https://get.nextflow.io | bash</span>
+</pre></div>
+</div>
 <p>The same applies for conda</p>
-<p>.. code-block:: console</p>
-<p>module load Miniconda3</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">module load Miniconda3</span>
+</pre></div>
+</div>
 <p>or to download conda we navigate to the desired location for storing conda (usually your home directory), download,unpack and initialise conda</p>
-<p>.. code-block:: console</p>
-<p>wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /path/to/desired/directory/miniconda/miniconda.sh
-bash /path/to/desired/directory/miniconda/miniconda.sh -b -u -p /path/to/desired/directory/miniconda/
-/path/to/desired/directory/miniconda/bin/conda init bash</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /path/to/desired/directory/miniconda/miniconda.sh</span>
+<span class="go">bash /path/to/desired/directory/miniconda/miniconda.sh -b -u -p /path/to/desired/directory/miniconda/</span>
+<span class="go">/path/to/desired/directory/miniconda/bin/conda init bash</span>
+</pre></div>
+</div>
 <p>Finally, for git</p>
-<p>.. code-block:: console</p>
-<p>module load git</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">module load git</span>
+</pre></div>
+</div>
 <p>or (asssuming Debian/Ubuntu Linux)</p>
-<p>.. code-block:: console</p>
-<p>apt-get install git</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">apt-get install git</span>
+</pre></div>
+</div>
 <p>Brioche is currently written to work within <strong>slurm</strong> HPC systems so will not run out of the box on other systems.
 If the user is interested in working with other HPC management systems individual .sh files will need to have their headers updated and the nextflow.config parameters updated manually</p>
 <p>During the first run of Brioche, the main conda environment will be built automatically from the conda_environment.yml file provided in the brioche directory.
@@ -86,18 +92,14 @@ This software environment is used to do additional insilico and other functional
 <p>e.g., the following folders are usefull for the user</p>
 <p>example_files/</p>
 <p>example_files contains example formatted files for each optional and mandatory input and parameter file Brioche can use</p>
-<p>.. image:: Images/example_files_folder.png
-:alt: example_files folder
-:width: 300px
-:align: center</p>
+<a class="reference internal image-reference" href="_images/example_files_folder.png"><img alt="example_files folder" class="align-center" src="_images/example_files_folder.png" style="width: 300px;" />
+</a>
 <p>Additional_functions/</p>
 <p>Additional_functions contains a collection of helpful bash and R scripts designed to expand the regular use of Brioche through 1. helping create input files from diverse datatypes (e.g.,run_convert_vcf_to_brioche_input.sh)
 and 2. Running specialised Brioche runs including testing the parameter space for marker uniqueness (e.g., Run_brioche_optimise.sh), or insilico adding reference genome genotypes (e.g., Run_insilico_add.sh)</p>
 <p>Each of these scripts contains a short description of how to run in the file and what settings to change but additional details can be found in the relevant usecase described in this User guide.</p>
-<p>.. image:: Images/Additional_functions.png
-:alt: Additional_functions folder
-:width: 300px
-:align: center</p>
+<a class="reference internal image-reference" href="_images/Additional_functions.png"><img alt="Additional_functions folder" class="align-center" src="_images/Additional_functions.png" style="width: 300px;" />
+</a>
 <p>The following files are useful for the user</p>
 <p>params.config</p>
 <p>This file contains a list of all parameters that can be changed in Brioche allowing for greater control of a run</p>
@@ -106,18 +108,14 @@ and 2. Running specialised Brioche runs including testing the parameter space fo
 and reference genomes are being used and standard allocations are not efficient.</p>
 <p>example_run_script_brioche.sh</p>
 <p>This file contains a simple run script for how to run Brioche. It can be opened, the slurm settings updated and then launched with sbatch commands.</p>
-<p>Introduction:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>
-To return to the Introduction page go to {doc}`Introduction &lt;Introduction&gt;`
-
-
-Run setup:
-~~~~~~~~~~
-
-For setting up a run go to {doc}`Setting up a run &lt;setting_up_a_run&gt;`
-
-</pre></div>
-</div>
+<section id="introduction">
+<h3>Introduction:<a class="headerlink" href="#introduction" title="Link to this heading">¶</a></h3>
+<p>To return to the Introduction page go to <a class="reference internal" href="introduction.html"><span class="doc">Introduction</span></a></p>
+</section>
+<section id="run-setup">
+<h3>Run setup:<a class="headerlink" href="#run-setup" title="Link to this heading">¶</a></h3>
+<p>For setting up a run go to <a class="reference internal" href="setting_up_a_run.html"><span class="doc">Setting up a run</span></a></p>
+</section>
 </section>
 </section>
 
@@ -156,7 +154,7 @@ For setting up a run go to {doc}`Setting up a run &lt;setting_up_a_run&gt;`
 <script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
 <p class="caption" role="heading"><span class="caption-text">Main</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="introduction.html">#Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#downloading-brioche">Downloading brioche:</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#software-dependencies">Software dependencies:</a></li>
@@ -180,7 +178,7 @@ For setting up a run go to {doc}`Setting up a run &lt;setting_up_a_run&gt;`
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="introduction.html" title="previous chapter">#Introduction</a></li>
+      <li>Previous: <a href="introduction.html" title="previous chapter">Introduction</a></li>
       <li>Next: <a href="setting_up_a_run.html" title="next chapter">Setting up a run</a></li>
   </ul></li>
 </ul>
@@ -201,7 +199,7 @@ For setting up a run go to {doc}`Setting up a run &lt;setting_up_a_run&gt;`
       &#169;2026, James O'Dwyer, Gabriel Keeble-Gagnere, Kerrie L Forrest.
       
       |
-      <a href="_sources/installation.md.txt"
+      <a href="_sources/installation.rst.txt"
           rel="nofollow">Page source</a>
     </div>
 

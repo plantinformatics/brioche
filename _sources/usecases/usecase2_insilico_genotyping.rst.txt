@@ -47,8 +47,8 @@ Additional instructions are provided in the script but the main components to ch
 	d) Final Brioche settings (Lines 84-95, 4 settings). These settings specify what the final reference genome should be and what the final VCF will be anchored against. 
 	e) Update the method for calling the required software (Nextflow, conda, git, and R) (Lines 97-105) currently written as module load 
 
-.. image:: Images/Brioche_insilico_variables.png
-   :alt: Parameters file
+.. image:: ../Images/Brioche_insilico_variables.png
+   :alt: Insilico variables
    :width: 300px
    :align: center
 
@@ -62,14 +62,14 @@ The results of insilico genotyping are output into three separate folders in the
 2) anchoring/where all genomes are iteratively anchored into a single VCF
 3) final/ where the final brioche run and final anchored results are stored.
 
-For a detailed breakdown of 1) see {doc}`Results folder structure <../results>`
+For a detailed breakdown of 1) see :doc:`Results folder structure <../results>`
 
 2) contains intermediate data and is not directly relevant for downstream analysis after Brioche
 
 3) In the final folder the Brioche results and reports can be viewed but the primary result is in /anchored_results
 
-.. image:: Images/Brioche_insilico_anchored_results_folder.png
-   :alt: Parameters file
+.. image:: ../Images/Brioche_insilico_anchored_results_folder.png
+   :alt: insilico results folder
    :width: 300px
    :align: center
 
@@ -111,21 +111,21 @@ Other usecases
 If you are interested in other usecases see.
 
 1. If you are interested in easy remapping of markers across any distinct reference genome and the reanchoring of genotypes to the new reference genome 
-{doc}`Usecase1: Remapping data across reference genomes <usecases/usecase1_remapping>`
+:doc:`Usecase1: Remapping data across reference genomes <usecase1_remapping>`
 
 3. If you are interested in determining whether an existing marker dataset might be amplifying redundant regions under varied settings go to
-{doc}`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
+:doc:`Usecase3: Testing redundancy/accuracy in marker datasets <usecase3_redundancy_accuracy>`
 
 
 4. If you are interested in the creation of custom marker datasets from existing analyses and testing the likely redundancy of newly designed markers against a wide range of reference genomes for a target species (similar process as 3.) go to
-{doc}`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
+:doc:`Usecase3: Testing redundancy/accuracy in marker datasets <usecase3_redundancy_accuracy>`
 
 
 5. If you are interested in the mapping of multiple different datasets to a unified reference genome allowing for merging across shared loci and other downstream applications (e.g., imputations)
-{doc}`Usecase4: Merge datasets <usecases/usecase4_merge_datasets>`
+:doc:`Usecase4: Merge datasets <usecase4_merge_datasets>`
 
 
-otherwise, to return to the Introduction page go to {doc}`Introduction <../Introduction>`
+otherwise, to return to the Introduction page go to :doc:`Introduction <../introduction>`
 
 
 

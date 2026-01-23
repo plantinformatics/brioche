@@ -11,9 +11,9 @@ Requirements
 Per dataset of interest:
 
 1. Brioche to have been run and the files below are present
-'*_Brioche_all_markers1to1stagingforvcf.csv'
-'*_marker_localdups_NULLS_counts.tsv'
-'*_priors_informed_strictmapping.tsv'
+'\*_Brioche_all_markers1to1stagingforvcf.csv'
+'\*_marker_localdups_NULLS_counts.tsv'
+'\*_priors_informed_strictmapping.tsv'
 
 2. The genotype data file you have is in one of the following three forms 
 	a) Raw genotypes with the below format type (tsv separated). REF/ALT defined as ACGT ACGT, samples as columns, markers as rows genotype coded as 0,1,2, NC as missing data and N as Null alleles
@@ -37,8 +37,8 @@ Additional instructions are provided in the file but the main components to chan
 
 2) the values of variable set in the section Variables to set in the script. There are 13 variables to set but most are changing the file paths and names of input/output files to the names generated in the specific brioche run
 
-.. image:: Images/Variables_anchoring_script.png
-   :alt: Parameters file
+.. image:: ../Images/Variables_anchoring_script.png
+   :alt: variables anchoring script
    :width: 300px
    :align: center
 
@@ -52,7 +52,7 @@ the below setting is required
 Outputs
 ~~~~~~~
 
-Brioche will produce a number of outputs similar to casestudy2 {doc}`Usecase2: In silico genotyping of reference genomes <usecases/usecase2_insilico_genotyping>`
+Brioche will produce a number of outputs similar to casestudy2 :doc:`Usecase2: In silico genotyping of reference genomes <usecase2_insilico_genotyping>`
 
 These are 
 
@@ -96,17 +96,17 @@ Other usecases
 If you are interested in other usecases see.
 
 1. If you are interested in easy remapping of markers across any distinct reference genome and the reanchoring of genotypes to the new reference genome 
-{doc}`Usecase1: Remapping data across reference genomes <usecases/usecase1_remapping>`
+:doc:`Usecase1: Remapping data across reference genomes <usecase1_remapping>`
 
 2. If you are interested in extracting genotype calls from one or multiple reference genomes and adding them to your population genomics study go to 
-{doc}`Usecase2: In silico genotyping of reference genomes <usecases/usecase2_insilico_genotyping>`
+:doc:`Usecase2: In silico genotyping of reference genomes <usecase2_insilico_genotyping>`
 
 
 3. If you are interested in determining whether an existing marker dataset might be amplifying redundant regions under varied settings go to
-{doc}`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
+:doc:`Usecase3: Testing redundancy/accuracy in marker datasets <usecase3_redundancy_accuracy>`
 
 
 4. If you are interested in the creation of custom marker datasets from existing analyses and testing the likely redundancy of newly designed markers against a wide range of reference genomes for a target species (similar process as 3.) go to
-{doc}`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
+:doc:`Usecase3: Testing redundancy/accuracy in marker datasets <usecase3_redundancy_accuracy>`
 
-otherwise, to return to the Introduction page go to {doc}`Introduction <../Introduction>`
+otherwise, to return to the Introduction page go to :doc:`Introduction <../introduction>`

@@ -36,74 +36,57 @@
   <section id="usecase3-testing-redundancy-accuracy-in-marker-datasets">
 <h1>Usecase3: Testing redundancy/accuracy in marker datasets<a class="headerlink" href="#usecase3-testing-redundancy-accuracy-in-marker-datasets" title="Link to this heading">¶</a></h1>
 <p>This usecase describes how to use Brioche to test the redundancy/ accuracy of either existing or while designing marker datasets</p>
-<p>Requirements</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>
-1. Brioche targets file 
-
-2. Reference genome FASTA/FASTAs
-
-3. An updated params.config file ready to run Brioche
-
-
-Runfile
-~~~~~~~
-
-To test for the redundancy/accuracy of markers in different settings a simple loop script is provided at Additional_functions/Run_brioche_optimise.sh
-This file will allow the user to set multiple values for four variables to test as combinations to investigate how the proportion of uniquely mapping markers changes
-
-Additional instructions are provided in the script but the main components to change are
-
-1) The Slurm sbatch header commands e.g., #SBATCH --job-name=&quot;example_runbriocheoptimise&quot;
-
-2) The different variable settings 
-	a) Brioche specific settings (lines 34-63, 9 settings)
-	b) Update the method for calling the required software (Nextflow, conda, and git) (Lines 64-71) currently written as module load 
-	c) Thresholds to test (lines 73-79, 4 variable types) 
-
-
-
-
-Output
-~~~~~~
-
-Brioche will be run for each combination of thresholds e.g., if identity_thresholds coverage_thresholds, maxhits, and wordsize 
-all have 3 values each 81 (3^4) runs of brioche will be done so don&#39;t add too many at once to test.   
-
-Brioche outputs will be placed in the chosen output folder with standard Brioche results but with
-the name of each folder inlcuding the variables run in it e.g., Brioche_run_ident90cov70wordsize13
-
-
-Extensions
-~~~~~~~~~~
-
-If the user is interested in identifying the most strictly mapped markers to design future markers from, this script allows for exploring what are the most strict parameters for a given marker dataset
-
-After identifying strict settings, the user can then anchor the results as described in usecase 1 {doc}`Usecase1: Remapping data across reference genomes &lt;usecases/usecase1_remapping&gt;`
+<section id="requirements">
+<h2>Requirements<a class="headerlink" href="#requirements" title="Link to this heading">¶</a></h2>
+<ol class="arabic simple">
+<li><p>Brioche targets file</p></li>
+<li><p>Reference genome FASTA/FASTAs</p></li>
+<li><p>An updated params.config file ready to run Brioche</p></li>
+</ol>
+</section>
+<section id="runfile">
+<h2>Runfile<a class="headerlink" href="#runfile" title="Link to this heading">¶</a></h2>
+<p>To test for the redundancy/accuracy of markers in different settings a simple loop script is provided at Additional_functions/Run_brioche_optimise.sh
+This file will allow the user to set multiple values for four variables to test as combinations to investigate how the proportion of uniquely mapping markers changes</p>
+<p>Additional instructions are provided in the script but the main components to change are</p>
+<ol class="arabic simple">
+<li><p>The Slurm sbatch header commands e.g., #SBATCH –job-name=”example_runbriocheoptimise”</p></li>
+<li><dl class="simple">
+<dt>The different variable settings</dt><dd><ol class="loweralpha simple">
+<li><p>Brioche specific settings (lines 34-63, 9 settings)</p></li>
+<li><p>Update the method for calling the required software (Nextflow, conda, and git) (Lines 64-71) currently written as module load</p></li>
+<li><p>Thresholds to test (lines 73-79, 4 variable types)</p></li>
+</ol>
+</dd>
+</dl>
+</li>
+</ol>
+</section>
+<section id="output">
+<h2>Output<a class="headerlink" href="#output" title="Link to this heading">¶</a></h2>
+<p>Brioche will be run for each combination of thresholds e.g., if identity_thresholds coverage_thresholds, maxhits, and wordsize
+all have 3 values each 81 (3^4) runs of brioche will be done so don’t add too many at once to test.</p>
+<p>Brioche outputs will be placed in the chosen output folder with standard Brioche results but with
+the name of each folder inlcuding the variables run in it e.g., Brioche_run_ident90cov70wordsize13</p>
+</section>
+<section id="extensions">
+<h2>Extensions<a class="headerlink" href="#extensions" title="Link to this heading">¶</a></h2>
+<p>If the user is interested in identifying the most strictly mapped markers to design future markers from, this script allows for exploring what are the most strict parameters for a given marker dataset</p>
+<p>After identifying strict settings, the user can then anchor the results as described in usecase 1 <a class="reference internal" href="usecase1_remapping.html"><span class="doc">Usecase1: Remapping data across reference genomes</span></a>
 take the VCF of only mapped reads and extract markers from it using the Additional_functions/run_convert_vcf_to_brioche_input.sh
-and then run Brioche on a new reference genome iteratively restricting the dataset to only the best mapping markers across all reference genomes
-
-
-
-Other usecases
---------------
-
-If you are interested in other usecases see.
-
-1. If you are interested in easy remapping of markers across any distinct reference genome and the reanchoring of genotypes to the new reference genome 
-{doc}`Usecase1: Remapping data across reference genomes &lt;usecases/usecase1_remapping&gt;`
-
-2. If you are interested in extracting genotype calls from one or multiple reference genomes and adding them to your population genomics study go to 
-{doc}`Usecase2: In silico genotyping of reference genomes &lt;usecases/usecase2_insilico_genotyping&gt;`
-
-5. If you are interested in the mapping of multiple different datasets to a unified reference genome allowing for merging across shared loci and other downstream applications (e.g., imputations)
-{doc}`Usecase4: Merge datasets &lt;usecases/usecase4_merge_datasets&gt;`
-
-
-otherwise, to return to the Introduction page go to {doc}`Introduction &lt;../Introduction&gt;`
-
-
-</pre></div>
-</div>
+and then run Brioche on a new reference genome iteratively restricting the dataset to only the best mapping markers across all reference genomes</p>
+<section id="other-usecases">
+<h3>Other usecases<a class="headerlink" href="#other-usecases" title="Link to this heading">¶</a></h3>
+<p>If you are interested in other usecases see.</p>
+<p>1. If you are interested in easy remapping of markers across any distinct reference genome and the reanchoring of genotypes to the new reference genome
+<a class="reference internal" href="usecase1_remapping.html"><span class="doc">Usecase1: Remapping data across reference genomes</span></a></p>
+<p>2. If you are interested in extracting genotype calls from one or multiple reference genomes and adding them to your population genomics study go to
+<a class="reference internal" href="usecase2_insilico_genotyping.html"><span class="doc">Usecase2: In silico genotyping of reference genomes</span></a></p>
+<p>5. If you are interested in the mapping of multiple different datasets to a unified reference genome allowing for merging across shared loci and other downstream applications (e.g., imputations)
+<a class="reference internal" href="usecase4_merge_datasets.html"><span class="doc">Usecase4: Merge datasets</span></a></p>
+<p>otherwise, to return to the Introduction page go to <a class="reference internal" href="../introduction.html"><span class="doc">Introduction</span></a></p>
+</section>
+</section>
 </section>
 
 
@@ -141,7 +124,7 @@ otherwise, to return to the Introduction page go to {doc}`Introduction &lt;../In
 <script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
 <p class="caption" role="heading"><span class="caption-text">Main</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../introduction.html">#Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../setting_up_a_run.html">Setting up a run</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../results.html">Results</a></li>
@@ -152,7 +135,13 @@ otherwise, to return to the Introduction page go to {doc}`Introduction &lt;../In
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="usecase1_remapping.html">Usecase1: Remapping data across reference genomes</a></li>
 <li class="toctree-l1"><a class="reference internal" href="usecase2_insilico_genotyping.html">Usecase2: In silico genotyping of reference genomes</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Usecase3: Testing redundancy/accuracy in marker datasets</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Usecase3: Testing redundancy/accuracy in marker datasets</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#requirements">Requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#runfile">Runfile</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#output">Output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#extensions">Extensions</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="usecase4_merge_datasets.html">Usecase4: Merge datasets</a></li>
 </ul>
 
@@ -181,7 +170,7 @@ otherwise, to return to the Introduction page go to {doc}`Introduction &lt;../In
       &#169;2026, James O'Dwyer, Gabriel Keeble-Gagnere, Kerrie L Forrest.
       
       |
-      <a href="../_sources/usecases/usecase3_redundancy_accuracy.md.txt"
+      <a href="../_sources/usecases/usecase3_redundancy_accuracy.rst.txt"
           rel="nofollow">Page source</a>
     </div>
 

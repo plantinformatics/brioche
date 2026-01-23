@@ -1,6 +1,5 @@
-#Introduction
-================
-
+Introduction
+============
 
 Brioche overview:
 -----------------
@@ -31,23 +30,23 @@ Key use cases:
 Brioche is designed for five main usecases briefly highlighted below (see tabs for more indepth descriptions)
 
 1. Easy remapping of markers across any distinct reference genome and the reanchoring of genotypes to the new reference genome 
-{doc}`Usecase1: Remapping data across reference genomes <usecases/usecase1_remapping>`
+:doc:`Usecase1: Remapping data across reference genomes <usecases/usecase1_remapping>`
 
 
 2. The insilico genotyping of dozens + of reference genomes to generate equivalent genotype matricies for any given reference and allowing for whole genomes to be directly analysed alongside user sample genotypes
-{doc}`Usecase2: In silico genotyping of reference genomes <usecases/usecase2_insilico_genotyping>`
+:doc:`Usecase2: In silico genotyping of reference genomes <usecases/usecase2_insilico_genotyping>`
 
 
 3. Remapping of markers using a wide range of filters designed to identify which markers are hitting redundant parts of a genome and therefore are less reliable for use in certain downstream analyses
-{doc}`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
+:doc:`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
 
 
 4. The creation of custom marker datasets from existing analyses and testing the likely redundancy of newly designed markers against a wide range of reference genomes for a target species.
-{doc}`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
+:doc:`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
 
 
 5. The mapping of multiple different datasets to a unified reference genome allowing for merging across shared loci and other downstream applications (e.g., imputations)
-{doc}`Usecase4: Merge datasets <usecases/usecase4_merge_datasets>`
+:doc:`Usecase4: Merge datasets <usecases/usecase4_merge_datasets>`
 
 
 
@@ -56,14 +55,13 @@ Workflow summary:
 
 At it's core, brioche utilises BLASTn to map desired markers onto all possible positions of a given reference genome. After mapping markers, a series of layered filters are applied to identify the most probable marker position and where not determinable will position the marker as unplaced.
 
-Brioche has five main filtering stages briefly outlined below (although, see {doc}`Setting up a run <setting_up_a_run>` for a detailed rundown of how to updated run settings and see {doc}`Citations <citations>` .
+Brioche has five main filtering stages briefly outlined below (although, see :doc:`Setting up a run <setting_up_a_run>` for a detailed rundown of how to updated run settings and see :doc:`Citations <citations>` .
 
 
 .. image:: Images/Brioche_process_only_dag.png
    :alt: Brioche dag
    :width: 300px
    :align: center
-
 
 Blastn output:
 ~~~~~~~~~~~~~~
@@ -104,31 +102,31 @@ User guide:
 Installation:
 ~~~~~~~~~~~~~
 
-For instalation instructions go to {doc}`Installation <installation>`
+For instalation instructions go to :doc:`Installation <installation>`
 
 
 Run setup:
 ~~~~~~~~~~
 
-For setting up a run go to {doc}`Setting up a run <setting_up_a_run>`
+For setting up a run go to :doc:`Setting up a run <setting_up_a_run>`
 
 
 
 Results interpretation:
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-For Results interpretation go to {doc}`Results <results>`
+For Results interpretation go to :doc:`Results <results>`
 
 
 
 FAQ/Troubleshooting:
 ~~~~~~~~~~~~~~~~~~~~
 
-For a list of FAQ/Troubleshooting questions go to {doc}`FAQ <faq>`
+For a list of FAQ/Troubleshooting questions go to :doc:`FAQ <faq>`
 
 
 
 Citations:
 ~~~~~~~~~~
 
-For a detailed list of software used go to {doc}`Citations <citations>`
+For a detailed list of software used go to :doc:`Citations <citations>`
