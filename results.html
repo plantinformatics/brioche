@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Results folder structure &#8212; Brioche 2.0.0 documentation</title>
+    <title>Results &#8212; Brioche 2.0.0 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
@@ -33,8 +33,10 @@
 
           <div class="body" role="main">
             
-  <section id="results-folder-structure">
-<h1>Results folder structure<a class="headerlink" href="#results-folder-structure" title="Link to this heading">¶</a></h1>
+  <section id="results">
+<h1>Results<a class="headerlink" href="#results" title="Link to this heading">¶</a></h1>
+<section id="results-folder-structure">
+<h2>Results folder structure<a class="headerlink" href="#results-folder-structure" title="Link to this heading">¶</a></h2>
 <p>The Brioche results will be placed inside a folder labelled brioche-results in the pathway specified in the running nextflow script or the params.config file.</p>
 <p>In this folder there is a combination of output files and folders.</p>
 <p>.. image:: Images/Brioche_results_main_folder.png
@@ -43,7 +45,7 @@
 :align: center</p>
 </section>
 <section id="summary-report">
-<h1>Summary report<a class="headerlink" href="#summary-report" title="Link to this heading">¶</a></h1>
+<h2>Summary report<a class="headerlink" href="#summary-report" title="Link to this heading">¶</a></h2>
 <p>The first results file to investigate is located in the summary/ folder and is called summary_core.html
 This file can be opened up in any web browser as required.</p>
 <p>The summary report is broken up into four main sections</p>
@@ -94,7 +96,7 @@ Below the figures there is a summary table of each results file describing its l
 
 
 Results files
-=============
+-------------
 
 Brioche outputs several results files in the brioche-results directory which are useful for different reasons and usecases. These can be broadly split into two types of files, Intermediate results and final results
 
@@ -167,7 +169,7 @@ This file is the main file used to reanchor genotypes (see the usecases section)
 
 
 Other results files
-===================
+-------------------
 
 In the brioche-results folder there are some additional files of note for run tracking/optimisation. 
 
@@ -176,7 +178,7 @@ In brioche-results/Reports you will find the &#39;[date:time]_timeline.html&#39;
 
 
 Brioche usecases
-================
+----------------
 
 Now that the basic results structure is understood, we can show how these results can be used to achieve any of the usescases described for brioche.
 
@@ -217,6 +219,7 @@ Alternatively, to return to how to set up a run: go to {doc}`Setting up a run &l
 </pre></div>
 </div>
 </section>
+</section>
 
 
           </div>
@@ -253,19 +256,14 @@ Alternatively, to return to how to set up a run: go to {doc}`Setting up a run &l
 <script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
 <p class="caption" role="heading"><span class="caption-text">Main</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="introduction.html">Brioche overview:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="introduction.html#key-features">Key features:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="introduction.html#key-use-cases">Key use cases:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="introduction.html#workflow-summary">Workflow summary:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">#Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html#downloading-brioche">Downloading brioche:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html#software-dependencies">Software dependencies:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html#file-layout">File layout:</a></li>
 <li class="toctree-l1"><a class="reference internal" href="setting_up_a_run.html">Setting up a run</a></li>
-<li class="toctree-l1"><a class="reference internal" href="setting_up_a_run.html#brioche-inputs">Brioche inputs:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="setting_up_a_run.html#parameters-file">Parameters file:</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Results folder structure</a></li>
-<li class="toctree-l1"><a class="reference internal" href="#summary-report">Summary report</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Results</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#results-folder-structure">Results folder structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#summary-report">Summary report</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="citations.html">Citations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
 </ul>

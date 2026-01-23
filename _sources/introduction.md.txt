@@ -1,7 +1,9 @@
 #Introduction
+================
+
 
 Brioche overview:
-================
+-----------------
 
 **Brioche** is a bioinformatics pipeline designed to help bridge the gap between static datasets and the rapidly evolving pangenomics landscape. Brioche uses Nextflow, a domain-specific language (DSL) for defining workflows, as its workflow management tool. 
 Brioche streamlines marker mapping to reference genomes through a Nextflow-powered pipeline.
@@ -12,7 +14,7 @@ and Grains Research and Development Corporation (GRDC) that aims to unlock the g
 In this user guide we will go over the basic structure of Brioche as well as provide in depth use cases for a variety of functionality 
 
 Key features:
-=============
+-------------
 
 **Efficient workflow management**: Nextflow, a domain-specific language designed for workflows, orchestrates processing steps with clarity and precision.
 **Formalized process definition**: Each step, from input to output, is clearly defined within the pipeline, ensuring transparency and reproducibility.
@@ -24,7 +26,7 @@ Extensive metadata recording: Brioche effectively captures Metadata for settings
 
 
 Key use cases:
-==============
+--------------
 
 Brioche is designed for five main usecases briefly highlighted below (see tabs for more indepth descriptions)
 
@@ -50,7 +52,7 @@ Brioche is designed for five main usecases briefly highlighted below (see tabs f
 
 
 Workflow summary:
-=================
+-----------------
 
 At it's core, brioche utilises BLASTn to map desired markers onto all possible positions of a given reference genome. After mapping markers, a series of layered filters are applied to identify the most probable marker position and where not determinable will position the marker as unplaced.
 
@@ -97,7 +99,7 @@ The following filtering step changes depending on whether priors files are provi
 
 
 User guide:
-===========
+-----------
 
 Installation:
 ~~~~~~~~~~~~~

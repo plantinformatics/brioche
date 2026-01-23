@@ -14,7 +14,7 @@
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Results folder structure" href="results.html" />
+    <link rel="next" title="Results" href="results.html" />
     <link rel="prev" title="Installation" href="installation.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
@@ -35,9 +35,8 @@
             
   <section id="setting-up-a-run">
 <h1>Setting up a run<a class="headerlink" href="#setting-up-a-run" title="Link to this heading">¶</a></h1>
-</section>
 <section id="brioche-inputs">
-<h1>Brioche inputs:<a class="headerlink" href="#brioche-inputs" title="Link to this heading">¶</a></h1>
+<h2>Brioche inputs:<a class="headerlink" href="#brioche-inputs" title="Link to this heading">¶</a></h2>
 <p>Brioche has one required input file (the brioche targets file) which is formatted as a tsv file with the following columns.</p>
 <ol class="arabic simple">
 <li><p>ID  (the name of each marker)</p></li>
@@ -76,7 +75,7 @@ Rscript DArT2Brioche_convert.R <br />
 –targetmarker “D”</p>
 </section>
 <section id="parameters-file">
-<h1>Parameters file:<a class="headerlink" href="#parameters-file" title="Link to this heading">¶</a></h1>
+<h2>Parameters file:<a class="headerlink" href="#parameters-file" title="Link to this heading">¶</a></h2>
 <p>The parameters file for each run of brioche is found in the file params.config.</p>
 <p>This file can be found in the brioche/ directory and has been populated with a number of default settings allowing for quick running of data.</p>
 <p>This file can be renamed so long as the variable –paramfile in the nextflow run (e.g., example_run_script_brioche.sh) is updated to the new name; otherwise the run will default to params.config.</p>
@@ -145,7 +144,7 @@ usegeneticmap (whether to use a genetic mapping file to infirm on the relative p
 geneticmap (the path to a multicolumn csv with the first column being the marker name, the second the number of chromosomes this marker mapped to, the next 5 being the chromosome names it mapped to, and the next 5 columns being the counts which each chromosome was mapped to for the marker, see example_files/genetic_mapping_input.csv. Note, also requires chromchrommatch to be present to convert chrom names between old and new references)
 
 Run parameters and goals
-========================
+------------------------
 
 The run configuration you choose depends on your workflow goal. We provide a more detailed breakdown of how some settings can be changed to best run for different usecases below but in general the settings desired should reflect
 
@@ -182,7 +181,7 @@ Other specific goals and scenarios can be seen in the example of different useca
 
 
 Simple runs 
-===========
+-----------
 
 Once parameters are set and the targets file (Brioche input file) is created running Brioche is very straight forward. 
 
@@ -291,6 +290,7 @@ For investigating the results of a run go to {doc}`Results &lt;results&gt;`
 </pre></div>
 </div>
 </section>
+</section>
 
 
           </div>
@@ -327,19 +327,14 @@ For investigating the results of a run go to {doc}`Results &lt;results&gt;`
 <script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
 <p class="caption" role="heading"><span class="caption-text">Main</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="introduction.html">Brioche overview:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="introduction.html#key-features">Key features:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="introduction.html#key-use-cases">Key use cases:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="introduction.html#workflow-summary">Workflow summary:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">#Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html#downloading-brioche">Downloading brioche:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html#software-dependencies">Software dependencies:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html#file-layout">File layout:</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Setting up a run</a></li>
-<li class="toctree-l1"><a class="reference internal" href="#brioche-inputs">Brioche inputs:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="#parameters-file">Parameters file:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="results.html">Results folder structure</a></li>
-<li class="toctree-l1"><a class="reference internal" href="results.html#summary-report">Summary report</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Setting up a run</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#brioche-inputs">Brioche inputs:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#parameters-file">Parameters file:</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="results.html">Results</a></li>
 <li class="toctree-l1"><a class="reference internal" href="citations.html">Citations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
 </ul>
@@ -356,7 +351,7 @@ For investigating the results of a run go to {doc}`Results &lt;results&gt;`
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
       <li>Previous: <a href="installation.html" title="previous chapter">Installation</a></li>
-      <li>Next: <a href="results.html" title="next chapter">Results folder structure</a></li>
+      <li>Next: <a href="results.html" title="next chapter">Results</a></li>
   </ul></li>
 </ul>
 </div>

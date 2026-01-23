@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Brioche overview: &#8212; Brioche 2.0.0 documentation</title>
+    <title>#Introduction &#8212; Brioche 2.0.0 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
@@ -33,9 +33,10 @@
 
           <div class="body" role="main">
             
-  <p>#Introduction</p>
+  <section id="introduction">
+<h1>#Introduction<a class="headerlink" href="#introduction" title="Link to this heading">¶</a></h1>
 <section id="brioche-overview">
-<h1>Brioche overview:<a class="headerlink" href="#brioche-overview" title="Link to this heading">¶</a></h1>
+<h2>Brioche overview:<a class="headerlink" href="#brioche-overview" title="Link to this heading">¶</a></h2>
 <p><strong>Brioche</strong> is a bioinformatics pipeline designed to help bridge the gap between static datasets and the rapidly evolving pangenomics landscape. Brioche uses Nextflow, a domain-specific language (DSL) for defining workflows, as its workflow management tool.
 Brioche streamlines marker mapping to reference genomes through a Nextflow-powered pipeline.</p>
 <p>Brioche is funded as part of the Australian Grains Genebank Strategic Partnership, a $30M joint investment between the Victorian State Government
@@ -43,7 +44,7 @@ and Grains Research and Development Corporation (GRDC) that aims to unlock the g
 <p>In this user guide we will go over the basic structure of Brioche as well as provide in depth use cases for a variety of functionality</p>
 </section>
 <section id="key-features">
-<h1>Key features:<a class="headerlink" href="#key-features" title="Link to this heading">¶</a></h1>
+<h2>Key features:<a class="headerlink" href="#key-features" title="Link to this heading">¶</a></h2>
 <p><strong>Efficient workflow management</strong>: Nextflow, a domain-specific language designed for workflows, orchestrates processing steps with clarity and precision.
 <strong>Formalized process definition</strong>: Each step, from input to output, is clearly defined within the pipeline, ensuring transparency and reproducibility.
 <strong>Automated job submission and connection</strong>: Nextflow seamlessly handles job execution and data flow between steps, freeing you from manual task management.
@@ -52,7 +53,7 @@ and Grains Research and Development Corporation (GRDC) that aims to unlock the g
 <p>Extensive metadata recording: Brioche effectively captures Metadata for settings used within the run and helps build VCF files containing relevant information about target reference genomes and run metadata.</p>
 </section>
 <section id="key-use-cases">
-<h1>Key use cases:<a class="headerlink" href="#key-use-cases" title="Link to this heading">¶</a></h1>
+<h2>Key use cases:<a class="headerlink" href="#key-use-cases" title="Link to this heading">¶</a></h2>
 <p>Brioche is designed for five main usecases briefly highlighted below (see tabs for more indepth descriptions)</p>
 <ol class="arabic simple">
 <li><p>Easy remapping of markers across any distinct reference genome and the reanchoring of genotypes to the new reference genome
@@ -68,7 +69,7 @@ and Grains Research and Development Corporation (GRDC) that aims to unlock the g
 </ol>
 </section>
 <section id="workflow-summary">
-<h1>Workflow summary:<a class="headerlink" href="#workflow-summary" title="Link to this heading">¶</a></h1>
+<h2>Workflow summary:<a class="headerlink" href="#workflow-summary" title="Link to this heading">¶</a></h2>
 <p>At it’s core, brioche utilises BLASTn to map desired markers onto all possible positions of a given reference genome. After mapping markers, a series of layered filters are applied to identify the most probable marker position and where not determinable will position the marker as unplaced.</p>
 <p>Brioche has five main filtering stages briefly outlined below (although, see <a class="reference internal" href="setting_up_a_run.html"><span class="doc">Setting up a run</span></a> for a detailed rundown of how to updated run settings and see <a class="reference internal" href="citations.html"><span class="doc">Citations</span></a> .</p>
 <p>.. image:: Images/Brioche_process_only_dag.png
@@ -105,7 +106,7 @@ The following filtering step changes depending on whether priors files are provi
 
 
 User guide:
-===========
+-----------
 
 Installation:
 ~~~~~~~~~~~~~
@@ -140,6 +141,7 @@ Citations:
 For a detailed list of software used go to {doc}`Citations &lt;citations&gt;`
 </pre></div>
 </div>
+</section>
 </section>
 
 
@@ -177,19 +179,16 @@ For a detailed list of software used go to {doc}`Citations &lt;citations&gt;`
 <script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
 <p class="caption" role="heading"><span class="caption-text">Main</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Brioche overview:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="#key-features">Key features:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="#key-use-cases">Key use cases:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="#workflow-summary">Workflow summary:</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">#Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#brioche-overview">Brioche overview:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#key-features">Key features:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#key-use-cases">Key use cases:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#workflow-summary">Workflow summary:</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html#downloading-brioche">Downloading brioche:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html#software-dependencies">Software dependencies:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html#file-layout">File layout:</a></li>
 <li class="toctree-l1"><a class="reference internal" href="setting_up_a_run.html">Setting up a run</a></li>
-<li class="toctree-l1"><a class="reference internal" href="setting_up_a_run.html#brioche-inputs">Brioche inputs:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="setting_up_a_run.html#parameters-file">Parameters file:</a></li>
-<li class="toctree-l1"><a class="reference internal" href="results.html">Results folder structure</a></li>
-<li class="toctree-l1"><a class="reference internal" href="results.html#summary-report">Summary report</a></li>
+<li class="toctree-l1"><a class="reference internal" href="results.html">Results</a></li>
 <li class="toctree-l1"><a class="reference internal" href="citations.html">Citations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
 </ul>

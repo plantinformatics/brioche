@@ -91,7 +91,7 @@ Alternatively if there is still poor overlap each dataset can be run through imp
 
 
 Other usecases
-==============
+--------------
 
 If you are interested in other usecases see.
 
