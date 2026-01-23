@@ -14,21 +14,26 @@ Requirements
 ~~~~~~~~~~~~
 
 1. Brioche to have been run and the files below are present
-'\*_Brioche_all_markers1to1stagingforvcf.csv'
-'\*_marker_localdups_NULLS_counts.tsv'
-'\*_priors_informed_strictmapping.tsv'
 
-2. The genotype data file you have is in one of the following three forms 
-	a) Raw genotypes with the below format type (tsv separated). REF/ALT defined as ACGT ACGT, samples as columns, markers as rows genotype coded as 0,1,2, NC as missing data and N as Null alleles
-	"""
-	Name	REF	ALT	Sample1	Sample2	etc
-	Marker1	T	C	2	1
-	Marker2	T	G	0	N
-	Marker3	A	C	NC	1
-	"""
-	b) A VCF file (any vcf compatible format)
-	c) DArTseq Report 1 row format. 
+*'\*_Brioche_all_markers1to1stagingforvcf.csv'*
+*'\*_marker_localdups_NULLS_counts.tsv'*
 
+*'\*_priors_informed_strictmapping.tsv'*
+
+2. The genotype data file you have is in one of the following three forms:
+
+   a) Raw genotypes in the format below (tab-separated). ``REF``/``ALT`` are defined as ACGT/ACGT, samples are columns, markers are rows, genotypes are coded as ``0``, ``1``, ``2``, ``NC`` as missing data, and ``N`` as null alleles.
+
+      .. code-block:: text
+
+         Name    REF  ALT  Sample1  Sample2  etc
+         Marker1 T    C    2        1
+         Marker2 T    G    0        N
+         Marker3 A    C    NC       1
+
+   b) A VCF file (any VCF-compatible format).
+
+   c) A DArTseq report (1-row format).
 
 
 Runfile
@@ -53,7 +58,9 @@ One variable the user can set which will change the result output files is the v
    donextstages="yes"
 
 When set to "yes", this will take the anchored VCF output file and 
+
 1. Create an additional VCF which has all markers which failed to map removed
+
 2. Convert the chromosome names to numeric 1-n values and sort the new file 
 
 This new file is ready for analysis in software sensitive to VCF settings and unmapped markers e.g., imputation
@@ -72,10 +79,14 @@ At the top of the VCF file we can see Brioche metadata included as well as some 
 
 In the body of the VCF file we can see a few of the additional values Brioche places into the VCF to assist with more informative downstream analysis
 
-1) Brioche outputs two additional variables with each genotype 
+1) Brioche outputs two additional variables with each genotype
+
 Instead of a standard 1/1 0/0 etc, Brioche adds two additional fields NU and DU.
-NU tracks the presence or absence of NULL allele states allowing for differentiation between missing data and true NULLs if the data type allows e.g., probe capture design
-DU tracks the number of local duplications a marker hits to. For standard input genotype data this will always be . for unknown but when running insilico genotyping, added reference genomes will have counts for how many local duplications are detected.
+
+#. NU tracks the presence or absence of NULL allele states allowing for differentiation between missing data and true NULLs if the data type allows e.g., probe capture design
+
+#. DU tracks the number of local duplications a marker hits to. For standard input genotype data this will always be . for unknown but when running insilico genotyping, added reference genomes will have counts for how many local duplications are detected.
+
 This allows for a greater understanding of why certain markers may have higher heterozygosity for example, with reference genomes having 2 or 3 copies of a region markers genotyping this region might be picking up multiple different mutations in your samples sequenced
 
 Brioche VCF outputs as a result take the format 1/1:0:. or 0/0:0:. or ./.:1:. as just some examples.

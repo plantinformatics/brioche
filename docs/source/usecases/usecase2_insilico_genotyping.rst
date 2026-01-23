@@ -10,27 +10,30 @@ Generate in silico genotypes by mapping marker sequences to a reference genome.
 Requirements 
 ~~~~~~~~~~~~
 
-1. Brioche targets file 
+1. Brioche targets file
 
-2. The genotype data file you have is in one of the following three forms 
-	a) Raw genotypes with the below format type (tsv separated). REF/ALT defined as ACGT ACGT, samples as columns, markers as rows genotype coded as 0,1,2, NC as missing data and N as Null alleles
-	"""
-	Name	REF	ALT	Sample1	Sample2	etc
-	Marker1	T	C	2	1
-	Marker2	T	G	0	N
-	Marker3	A	C	NC	1
-	"""
-	b) A VCF file (any vcf compatible format)
-	c) DArTseq Report 1 row format. 
- 
+2. The genotype data file you have is in one of the following three forms:
+
+   a) Raw genotypes in the format below (tab-separated). ``REF``/``ALT`` are defined as ACGT/ACGT, samples are columns, markers are rows, genotypes are coded as ``0``, ``1``, ``2``, ``NC`` as missing data, and ``N`` as null alleles.
+
+      .. code-block:: text
+
+         Name    REF  ALT  Sample1  Sample2  etc
+         Marker1 T    C    2        1
+         Marker2 T    G    0        N
+         Marker3 A    C    NC       1
+
+   b) A VCF file (any VCF-compatible format).
+
+   c) A DArTseq report (1-row format).
+
 3. Reference genome FASTA
 
-4. An updated params.config file ready to run Brioche
+4. An updated ``params.config`` file ready to run Brioche
 
-5. A list of full paths/filenames to reference genomes to insilico genotype (see example_files/genomes_insilico.txt)
+5. A list of full paths/filenames to reference genomes to in silico genotype (see ``example_files/genomes_insilico.txt``)
 
 6. Installation of Nextflow, conda, git, and R
-
 
 Runfile
 ~~~~~~~
@@ -38,14 +41,20 @@ Runfile
 To run insilico genotyping, a .sh script file is provided in Additional_functions/Run_insilico_add.sh
 Additional instructions are provided in the script but the main components to change are. 
 
-1) The Slurm sbatch header commands e.g., #SBATCH --job-name="example_insilicorunning"
+1) The Slurm ``sbatch`` header commands (e.g., ``#SBATCH --job-name="example_insilicorunning"``)
 
-2) Four different variable settings 
-	a) Brioche settings (lines 33-58, 7 settings ). These settings need to have the user update the paths to where brioche was downloaded  and where the targets file is etc
-	b) Output folder name (line 62, 1 setting). This setting describes where all insilico results should be saved
-	c) Anchoring settings (lines 66-82, 6 settings). These settings point to the anchoring script and list the initial genotypes format e.g., isvcf or isdart or issnp
-	d) Final Brioche settings (Lines 84-95, 4 settings). These settings specify what the final reference genome should be and what the final VCF will be anchored against. 
-	e) Update the method for calling the required software (Nextflow, conda, git, and R) (Lines 97-105) currently written as module load 
+2) Four different variable settings:
+
+   a) Brioche settings (lines 33-58, 7 settings). These settings require the user to update the paths to where Brioche was downloaded and where the targets file is located.
+
+   b) Output folder name (line 62, 1 setting). This setting describes where all in silico results should be saved.
+
+   c) Anchoring settings (lines 66-82, 6 settings). These settings point to the anchoring script and define the initial genotype format (e.g., ``isvcf`` or ``isdart`` or ``issnp``).
+
+   d) Final Brioche settings (lines 84-95, 4 settings). These settings specify the final reference genome and what final VCF the genotypes will be anchored against.
+
+   e) Update the method for calling the required software (Nextflow, conda, git, and R) (lines 97-105). These are currently written as ``module load`` statements.
+
 
 .. image:: ../Images/Brioche_insilico_variables.png
    :alt: Insilico variables
@@ -59,7 +68,9 @@ Outputs
 The results of insilico genotyping are output into three separate folders in the chosen output directory 
 
 1) intermediate_brioche/ where all Brioche runs are stored e.g.,  intermediate_brioche/genomename/brioche-results (one per reference genome)
+
 2) anchoring/where all genomes are iteratively anchored into a single VCF
+
 3) final/ where the final brioche run and final anchored results are stored.
 
 For a detailed breakdown of 1) see :doc:`Results folder structure <../results>`
@@ -75,25 +86,24 @@ For a detailed breakdown of 1) see :doc:`Results folder structure <../results>`
 
 In this folder there will be several output files of interest 
 
-'Building_final_mapped_against_IWGSC_RefSeq_v2.1_refs.vcf' A VCF of all markers containing the genotypes of the reference genomes (plus the two leading samples of the provided genotypes file)
-'Building_final_mapped_against_IWGSC_RefSeq_v2.1_seqs.vcf' A VCF of all markers containing the genotypes of all samples from the genotypes file
+#. *'Building_final_mapped_against_IWGSC_RefSeq_v2.1_refs.vcf'* A VCF of all markers containing the genotypes of the reference genomes (plus the two leading samples of the provided genotypes file)
+#. *'Building_final_mapped_against_IWGSC_RefSeq_v2.1_seqs.vcf'* A VCF of all markers containing the genotypes of all samples from the genotypes file
 
-'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf' A VCF containing both the sequenced samples and the insilico genotyped references with markers which failed to map uniquely removed
-'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf.gz' A gzip of the above file
+#. *'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf'* A VCF containing both the sequenced samples and the insilico genotyped references with markers which failed to map uniquely removed
+#. *'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf.gz'* A gzip of the above file
 
-'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf_numericchroms.vcf' A VCF with the name of chromosomes converted to numeric format
+#. *'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf_numericchroms.vcf'* A VCF with the name of chromosomes converted to numeric format
+
 Chromosomes are converted to numeric format either through the user providing a chromosome matching file (see example_files/example_chrommatching_for_converting_vcf_chromnames_to_numeric.tsv)
 If no file is provided the chroms will be sorted through pattern matching names to look for numeric values
 If chromosomes lack numeric patterns, chromosomes will be renamed numerically from 1-n based on their order in the reference genome used
 
+#. *'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf_failedtomap.vcf'* A VCF of all markers which failed to map uniquely
+
+#. *'unmapped_markers.tsv'* A one column tsv list of markers which failed to map uniquely
 
 
-'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf_failedtomap.vcf' A VCF of all markers which failed to map uniquely
-'unmapped_markers.tsv' A one column tsv list of markers which failed to map uniquely
-
-
-'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf_sorted.vcf' A VCF copy of  'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf_numericchroms.vcf' which has been sorted numerically by chromosome and position
-This file is directly compatible with most downstream analyses now! 
+#. *'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf_sorted.vcf'* A VCF copy of  'Building_final_mapped_against_IWGSC_RefSeq_v2.1.vcf_numericchroms.vcf' which has been sorted numerically by chromosome and position
 
 Looking deeper into one of the markers we can see some of the novel results insilico genotyping can achieve. Below is a line containing only reference genome genotypes from an insilico run
 For this marker on chromosome 20 it can be seen that form the majority of genomes this marker has 2+ local duplications (the end value per genotype 0/0:0:**2**) This shows that the marker in question could represent a large variable duplication site and may be relevant if linked to genes of known function
