@@ -54,19 +54,14 @@ params="/filepath/brioche/params.config"
 # email address for updates (will give an update when each Nextflow run completes/if they fail)
 emailaddress="user123@mail.mail"
 
-# whether to do orientation iterative mapping (anchor each marker relative to their first unique reference (required for detection of tri+ allelic states)
-doorientation="Yes"
 
-# File path of starting orientation can be prefilled with known orientations or set as unknown. Two column tsv with header ID, Orientation  with nrows=nmarkers in targets file and Orientation values of "Unknown"|"plus"|"minus"
-orientationfile="/filepath/brioche/Orientation_file.tsv"
+############# End Brioche settings ################
 
-# Whether to do biallelic mapping exclusively. Will force brioche to orient everything to the targets Target.base so that only biallelic states will be found and any trialleles are assumed to be orientation errors in the reference genome and coerced to same orientation as Target.base
-dobiallelic="No"
+######## Output master folder #####################
 
-
-######## Output master folder #######
 outputmasterfolder="/filepath/brioche/resultsinsilicobrioche"
 
+#############################################################
 
 ##################### Anchoring settings #############
 
@@ -84,6 +79,8 @@ isvcf=false # set to true if the genotypes file is a vcf file
 issnp=true # set to true if the genotypes file is in SNPchip genotypes format (e.g., col1=Name [marker name] col2=REF, col3=ALT, cols4-N=names of samples, rows 1-n=markers
 isdart=false # set to true if the genotypes file is a DArT RawGenotypes file (Note must be in 1 row format, to allow for faster analysis files are read in as chuncks so the script can't have markers which bleed over multiple rows)
 
+##################End anchoring settings #############
+
 ####################### Final Brioche settings ################
 
 
@@ -95,16 +92,22 @@ finalgenomeACC="GCF_0000001234.1"
 
 
 
+################### End final Brioche settings ###############
 
-
-
-##### Runscript ##
-
+################### Modules ##################
 
 module load Nextflow
 module load Miniconda3
 module load R
 module load git
+
+
+################### End Modules #################
+
+
+##### Runscript ##
+
+
 
 
 require() { command -v "$1" >/dev/null 2>&1 || { echo "ERROR: '$1' not found in PATH." >&2; exit 1; }; }

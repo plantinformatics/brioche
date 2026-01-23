@@ -1,0 +1,9 @@
+/filepath/IWGSC_RefSeq_v2.1/IWGSC_RefSeq_v2.1.fasta
+/filepath/Refgenome1.fasta.gz
+/filepath/Refgenome2.fasta.gz
+/filepath/Refgenome3.fasta.gz
+/filepath/Refgenome4.fasta.gz
+/filepath/Refgenome5.fasta.gz
+/filepath/Refgenome6.fasta.gz
+/filepath/Refgenome7.fasta.gz
+/filepath/Refgenome8.fasta.gz

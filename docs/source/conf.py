@@ -36,8 +36,8 @@ html_static_path = ['_static']
 
 
 html_theme_options = {
-    "source_repository": "https://github.com/plantinformatics/brioche/",
-    "source_branch": "main",
-    "source_directory": "docs/source/",
+    "github_user": "plantinformatics",
+    "github_repo": "brioche",
+    "github_banner": True,
+    "show_powered_by": False,
 }
-

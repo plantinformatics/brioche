@@ -41,19 +41,34 @@
 # NOTE: next stages assumes that the output files are in the working directory where this is run
 ###############
 
+###############Variables to set ###################
 
-donextstages="no"
+donextstages="no" # This setting determines whether to stop after anchoring or to also create a new vcf file which removes all unmapped markers and converts the chromosome numbers to numeric values and sorts the VCF
 
-final_vcf="dataset1_anchored_genotypes.vcf"
-finalgenomepath="/filepathgenome/"
-finalgenome="genome_1.fasta"
-ChromChrommappingfile=""
+finalgenomepath="/filepathgenome/" # filepath to reference genome
+finalgenome="genome_1.fasta" # reference genome fasta file
+ChromChrommappingfile="" # Chromosome name to numeric comparison file
+Rawgenotypesfile="Rawgenotypesfile.tsv" # Raw genotypes file (either SNP, VCF, or DArT format)
+Briochemappings="Briocheresultsdatasetx_all_markers1to1stagingforvcf.csv" # brioche1to1 mappings path + file from brioche-results
+Brioche_priors="Briocheresultsdatasetx_priors_informed_strictmapping.tsv" # brioche priorsfile path +file from brioche-results
+
+VCFraws="false" # If the input genotypes file is a VCF set to "true" if not set to "false"
+SNPchip="true" # If the input genotypes file is in Name REF ALT SAMPLE1, 0,1,2 raw genotypes format set to "true" if not set to "false"
+dartfile="false" # If the input genotypes file is a DArT 1 row format result report set to "true" if not set to "false". Note this setting has not been tested as extensively as the other two
+final_vcf="Reanchored_vcf_datasetx_against_refgenomeY.vcf" # What to save the output file/path as
+refgenomename="Species X whole genome v1.1" # The name of the reference genome used to remap markers (taken from the NCBI title of the genome)
+ACCcode="GCFXXX123" # The NCBI Accession code of the reference genome used
+
+
+######################End variables to set ###################
+
 
 ### In case first time running, a new conda environment for the R anchoring scripts is required. env yaml in same directory as this file
 eval "$(conda shell.bash hook)"
 conda_path=$(conda info --base)
 conda_base=$(conda info --base)
 conda config --set channel_priority flexible
+
 
 ENV_NAME="brioche-vcf"
 
@@ -78,7 +93,7 @@ conda activate brioche-vcf
 
 date
 
-Rscript Anchoring_script.R --Rawgenotypes Rawgenotypesfile.tsv --Briochemappings Briocheresultsdatasetx_all_markers1to1stagingforvcf.csv --mappriors "Briocheresultsdatasetx_priors_informed_strictmapping.tsv" --IsVCFraws false --IsSNPchip true --isDArTfile false --Outputfilename "dataset1_anchored_genotypes.vcf" --genomename "Genome123XYZ" --Accession "GCF000XYZ" --droplist ""
+Rscript Anchoring_script.R --Rawgenotypes "$Rawgenotypesfile" --Briochemappings "$briochemappingfile" --mappriors "$Brioche_priors" --IsVCFraws "$VCFraws" --IsSNPchip "$SNPchip" --isDArTfile "$dartfile" --Outputfilename "$final_vcf" --genomename "$refgenomename" --Accession "$ACCcode" --droplist ""
 
 date
 
