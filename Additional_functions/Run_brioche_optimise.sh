@@ -30,9 +30,6 @@
 #SBATCH --time=120:0:00
 
 
-module load Nextflow
-module load Miniconda3
-module load git
 
 ############### Brioche variables to set ######################
 
@@ -62,9 +59,16 @@ nextflowpath="/filepath/brioche/main.nf"
 
 # email address for updates (will give an update when each Nextflow run completes/if they fail)
 emailaddress="user123@mail.mail"
+
 ####################
 
+################## Modules ####################
 
+module load Nextflow
+module load Miniconda3
+module load git
+
+################ Modules end ####################
 
 ####### Thresholds to test ###################### 
 identity_thresholds=("90" "95") # pident threholds (pairwise identity to the reference genome cut off) 

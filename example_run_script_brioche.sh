@@ -29,35 +29,48 @@
 # The maximum running time of the job in days-hours:mins:sec
 #SBATCH --time=24:0:00
 
+
 #Build target table for the new brioche format
 target=/filepath/briochetargetdesign.tsv
+
+# Used in naming of results files 
 chipname="probename"
+
+# directory of reference genome
 genomedir=/filepathgenome/
+
+# Genome name without extension
+genome="genomename"
+
+# genome name with 
+fasta="genomename.fa"
+
 
 # param file can be set as anything but if not set in the nextflow run command below will default to the params.config present in the same directory as the main.nf
 params="/filepath/brioche/params.config"
+briochemain="/filepath/brioche/main.nf"
 
 # required modules 
 module load Nextflow
 module load Miniconda3
 module load git
 
-    genome="genomename"
-    fasta="genomename.fa"
     workdir="/filepath/brioche/results/${genome}_${chipname}/"
     resultsdir="/filepath/brioche/results/${genome}_${chipname}/"
     mkdir -p ${resultsdir}
     mkdir -p ${workdir}
     cd ${workdir}
 
-    nextflow run /filepath/brioche/main.nf -profile 'slurm' \
+
+
+    nextflow run "${briochemain}" -profile 'slurm' \
     --emailaddress james.o\'dwyer@agriculture.vic.gov.au \
     --genomefasta ${genomedir}/${fasta} \
     --genomename ${genome} \
     --probename ${chipname} \
     --targetdesign ${target} \
     --paramfile "${params}" \
-    --resultsdir "/filepath/brioche/results/${genome}_${chipname}/" \
+    --resultsdir "${resultsdir}" \
     --markercharacter "D" \
     --workdir "${workdir}" \
     --coverage 70 \
