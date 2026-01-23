@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Usecase4: Merge datasets &#8212; Brioche 2.0.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <script src="../_static/documentation_options.js?v=51b770b3"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="Usecase3: Testing redundancy/accuracy in marker datasets" href="usecase3_redundancy_accuracy.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="usecase4-merge-datasets">
+<h1>Usecase4: Merge datasets<a class="headerlink" href="#usecase4-merge-datasets" title="Link to this heading">¶</a></h1>
+<p>This usecase describes how to use Brioche to map multiple datasets for merging.</p>
+<p>This usecase is an extension of Usecase1 but with distinct defined goals and as such will only briefly touch on how to set up</p>
+<p>Requirements</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>
+Per dataset of interest:
+
+1. Brioche to have been run and the files below are present
+&#39;*_Brioche_all_markers1to1stagingforvcf.csv&#39;
+&#39;*_marker_localdups_NULLS_counts.tsv&#39;
+&#39;*_priors_informed_strictmapping.tsv&#39;
+
+2. The genotype data file you have is in one of the following three forms 
+	a) Raw genotypes with the below format type (tsv separated). REF/ALT defined as ACGT ACGT, samples as columns, markers as rows genotype coded as 0,1,2, NC as missing data and N as Null alleles
+	&quot;&quot;&quot;
+	Name	REF	ALT	Sample1	Sample2	etc
+	Marker1	T	C	2	1
+	Marker2	T	G	0	N
+	Marker3	A	C	NC	1
+	&quot;&quot;&quot;
+	b) A VCF file (any vcf compatible format)
+	c) DArTseq Report 1 row format. 
+
+
+Runfile
+~~~~~~~
+
+Per dataset of interest: to reanchor genotype data onto the new reference, a .sh script has been provided in the Additional_functions/ folder
+Additional instructions are provided in the file but the main components to change are 
+
+1) The Slurm sbatch header commands e.g., #SBATCH --job-name=&quot;example_anchoring&quot;
+
+2) the values of variable set in the section Variables to set in the script. There are 13 variables to set but most are changing the file paths and names of input/output files to the names generated in the specific brioche run
+
+.. image:: Images/Variables_anchoring_script.png
+   :alt: Parameters file
+   :width: 300px
+   :align: center
+
+the below setting is required
+
+.. code-block:: console
+
+   donextstages=&quot;yes&quot;
+
+
+Outputs
+~~~~~~~
+
+Brioche will produce a number of outputs similar to casestudy2 {doc}`Usecase2: In silico genotyping of reference genomes &lt;usecases/usecase2_insilico_genotyping&gt;`
+
+These are 
+
+1) a VCF output with all markers
+2) A VCF with only mapped markers
+3) A VCF with mapped markers which have numeric chromosomes
+4) A VCF with mapped markers which have numeric chromosomes which are sorted 
+
+
+For each of the analysed datasets the user can take 
+4) A VCF with mapped markers which have numeric chromosomes which are sorted
+
+and if there is sufficient overlap in markers the user can directly merge the new datasets
+
+e.g., through first activating the brioche-vcf conda environment and then running bcftools
+&#39;union_two_datasets.vcf.gz&#39; will have all markers and all samples across both datasets
+&#39;isec_merged_results&#39; will be a folder with 3 vcf files, one for unique markers in dataset1, one for unique in dataset2, and one for shared markers
+
+.. code-block:: console
+
+   conda activate brioche-vcf 
+   gzip dataset1.vcf
+   gzip dataset2.vcf
+   bcftools index -c dataset1.vcf.gz
+   bcftools index -c dataset2.vcf.gz
+   bcftools merge \
+    -m none \
+    -Oz \
+    -o merged_union_two_datasets.vcf.gz \
+    dataset1.vcf.gz dataset2.gz
+   bcftools isec -p isec_merged_results -c all dataset1.vcf.gz dataset2.vcf.gz
+
+
+
+Alternatively if there is still poor overlap each dataset can be run through imputation and the imputed datasets can be merged for greater overlap
+
+
+Other usecases
+==============
+
+If you are interested in other usecases see.
+
+1. If you are interested in easy remapping of markers across any distinct reference genome and the reanchoring of genotypes to the new reference genome 
+{doc}`Usecase1: Remapping data across reference genomes &lt;usecases/usecase1_remapping&gt;`
+
+2. If you are interested in extracting genotype calls from one or multiple reference genomes and adding them to your population genomics study go to 
+{doc}`Usecase2: In silico genotyping of reference genomes &lt;usecases/usecase2_insilico_genotyping&gt;`
+
+
+3. If you are interested in determining whether an existing marker dataset might be amplifying redundant regions under varied settings go to
+{doc}`Usecase3: Testing redundancy/accuracy in marker datasets &lt;usecases/usecase3_redundancy_accuracy&gt;`
+
+
+4. If you are interested in the creation of custom marker datasets from existing analyses and testing the likely redundancy of newly designed markers against a wide range of reference genomes for a target species (similar process as 3.) go to
+{doc}`Usecase3: Testing redundancy/accuracy in marker datasets &lt;usecases/usecase3_redundancy_accuracy&gt;`
+
+otherwise, to return to the Introduction page go to {doc}`Introduction &lt;../Introduction&gt;`
+</pre></div>
+</div>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Brioche</a></h1>
+
+
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=plantinformatics&repo=brioche&type=watch&count=true&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Main</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../introduction.html">Brioche overview:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction.html#key-features">Key features:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction.html#key-use-cases">Key use cases:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../introduction.html#workflow-summary">Workflow summary:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html#downloading-brioche">Downloading brioche:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html#software-dependencies">Software dependencies:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html#file-layout">File layout:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../setting_up_a_run.html">Setting up a run</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../setting_up_a_run.html#brioche-inputs">Brioche inputs:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../setting_up_a_run.html#parameters-file">Parameters file:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../results.html">Results folder structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../results.html#summary-report">Summary report</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../citations.html">Citations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">FAQ</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Use cases</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="usecase1_remapping.html">Usecase1: Remapping data across reference genomes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usecase2_insilico_genotyping.html">Usecase2: In silico genotyping of reference genomes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usecase3_redundancy_accuracy.html">Usecase3: Testing redundancy/accuracy in marker datasets</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Usecase4: Merge datasets</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="usecase3_redundancy_accuracy.html" title="previous chapter">Usecase3: Testing redundancy/accuracy in marker datasets</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, James O'Dwyer, Gabriel Keeble-Gagnere, Kerrie L Forrest.
+      
+      |
+      <a href="../_sources/usecases/usecase4_merge_datasets.md.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+    <a href="https://github.com/plantinformatics/brioche" class="github">
+        <img src="../_static/github-banner.svg" alt="Fork me on GitHub" class="github"/>
+    </a>
+    
+
+    
+  </body>
+</html>

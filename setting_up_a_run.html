@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Setting up a run &#8212; Brioche 2.0.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=51b770b3"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Results folder structure" href="results.html" />
+    <link rel="prev" title="Installation" href="installation.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="setting-up-a-run">
+<h1>Setting up a run<a class="headerlink" href="#setting-up-a-run" title="Link to this heading">¶</a></h1>
+</section>
+<section id="brioche-inputs">
+<h1>Brioche inputs:<a class="headerlink" href="#brioche-inputs" title="Link to this heading">¶</a></h1>
+<p>Brioche has one required input file (the brioche targets file) which is formatted as a tsv file with the following columns.</p>
+<ol class="arabic simple">
+<li><p>ID  (the name of each marker)</p></li>
+<li><p>Sequence (the sequence to test for uniqueness and mapping in Brioche with the target SNP position replaced with a set not ACGT character e.g., D or X</p></li>
+<li><p>Target.bp (the position of the SNP site of interest in the sequence provided</p></li>
+<li><p>Target.base (a description of the REF/ALT of the expected SNP in the format [REF/ALT] for the marker)</p></li>
+</ol>
+<p>.. image:: Images/brioche_targets_file.png
+:alt: Targets file
+:width: 300px
+:align: center</p>
+<p>This file can be created manually by the user, or some of the scripts in the Additional_funtions/ folder may assist</p>
+<p>e.g., If you have a VCF file and want to extract sequences from it to run Brioche you can run the file run_convert_vcf_to_brioche_input.sh e.g.,
+vcfin= Your vcf file
+refgenome= The reference genome you want to extract flanking sequence from
+fragmentsize= The size of the fragment around the SNP to return e.g., 75bp dowsntream and 75bp upstream of SNP is 150
+chrommapping= If the VCF has different chromosome names than tha reference, this file contains the pairwise comparison on names</p>
+<p>.. code-block:: console</p>
+<p>cd Additional_funtions/
+bash run_convert_vcf_to_brioche_input.sh <br />
+–vcfin file.vcf.gz <br />
+–refgenome genome1.fa <br />
+–fragmentsize 150 <br />
+–chrommapping chrom_mapping.tsv <br />
+–outdir ./brioche_out</p>
+<p>Or if you have a DArT report (1 row format). This requires R +v4.0.0 to either be installed as a module or for the user to install through conda. It also requires the installation of the R package “stringi” which occurs inside the script
+Note: this will extract the AlleleSequence from the DArT report, the TrimmedSequence can be used instead if preferred by changing 2 lines in the script (Ln 93,101 See Usage documentation inside the script)
+dartfile= the path and name of the 1 row format dart report file being read in
+targetmarker= the letter to replace the SNP site with (e.g., D or X or N)</p>
+<p>e.g.,</p>
+<p>.. code-block:: console</p>
+<p>cd Additional_funtions/
+module load R4.4.0
+Rscript DArT2Brioche_convert.R <br />
+–dartfile “dart_testing_build_briochefiles.csv” <br />
+–targetmarker “D”</p>
+</section>
+<section id="parameters-file">
+<h1>Parameters file:<a class="headerlink" href="#parameters-file" title="Link to this heading">¶</a></h1>
+<p>The parameters file for each run of brioche is found in the file params.config.</p>
+<p>This file can be found in the brioche/ directory and has been populated with a number of default settings allowing for quick running of data.</p>
+<p>This file can be renamed so long as the variable –paramfile in the nextflow run (e.g., example_run_script_brioche.sh) is updated to the new name; otherwise the run will default to params.config.</p>
+<p>There are 41 different parameter settings that can be changed in Brioche with a description of what each does and what each can be set to within the parameters file</p>
+<p>.. image:: Images/paramsfile.png
+:alt: Parameters file
+:width: 300px
+:align: center</p>
+<p>These parameters can broadly be categorised into 6 groups of variables with some of the main listed below</p>
+<ol class="arabic simple">
+<li><p>Run execution settings</p></li>
+</ol>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>
+<span class="n">mode</span> <span class="p">(</span><span class="n">whether</span> <span class="n">to</span> <span class="n">run</span> <span class="k">as</span> <span class="n">test</span> <span class="ow">or</span> <span class="n">prod</span> <span class="k">for</span> <span class="n">real</span> <span class="ow">or</span> <span class="n">test</span> <span class="n">data</span><span class="p">)</span>
+<span class="n">notifications</span> <span class="p">(</span><span class="n">whether</span> <span class="n">to</span> <span class="n">receive</span> <span class="n">an</span> <span class="n">email</span> <span class="n">upon</span> <span class="n">completion</span><span class="p">)</span>
+<span class="n">resultsdir</span> <span class="p">(</span><span class="n">where</span> <span class="n">to</span> <span class="n">save</span> <span class="n">results</span><span class="p">)</span>
+
+<span class="mf">2.</span> <span class="n">slurm</span> <span class="n">settings</span>
+<span class="o">~~~~~~~~~~~~~~~~~</span>
+
+<span class="n">hpcaccount</span> <span class="p">(</span><span class="n">the</span> <span class="n">account</span> <span class="n">name</span> <span class="n">sbatch</span> <span class="n">jobs</span> <span class="n">should</span> <span class="n">have</span> <span class="n">to</span> <span class="n">run</span><span class="p">)</span>
+<span class="n">shortqueue</span> <span class="p">(</span><span class="n">the</span> <span class="n">queue</span><span class="o">/</span><span class="n">partition</span> <span class="k">for</span> <span class="n">jobs</span> <span class="n">which</span> <span class="n">take</span> <span class="o">&lt;</span><span class="mi">12</span> <span class="n">hours</span><span class="p">)</span>
+<span class="n">longqueue</span> <span class="p">(</span><span class="n">the</span> <span class="n">queue</span><span class="o">/</span><span class="n">partition</span> <span class="k">for</span> <span class="n">jobs</span> <span class="n">which</span> <span class="n">take</span> <span class="o">&gt;</span><span class="mi">12</span> <span class="n">hours</span><span class="p">)</span>
+<span class="n">queuesize</span> <span class="p">(</span><span class="n">the</span> <span class="n">maximum</span> <span class="n">number</span> <span class="n">of</span> <span class="n">slurmjobs</span> <span class="n">to</span> <span class="n">submit</span> <span class="n">at</span> <span class="nb">any</span> <span class="n">given</span> <span class="n">time</span><span class="p">)</span>
+
+<span class="mf">3.</span> <span class="n">BLASTn</span> <span class="n">settings</span>
+<span class="o">~~~~~~~~~~~~~~~~~~</span>
+
+<span class="n">evalue</span> <span class="p">(</span><span class="n">minimum</span> <span class="n">evalue</span> <span class="n">to</span> <span class="n">report</span> <span class="n">BLASTn</span> <span class="n">hits</span><span class="p">)</span>
+<span class="n">dust</span> <span class="p">(</span><span class="n">whether</span> <span class="n">to</span> <span class="nb">filter</span> <span class="n">highly</span> <span class="n">redundant</span> <span class="n">sequences</span> <span class="ow">and</span> <span class="ow">not</span> <span class="k">return</span> <span class="nb">any</span> <span class="n">results</span> <span class="n">e</span><span class="o">.</span><span class="n">g</span><span class="o">.</span><span class="p">,</span> <span class="n">long</span> <span class="n">strings</span> <span class="n">of</span> <span class="n">CGCG</span> <span class="ow">or</span> <span class="n">Ns</span><span class="p">)</span>
+<span class="n">otherblastoptions</span> <span class="p">(</span><span class="nb">any</span> <span class="n">other</span> <span class="n">BLASTn</span> <span class="n">specific</span> <span class="n">parameter</span> <span class="n">to</span> <span class="n">use</span> <span class="n">e</span><span class="o">.</span><span class="n">g</span><span class="o">.</span><span class="p">,</span> <span class="o">--</span><span class="n">wordsize</span><span class="p">)</span>
+<span class="n">querychuncksize</span> <span class="p">(</span><span class="n">Maximum</span> <span class="n">number</span> <span class="n">of</span> <span class="n">markers</span> <span class="n">parsed</span> <span class="n">to</span> <span class="n">BLASTn</span><span class="o">.</span> <span class="n">If</span> <span class="n">increased</span><span class="p">,</span> <span class="n">memory</span> <span class="n">requirements</span> <span class="n">increase</span> <span class="n">but</span> <span class="n">can</span> <span class="n">lead</span> <span class="n">to</span> <span class="n">small</span> <span class="n">increases</span> <span class="ow">in</span> <span class="n">speed</span><span class="p">)</span>
+
+<span class="mf">4.</span> <span class="n">Filtering</span> <span class="n">options</span>
+<span class="o">~~~~~~~~~~~~~~~~~~~~</span>
+
+<span class="n">coverage</span> <span class="p">(</span><span class="n">the</span> <span class="n">minimum</span> <span class="n">coverage</span> <span class="n">required</span> <span class="n">to</span> <span class="k">pass</span> <span class="n">the</span> <span class="n">coverage</span> <span class="nb">filter</span><span class="p">)</span>
+<span class="n">pident</span> <span class="p">(</span><span class="n">the</span> <span class="n">minimum</span> <span class="n">pairwise</span> <span class="n">identity</span> <span class="n">between</span> <span class="n">the</span> <span class="n">marker</span> <span class="n">sequence</span> <span class="ow">and</span> <span class="n">reference</span> <span class="n">genome</span> <span class="n">segment</span> <span class="n">to</span> <span class="k">pass</span> <span class="n">the</span> <span class="n">identity</span> <span class="nb">filter</span><span class="p">)</span>
+<span class="n">maximumhits</span> <span class="p">(</span><span class="n">the</span> <span class="n">maximum</span> <span class="n">number</span> <span class="n">of</span> <span class="n">BLASTn</span> <span class="n">hits</span> <span class="n">a</span> <span class="n">marker</span> <span class="n">can</span> <span class="n">have</span> <span class="n">before</span> <span class="n">the</span> <span class="n">marker</span> <span class="ow">is</span> <span class="n">filtered</span> <span class="n">out</span> 
+<span class="n">istarget3primeend</span> <span class="p">(</span><span class="n">whether</span> <span class="n">to</span> <span class="nb">filter</span> <span class="n">sequences</span> <span class="n">which</span> <span class="n">have</span> <span class="n">mutations</span> <span class="n">at</span> <span class="n">the</span> <span class="mi">3</span><span class="s1">&#39; end of the sequence, relevant for probe and SNP chip design data)</span>
+<span class="n">extendablebps</span> <span class="p">(</span><span class="n">the</span> <span class="n">number</span> <span class="n">of</span> <span class="n">bases</span> <span class="n">required</span> <span class="n">to</span> <span class="n">be</span> <span class="n">identical</span> <span class="kn">from</span><span class="w"> </span><span class="mi">3</span><span class="s1">&#39; if istarget3primend is set to TRUE)</span>
+<span class="n">keeplocalduppos</span> <span class="p">(</span><span class="n">whether</span> <span class="n">to</span> <span class="n">treat</span> <span class="n">local</span> <span class="n">duplications</span> <span class="n">within</span> <span class="n">a</span> <span class="n">small</span> <span class="nb">range</span> <span class="n">of</span> <span class="n">the</span> <span class="n">genome</span> <span class="k">as</span> <span class="n">unique</span> <span class="ow">and</span> <span class="nb">map</span> <span class="n">to</span> <span class="n">the</span> <span class="n">first</span> <span class="n">copy</span> <span class="ow">or</span> <span class="n">redundant</span> <span class="ow">and</span> <span class="nb">filter</span> <span class="p">[</span><span class="n">will</span> <span class="nb">filter</span> <span class="k">if</span> <span class="n">the</span> <span class="n">SNP</span> <span class="n">site</span> <span class="n">differs</span> <span class="n">regardless</span> <span class="n">of</span> <span class="n">what</span> <span class="n">this</span> <span class="ow">is</span> <span class="nb">set</span> <span class="n">to</span><span class="p">])</span>
+<span class="n">localdupdist</span> <span class="p">(</span><span class="n">the</span> <span class="n">distance</span> <span class="n">upstream</span> <span class="ow">and</span> <span class="n">downstream</span> <span class="ow">in</span> <span class="n">base</span> <span class="n">pairs</span> <span class="n">to</span> <span class="n">search</span> <span class="k">for</span> <span class="n">local</span> <span class="n">duplications</span> <span class="k">if</span> <span class="n">keeplocalduppos</span> <span class="ow">is</span> <span class="nb">set</span> <span class="n">to</span> <span class="s1">&#39;yes&#39;</span><span class="p">)</span>
+
+
+<span class="mf">5.</span> <span class="n">Anaylsis</span> <span class="n">scope</span> <span class="n">restricting</span> <span class="n">settings</span>
+</pre></div>
+</div>
+<p>restrict2chrom (only analyse hits against this chromosome of the reference genome)
+chromstoexclude (a list of chromosomes to exclude from the reference genome)</p>
+<ol class="arabic simple" start="6">
+<li><p>Providing supplemental biological information to assist with determining optimal marker positions</p></li>
+</ol>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>
+usetargetchrom (whether to use a pairwise list of preference chromosomes to match each marker to. Will result in equal quality hits across multiple chromosomes being preferenced to target chromosome and uniquely positioned)
+markertargetsites (two column csv which lists each marker and the chromosome to map to [chromosomes can be in the old reference genome chromosome name], see example_files/targetchromsknownmarkers.csv)
+chromchrommatch (a two column csv listing the names of the original reference genome chromosomes and the equivalent chromosome name for the new genome, see example_files/Chromesome-chromosome_mappings.csv)
+
+usesharedmarkersmap (whether to use a csv list of closely linked marker names to inform the relative position of each marker. Will result in equal quality hits across multiple chromosomes/within a chromosome being preferenced to target a position closest in bp on the reference genome to the given linked markers and causing this marker to report as uniquely positioned)
+similarmarkersmap (a multicolumn csv file which lists the target marker in the leftmost column and closely linked markers in the following columns, see example_files/linkedSNPs.csv)
+
+useldedgemap (whether to use a raw linkage disequilibrium table between markers to match the optimal marker position on the genome. Will result in equal quality hits across/within chromosomes being preferenced to target the position which has the lowest bp distance from the most closely linked markers and cause this marker to report as uniquely positioned)
+ldedgemap (the path to a pairwise linkage disequilibrium output table [format PLINK, TASSEL, HAPLOVIEW long tables] for linkage disequilibrium scores, see example_files/examplelinkagedisequalibriumfile.ld )
+
+usegeneticmap (whether to use a genetic mapping file to infirm on the relative position of each marker. Will result in equal quality hits across multiple chromosomes being preferenced to target the identified chromosome by genetic mapping. Will also result in markers which map across multiple chromosomes in genetic mapping to be marked as not unique if any hits to those secondary chromosomes and which passed identity/coverage filtering  were found from BLASTn)
+geneticmap (the path to a multicolumn csv with the first column being the marker name, the second the number of chromosomes this marker mapped to, the next 5 being the chromosome names it mapped to, and the next 5 columns being the counts which each chromosome was mapped to for the marker, see example_files/genetic_mapping_input.csv. Note, also requires chromchrommatch to be present to convert chrom names between old and new references)
+
+Run parameters and goals
+========================
+
+The run configuration you choose depends on your workflow goal. We provide a more detailed breakdown of how some settings can be changed to best run for different usecases below but in general the settings desired should reflect
+
+1. The nature of your data and the reference
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+e.g., If your data is a probe design that is highly specific then a high coverage and identity is best to reflect the high specificty expected in your data.
+
+e.g., If you know that the reference sequence you are mapping to is fairly diverged coverage and identity should be slightly lower to reflect the expected divergence outside of the SNP site. 
+
+e.g., If your data is generated from more redundancy based methods e.g., reduced represenation sequencing there will likely be a very large number of markers that are not fully unique and so settings should reflect this fact
+
+2. The purpose of the newly anchored data
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+e.g., If the intention is to identify strictly mapping data for position sensitive analyses (e.g., imputation) then settings should be conservative as it is more important to remove any potentially non uniquely mapped markers
+
+3. Settings are not linear conservative/liberal
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Lastly, consider that certain settings may result in more/fewer markers being mapped uniquely but this relationship is not necessarily linear. e
+
+e.g., while increasing the pident and coverage thresholds increases the number of markers which failed at this early filtering step, it might also remove poorly mapping hits for markers resulting in only unique hits remaining and increasing the final 
+number of uniquely mapping markers. 
+This is why either setting setting to reflect the nature of the data (point 1) or exploring the results of multiple runs is recommended (see Additional_functions/Run_brioche_optimise.sh)
+
+Other specific goals and scenarios can be seen in the example of different usecases.
+
+- {doc}`Usecase1: Remapping data across reference genomes &lt;usecases/usecase1_remapping&gt;`
+- {doc}`Usecase2: In silico genotyping of reference genomes &lt;usecases/usecase2_insilico_genotyping&gt;`
+- {doc}`Usecase3: Testing redundancy/accuracy in marker datasets &lt;usecases/usecase3_redundancy_accuracy&gt;`
+- {doc}`Usecase5: Merge datasets &lt;usecases/usecase4_merge_datasets&gt;`
+
+
+
+Simple runs 
+===========
+
+Once parameters are set and the targets file (Brioche input file) is created running Brioche is very straight forward. 
+
+In the brioche landing directory there is an example .sh file for running Brioche, example_run_script_brioche.sh
+
+In this file you will need to
+
+1. Update the slurm sbatch commands 
+
+&quot;&quot;&quot;
+
+# Multithreaded (SMP) job: must run on one node
+#SBATCH --nodes=1
+
+# The name of the job:
+#SBATCH --job-name=&quot;example_slurmjob&quot;
+
+# The project ID which this job should run under:
+#SBATCH --account=&quot;default&quot;
+
+# The partition in which to submit the job:
+#SBATCH --partition=&quot;batch&quot;
+
+# Maximum number of tasks/CPU cores used by the job:
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+
+# The total amount of memory in megabytes in the job:
+#SBATCH --mem=40GB
+
+# Send yourself an email when the job:
+# aborts abnormally (fails)
+#SBATCH --mail-type=FAIL
+
+# Use this email address:
+#SBATCH --mail-user=user123@mail.mail
+
+# The maximum running time of the job in days-hours:mins:sec
+#SBATCH --time=24:0:00
+
+&quot;&quot;&quot;
+
+
+2. update some settings 
+
+Paying special attention to the target file (brioche targets file), the file paths needed, 
+and making sure the three programs Nextflow, conda, and git are loaded in however you installed them e.g., through module load or source activate.
+
+&quot;&quot;&quot;
+#Build target table for the new brioche format
+target=/filepath/briochetargetdesign.tsv
+
+# Used in naming of results files 
+chipname=&quot;probename&quot;
+
+# directory of reference genome
+genomedir=/filepathgenome/
+
+# Genome name without extension
+genome=&quot;genomename&quot;
+
+# genome name with 
+fasta=&quot;genomename.fa&quot;
+
+
+# param file can be set as anything but if not set in the nextflow run command below will default to the params.config present in the same directory as the main.nf
+params=&quot;/filepath/brioche/params.config&quot;
+briochemain=&quot;/filepath/brioche/main.nf&quot;
+
+# required modules 
+module load Nextflow
+module load Miniconda3
+module load git
+
+    workdir=&quot;/filepath/brioche/results/${genome}_${chipname}/&quot;
+    resultsdir=&quot;/filepath/brioche/results/${genome}_${chipname}/&quot;
+    mkdir -p ${resultsdir}
+    mkdir -p ${workdir}
+    cd ${workdir}
+
+&quot;&quot;&quot;
+
+
+
+After updating the script can be run from a terminal with 
+
+.. code-block:: console
+   
+   sbatch example_run_script_brioche.sh
+
+
+
+
+Introduction:
+~~~~~~~~~~~~~
+
+To return to the Installation page go to {doc}`Installation &lt;installation&gt;`
+
+
+
+Results:
+~~~~~~~~
+
+For investigating the results of a run go to {doc}`Results &lt;results&gt;`
+
+</pre></div>
+</div>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">Brioche</a></h1>
+
+
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=plantinformatics&repo=brioche&type=watch&count=true&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Main</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Brioche overview:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html#key-features">Key features:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html#key-use-cases">Key use cases:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html#workflow-summary">Workflow summary:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html#downloading-brioche">Downloading brioche:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html#software-dependencies">Software dependencies:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html#file-layout">File layout:</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Setting up a run</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#brioche-inputs">Brioche inputs:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#parameters-file">Parameters file:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="results.html">Results folder structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="results.html#summary-report">Summary report</a></li>
+<li class="toctree-l1"><a class="reference internal" href="citations.html">Citations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Use cases</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="usecases/usecase1_remapping.html">Usecase1: Remapping data across reference genomes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usecases/usecase2_insilico_genotyping.html">Usecase2: In silico genotyping of reference genomes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usecases/usecase3_redundancy_accuracy.html">Usecase3: Testing redundancy/accuracy in marker datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usecases/usecase4_merge_datasets.html">Usecase4: Merge datasets</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="installation.html" title="previous chapter">Installation</a></li>
+      <li>Next: <a href="results.html" title="next chapter">Results folder structure</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, James O'Dwyer, Gabriel Keeble-Gagnere, Kerrie L Forrest.
+      
+      |
+      <a href="_sources/setting_up_a_run.md.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+    <a href="https://github.com/plantinformatics/brioche" class="github">
+        <img src="_static/github-banner.svg" alt="Fork me on GitHub" class="github"/>
+    </a>
+    
+
+    
+  </body>
+</html>
