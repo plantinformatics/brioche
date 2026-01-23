@@ -1,5 +1,8 @@
+Results
+=======
+
 Results folder structure
-========================
+------------------------
 
 The Brioche results will be placed inside a folder labelled brioche-results in the pathway specified in the running nextflow script or the params.config file.
 
@@ -13,7 +16,7 @@ In this folder there is a combination of output files and folders.
 
 
 Summary report
-==============
+--------------
 
 
 The first results file to investigate is located in the summary/ folder and is called summary_core.html
@@ -68,7 +71,7 @@ Below the figures there is a summary table of each results file describing its l
 
 
 Results files
-=============
+-------------
 
 Brioche outputs several results files in the brioche-results directory which are useful for different reasons and usecases. These can be broadly split into two types of files, Intermediate results and final results
 
@@ -141,7 +144,7 @@ This file is the main file used to reanchor genotypes (see the usecases section)
 
 
 Other results files
-===================
+-------------------
 
 In the brioche-results folder there are some additional files of note for run tracking/optimisation. 
 
@@ -150,7 +153,7 @@ In brioche-results/Reports you will find the '[date:time]_timeline.html' and '[d
 
 
 Brioche usecases
-================
+----------------
 
 Now that the basic results structure is understood, we can show how these results can be used to achieve any of the usescases described for brioche.
 
