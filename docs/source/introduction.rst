@@ -15,17 +15,17 @@ In this user guide we will go over the basic structure of Brioche as well as pro
 Key features:
 -------------
 
-**Efficient workflow management**: Nextflow, a domain-specific language designed for workflows, orchestrates processing steps with clarity and precision.
+**Efficient workflow management:** Nextflow, a domain-specific language designed for workflows, orchestrates processing steps with clarity and precision.
 
-**Formalized process definition**: Each step, from input to output, is clearly defined within the pipeline, ensuring transparency and reproducibility.
+**Formalized process definition:** Each step, from input to output, is clearly defined within the pipeline, ensuring transparency and reproducibility.
 
-**Automated job submission and connection**: Nextflow seamlessly handles job execution and data flow between steps, freeing you from manual task management.
+**Automated job submission and connection:** Nextflow seamlessly handles job execution and data flow between steps, freeing you from manual task management.
 
-**Datatype/species agnostic**: Brioche has been designed to work with a wide range of SNP data types including probe capture data, DArT sequencing methods, and GBS sequencing results for any species.
+**Datatype/species agnostic:** Brioche has been designed to work with a wide range of SNP data types including probe capture data, DArT sequencing methods, and GBS sequencing results for any species.
 
-**Comprehensive summaries** helping users derive more clear conclusions from their data and help plan future sequencing runs.
+**Comprehensive summaries:** helping users derive more clear conclusions from their data and help plan future sequencing runs.
 
-Extensive metadata recording: Brioche effectively captures Metadata for settings used within the run and helps build VCF files containing relevant information about target reference genomes and run metadata.
+**Extensive metadata recording:** Brioche effectively captures Metadata for settings used within the run and helps build VCF files containing relevant information about target reference genomes and run metadata.
 
 
 Key use cases:
