@@ -49,7 +49,7 @@ finalgenomepath="/filepathgenome/" # filepath to reference genome
 finalgenome="genome_1.fasta" # reference genome fasta file
 ChromChrommappingfile="" # Chromosome name to numeric comparison file
 Rawgenotypesfile="Rawgenotypesfile.tsv" # Raw genotypes file (either SNP, VCF, or DArT format)
-Briochemappings="Briocheresultsdatasetx_all_markers1to1stagingforvcf.csv" # brioche1to1 mappings path + file from brioche-results
+briochemappingfile="Briocheresultsdatasetx_all_markers1to1stagingforvcf.csv" # brioche1to1 mappings path + file from brioche-results
 Brioche_priors="Briocheresultsdatasetx_priors_informed_strictmapping.tsv" # brioche priorsfile path +file from brioche-results
 
 VCFraws="false" # If the input genotypes file is a VCF set to "true" if not set to "false"
