@@ -956,7 +956,7 @@ if (!is_vcfraws & is_snpchip) {
   }
   is_blank <- function(x) is.na(x) | x == "" | x == "."
 
-  # ---------- precompute MAPPRIORS lookups (optional) ----------
+  #  precompute MAPPRIORS lookups
   pri_flag_by_id <- logical(0)     # named logical: qaccver -> TRUE when qualifies for "Unique_mapping_with_priors_information"
   dup_label_by_id <- character(0)  # named char:   qaccver -> "LocallyDuplicatedRegion" | "SingleCopy"
 
@@ -1069,7 +1069,7 @@ if (!is_vcfraws & is_snpchip) {
   vcf_header <- c("#CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT", sample_ids)
   write_header_row(vcf_header, Outputfilename)
 
-  ## ---- 2) Stream rows ----
+  #2 Stream rows
   chunk_size <- 1500L
   con_chunk <- if (grepl("\\.gz$", raw_path, ignore.case = TRUE)) gzfile(raw_path, "rt") else file(raw_path, "rt")
   on.exit(try(close(con_chunk), silent = TRUE), add = TRUE)
@@ -1232,10 +1232,9 @@ if (!is_vcfraws & is_snpchip) {
 
 
 # VCF pathway (VCF -> re-anchored VCF using Brioche sstrand and PriorORIENT)
-# VCF pathway (VCF -> re-anchored VCF using Brioche sstrand and PriorORIENT)
-# VCF pathway (VCF -> re-anchored VCF using Brioche sstrand and PriorORIENT)
 if (is_vcfraws) {
 
+  # ---- small helpers ----
   strand_to_word <- function(x) {
     z <- tolower(trimws(as.character(x)))
     ifelse(
@@ -1271,8 +1270,64 @@ if (is_vcfraws) {
     if (!any(grepl(line_glob, vec))) c(vec, line_exact) else vec
   }
 
-  pri_flag_by_id  <- logical(0)   # qaccver -> TRUE for "Unique_mapping_with_priors_information"
-  dup_label_by_id <- character(0) # qaccver -> "LocallyDuplicatedRegion" | "SingleCopy"
+  # header reordering helper as it's getting a bit out of order in insilico
+  reorder_vcf_header <- function(meta_lines, contig_lines) {
+    meta <- meta_lines[!duplicated(meta_lines)]
+    pick <- function(pat, ignore.case = TRUE) which(grepl(pat, meta, ignore.case = ignore.case))
+
+    i_fileformat   <- pick("^##fileformat=")
+    i_fileDate     <- pick("^##filedate=")
+    i_phasing      <- pick("^##phasing=")
+
+    i_bri_ver      <- pick("^##brioche_version")
+    i_bri_repo     <- pick("^##brioche_repo=")
+    i_bri_branch   <- pick("^##brioche_branch=")
+
+    idx_taken      <- unique(c(i_bri_ver, i_bri_repo, i_bri_branch))
+    i_bri_all      <- setdiff(pick("^##brioche"), idx_taken)
+
+    i_filter       <- pick("^##filter")
+    i_info         <- pick("^##info")
+    i_format       <- pick("^##format")
+    i_reference    <- pick("^##reference=")
+    i_assembly     <- pick("^##assembly=")
+    i_genomeurl    <- pick("^##genome_url=")
+    i_bcftools     <- pick("^##bcftools")
+
+    i_all   <- seq_along(meta)
+    i_other <- setdiff(i_all, unique(c(
+      i_fileformat, i_fileDate, i_phasing,
+      i_bri_ver, i_bri_repo, i_bri_branch, i_bri_all,
+      i_filter, i_info, i_format,
+      i_reference, i_assembly, i_genomeurl, i_bcftools
+    )))
+
+    out <- c(
+      meta[i_fileformat],
+      meta[i_fileDate],
+      meta[i_phasing],
+      meta[i_bri_ver],
+      meta[i_bri_repo],
+      meta[i_bri_branch],
+      meta[i_bri_all],
+      meta[i_filter],
+      meta[i_info],
+      meta[i_format],
+      meta[i_reference],
+      meta[i_assembly],
+      meta[i_genomeurl],
+      contig_lines,
+      meta[i_bcftools],
+      meta[i_other]
+    )
+
+    out <- out[nzchar(out)]
+    out[!duplicated(out)]
+  }
+
+  # ---- priors lookups (safe against length/name mismatch) ----
+  pri_flag_by_id  <- logical(0)   # named logical: qaccver -> TRUE for "Unique_mapping_with_priors_information"
+  dup_label_by_id <- character(0) # named char:   qaccver -> "LocallyDuplicatedRegion" | "SingleCopy"
 
   if (is.data.frame(MAPPRIORS)) {
     n  <- nrow(MAPPRIORS)
@@ -1298,12 +1353,8 @@ if (is_vcfraws) {
     }
 
     pri_flag_by_id  <- safe_set_names(tu_na & any_prior_true, key)
-
     dup_is_true     <- norm_true(tp$Duplicate_region)
-    dup_label_by_id <- safe_set_names(
-      ifelse(dup_is_true, "LocallyDuplicatedRegion", "SingleCopy"),
-      key
-    )
+    dup_label_by_id <- safe_set_names(ifelse(dup_is_true, "LocallyDuplicatedRegion", "SingleCopy"), key)
   }
 
   req <- c("qaccver","saccver","SNPpos","Ref","ALT","sstrand")
@@ -1312,10 +1363,14 @@ if (is_vcfraws) {
     stop(sprintf("Finalmappings missing: %s", paste(missing, collapse=", ")))
 
   fm_one <- Finalmappings %>%
-    dplyr::transmute(qaccver, saccver, SNPpos,
-                     REF_map = toupper(Ref),
-                     ALT_map = normalize_alt(ALT),
-                     STRAND  = sstrand) %>%
+    dplyr::transmute(
+      qaccver,
+      saccver,
+      SNPpos,
+      REF_map = toupper(Ref),
+      ALT_map = normalize_alt(ALT),
+      STRAND  = sstrand
+    ) %>%
     dplyr::group_by(qaccver) %>% dplyr::slice(1L) %>% dplyr::ungroup()
   fm_hits <- Finalmappings %>% dplyr::count(qaccver, name = "MAP_HITS")
 
@@ -1331,7 +1386,7 @@ if (is_vcfraws) {
       MAP_HITS  = ifelse(is.na(MAP_HITS), 0L, MAP_HITS)
     )
 
-  # read input header
+  # read input heade 
   read_vcf_header <- function(path) {
     con <- if (grepl("\\.gz$", path, ignore.case = TRUE)) gzfile(path, "rt") else file(path, "rt")
     on.exit(try(close(con), silent = TRUE), add = TRUE)
@@ -1364,52 +1419,61 @@ if (is_vcfraws) {
   ix_INFO  <- match("INFO",   colnames_vcf)
   ix_FMT   <- match("FORMAT", colnames_vcf)
   stopifnot(!any(is.na(c(ix_CHROM, ix_POS, ix_ID, ix_REF, ix_ALT))))
+
   sample_cols_idx <- if (is.na(ix_FMT)) integer(0) else (ix_FMT + 1L):length(colnames_vcf)
 
+  # ---- rebuild meta header: ensure GT/NU/DU present; standard Brioche/INFO/FILTER; reorder ----
   fileDate <- format(Sys.Date(), "%Y%m%d")
 
-  # New header: strip old, add Brioche + new INFO/FORMAT lines, extra_meta and contigs
-  meta_lines <- meta_lines[!grepl("^##(fileDate=)",       meta_lines)]
-  meta_lines <- meta_lines[!grepl("^##(Brioche_)",        meta_lines)]
-  meta_lines <- meta_lines[!grepl("^##(assembly=)",       meta_lines)]
-  meta_lines <- meta_lines[!grepl("^##(reference=)",      meta_lines)]
-  meta_lines <- meta_lines[!grepl("^##(genome_url=)",     meta_lines)]
-  meta_lines <- meta_lines[!grepl("^##(contig=)",         meta_lines)]
-  meta_lines <- meta_lines[!grepl("^##(fileformat=)",     meta_lines)]
-  meta_lines <- meta_lines[!grepl("^##INFO=<ID=MAPSTATUS,",   meta_lines)]
-  meta_lines <- meta_lines[!grepl("^##INFO=<ID=DUP,",         meta_lines)]
-  meta_lines <- meta_lines[!grepl("^##INFO=<ID=PriorORIENT,", meta_lines)]
-  meta_lines <- meta_lines[!grepl("^##FILTER=<ID=LowQual,",   meta_lines)]
-  meta_lines <- meta_lines[!grepl("^##FORMAT=<ID=DU,",        meta_lines)]
+  # strip older versions of things we control
+  meta_lines <- meta_lines[!grepl("^##(fileDate=)",            meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##(Brioche_)",             meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##(assembly=)",            meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##(reference=)",           meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##(genome_url=)",          meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##(contig=)",              meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##(fileformat=)",          meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##INFO=<ID=MAPSTATUS,",     meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##INFO=<ID=DUP,",           meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##INFO=<ID=PriorORIENT,",   meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##FILTER=<ID=LowQual,",     meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##FORMAT=<ID=DU,",          meta_lines)]
+  meta_lines <- meta_lines[!grepl("^##FORMAT=<ID=NU,",          meta_lines)]
+  # keep any existing GT line; we'll ensure it exists below if missing
 
-  meta_lines <- c(
+  meta_out <- c(
     "##fileformat=VCFv4.2",
     sprintf("##fileDate=%s", fileDate),
     meta_lines,
-    paste0("##",Metadata[1]),
-    paste0("##",Metadata[2]),
-    paste0("##",Metadata[3]),
-    paste0("##Brioche_filtering_",Metadata[4]),
-    paste0("##Brioche_filtering_",Metadata[5]),
-    paste0("##Brioche_filtering_",Metadata[6]),
-    paste0("##Brioche_priors_files:",Metadata[7]),
-    paste0("##Brioche_priors_files:",Metadata[8]),
-    paste0("##Brioche_priors_files:",Metadata[9]),
-    paste0("##Brioche_priors_files:",Metadata[10]),
-    paste0("##Brioche_",Metadata[11])
+    paste0("##", Metadata[1]),
+    paste0("##", Metadata[2]),
+    paste0("##", Metadata[3]),
+    paste0("##Brioche_filtering_", Metadata[4]),
+    paste0("##Brioche_filtering_", Metadata[5]),
+    paste0("##Brioche_filtering_", Metadata[6]),
+    paste0("##Brioche_priors_files:", Metadata[7]),
+    paste0("##Brioche_priors_files:", Metadata[8]),
+    paste0("##Brioche_priors_files:", Metadata[9]),
+    paste0("##Brioche_priors_files:", Metadata[10]),
+    paste0("##Brioche_", Metadata[11])
   )
+  meta_out <- meta_out[!duplicated(meta_out)]
 
-  meta_out <- meta_lines[!duplicated(meta_lines)]
-
-  # contigs/meta (computed earlier in your script): extra_meta, contig_lines
+  # enforce presence of our INFO/FILTER/FORMAT lines
   meta_out <- add_if_missing(meta_out, '^##FILTER=<ID=LowQual,', '##FILTER=<ID=LowQual,Description="Low quality or ambiguous mapping">')
   meta_out <- add_if_missing(meta_out, '^##INFO=<ID=MAPSTATUS,', '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Unique_mapping|Unique_mapping_with_priors_information|Failed_to_map_uniquely">')
   meta_out <- add_if_missing(meta_out, '^##INFO=<ID=PriorORIENT,', '##INFO=<ID=PriorORIENT,Number=1,Type=String,Description="Accumulated strand orientation across runs (plus|minus|none)">')
   meta_out <- add_if_missing(meta_out, '^##INFO=<ID=DUP,', '##INFO=<ID=DUP,Number=1,Type=String,Description="SingleCopy|LocallyDuplicatedRegion">')
+  meta_out <- add_if_missing(meta_out, '^##FORMAT=<ID=GT,', '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">')
+  meta_out <- add_if_missing(meta_out, '^##FORMAT=<ID=NU,', '##FORMAT=<ID=NU,Number=1,Type=Integer,Description="Null allele flag from SNP chip (1= Null allele; 0=otherwise)">')
   meta_out <- add_if_missing(meta_out, '^##FORMAT=<ID=DU,', '##FORMAT=<ID=DU,Number=1,Type=Integer,Description="Number of local duplications of marker detected (0= Marker is single copy; 1+=copies, .=Unknown)">')
 
-  writeLines(c(meta_out, extra_meta, contig_lines, header_line), con = Outputfilename)
+  # assemble + reorder
+  meta_all <- unique(c(meta_out, extra_meta))
+  header_ordered <- reorder_vcf_header(meta_all, contig_lines)
+  writeLines(c(header_ordered, header_line), con = Outputfilename)
 
+  # ---- stream & transform records ----
   ct_all_as_char <- setNames(rep("character", length(colnames_vcf)), colnames_vcf)
   mf <- if (requireNamespace("fastmatch", quietly = TRUE)) fastmatch::fmatch else base::match
 
@@ -1443,8 +1507,7 @@ if (is_vcfraws) {
     df <- as.data.frame(df, stringsAsFactors = FALSE, check.names = FALSE)
 
     IDv    <- df[[ix_ID]]
-    REF_in <- toupper(df[[ix_REF]])
-
+    # map status
     j          <- mf(IDv, fm$ID)
     in_map     <- !is.na(j)
     hits       <- ifelse(in_map, fm$MAP_HITS[j], 0L)
@@ -1452,38 +1515,47 @@ if (is_vcfraws) {
     pos_ok     <- in_map & !is.na(fm$POS_map[j]) & suppressWarnings(as.numeric(fm$POS_map[j]) > 0)
     mapped_now <- in_map & (hits == 1L) & chr_ok & pos_ok
 
-    # Overwrite CHROM/POS/QUAL/FILTER (FILTER always PASS/LowQual)
+    # CHROM/POS/QUAL/FILTER (overwrite FILTER always)
     df[[ix_CHROM]] <- ifelse(mapped_now, fm$CHROM_map[j], "chrUnk")
     df[[ix_POS]]   <- ifelse(mapped_now, as.character(fm$POS_map[j]), "0")
     if (!is.na(ix_QUAL)) df[[ix_QUAL]] <- ifelse(mapped_now, "100", "0")
     if (!is.na(ix_FIL )) df[[ix_FIL ]] <- ifelse(mapped_now, "PASS", "LowQual")
 
-    # Read prior orientation from input (for orientation logic ONLY)
+    # prior vs current strand
     info_in    <- if (!is.na(ix_INFO)) df[[ix_INFO]] else rep("", nrow(df))
     prior_raw  <- info_get(info_in, "PriorORIENT")
-    prior      <- pr_norm(prior_raw)                                  # plus|minus|none
-    s_now      <- strand_to_word(ifelse(mapped_now, fm$STRAND[j], NA_character_))  # plus|minus|NA
+    prior      <- pr_norm(prior_raw)
+    s_now      <- strand_to_word(ifelse(mapped_now, fm$STRAND[j], NA_character_))
 
-    # Flip REF/ALT if prior != none and orientation changed
+    # newly mapped => set current orientation, else keep prior
+    prior_out  <- prior
+    set_pr     <- !is.na(s_now)
+    prior_out[set_pr] <- s_now[set_pr]
+
+    # allele updates from Brioche
     BriocheREF   <- ifelse(mapped_now, toupper(fm$REF_map[j]), NA_character_)
     BriocheALT   <- ifelse(mapped_now, first_alt_uc(fm$ALT_map[j]), NA_character_)
     BriocheREFRC <- revcomp_iupac(BriocheREF)
 
+    # Flip REF/ALT if prior != none and orientation changed
     need_flip <- mapped_now & prior != "none" & !is.na(s_now) & prior != s_now
     if (any(need_flip)) {
       REF_cur <- df[[ix_REF]]
       ALT_cur <- df[[ix_ALT]]
       REF_cur[need_flip] <- revcomp_iupac(REF_cur[need_flip])
-      ALT_cur[need_flip] <- vapply(ALT_cur[need_flip], rc_csv, character(1))
+      if (any(need_flip)) {
+        ALT_cur[need_flip] <- vapply(ALT_cur[need_flip], rc_csv, character(1))
+      }
       df[[ix_REF]] <- REF_cur
       df[[ix_ALT]] <- ALT_cur
     }
 
-    # FIRST mapping: prior == 'none' (treat as biallelic initial orientation)
+    # FIRST mapping: treat as biallelic initial orientation when prior == none
     ALT_curU       <- toupper(as.character(df[[ix_ALT]]))
     old_alt_single <- !grepl(",", ALT_curU, fixed = TRUE) & nzchar_safe(ALT_curU)
     bri_alt_single <- mapped_now & nzchar_safe(BriocheALT) &
                       !grepl(",", ifelse(mapped_now, fm$ALT_map[j], ""), fixed = TRUE)
+
     eligible_first <- mapped_now & (prior == "none") & old_alt_single & bri_alt_single & nzchar_safe(BriocheREF)
 
     gen_REF <- toupper(df[[ix_REF]])
@@ -1507,24 +1579,15 @@ if (is_vcfraws) {
       df[[ix_ALT]] <- tmpALT
     }
 
-    # Genotype swap where needed (apply per column)
-    if (length(swap_rows) && length(sample_cols_idx)) {
-      for (jjj in sample_cols_idx) {
-        colv <- df[[jjj]]
-        colv[swap_rows] <- swap_biallelic_gt_vec(colv[swap_rows])
-        df[[jjj]] <- colv
-      }
-    }
-
     # SUBSEQUENT mapping (same orientation) — allow tri+ remapping
     tri_rows <- which(mapped_now & prior != "none" & !is.na(s_now) & (prior == s_now) & nzchar(BriocheREF))
+    idx_map_by_row <- vector("list", length(tri_rows))
+    names(idx_map_by_row) <- as.character(tri_rows)
+    recode_needed  <- logical(length(tri_rows))
+
     if (length(tri_rows)) {
       REF_cur2 <- df[[ix_REF]]
       ALT_cur2 <- df[[ix_ALT]]
-
-      idx_map_by_row <- vector("list", length(tri_rows))
-      names(idx_map_by_row) <- as.character(tri_rows)
-      recode_needed  <- logical(length(tri_rows))
 
       for (k in seq_along(tri_rows)) {
         i <- tri_rows[k]
@@ -1549,22 +1612,9 @@ if (is_vcfraws) {
 
       df[[ix_REF]] <- REF_cur2
       df[[ix_ALT]] <- ALT_cur2
-
-      if (length(sample_cols_idx) && any(recode_needed)) {
-        rows_to_recode <- tri_rows[recode_needed]
-        for (jjj in sample_cols_idx) {
-          colv <- df[[jjj]]
-          for (rr in rows_to_recode) {
-            idx_map <- idx_map_by_row[[as.character(rr)]]
-            if (!is.null(idx_map)) colv[rr] <- recode_gt_vec(colv[rr], idx_map)
-          }
-          df[[jjj]] <- colv
-        }
-      }
     }
 
-    # ---------- FORCE-OVERWRITE FILTER & INFO ----------
-    # MAPSTATUS + PriorORIENT + DUP (computed fresh every time)
+    #  Build INFO fresh (overwrite any prior content)
     status_val <- ifelse(mapped_now, "Unique_mapping", "Failed_to_map_uniquely")
     if (length(pri_flag_by_id)) {
       pri_flag <- unname(pri_flag_by_id[IDv]); pri_flag[is.na(pri_flag)] <- FALSE
@@ -1575,44 +1625,64 @@ if (is_vcfraws) {
     } else {
       rep("SingleCopy", length(IDv))
     }
-    # final orientation value to record (if no new strand, keep prior; else use s_now)
-    prior_final <- ifelse(is.na(s_now), prior, s_now)
-
-    # FILTER: already overwritten above to PASS/LowQual
-    # INFO: OVERWRITE COMPLETELY (ignore any existing values, including ".")
+    # enforce overwrite of INFO (ignore any existing values)
     if (!is.na(ix_INFO)) {
       df[[ix_INFO]] <- paste0(
-        "MAPSTATUS=",   status_val,
-        ";PriorORIENT=", prior_final,
-        ";DUP=",         dup_lab
+        "MAPSTATUS=", status_val,
+        ";PriorORIENT=", ifelse(is.na(s_now), prior, s_now),
+        ";DUP=", dup_lab
       )
     }
 
-    # ---------- FORMAT: append DU and value '.' (idempotent) ----------
+    #- Normalize FORMAT to exactly "GT:NU:DU" and rebuild samples 
     if (!is.na(ix_FMT) && length(sample_cols_idx)) {
-      fmt <- df[[ix_FMT]]
-      has_DU_before <- grepl("(^|:)DU($|:)", fmt, perl = TRUE)
-      to_add <- !has_DU_before & !is.na(fmt) & fmt != "" & fmt != "."
-      if (any(to_add)) {
-        fmt[to_add] <- paste0(fmt[to_add], ":DU")
-        for (jj in sample_cols_idx) {
-          colv <- df[[jj]]
-          colv[to_add] <- paste0(colv[to_add], ":.")
-          df[[jj]] <- colv
-        }
+      # force FORMAT for all rows
+      df[[ix_FMT]] <- "GT:NU:DU"
+
+      # for each sample: extract GT, normalize, apply swaps/recode, then write GT:NU:DU
+      # default NU=0 (VCF input has no chip-based null flag); DU unknown '.'
+      if (length(swap_rows) || length(tri_rows)) {
+        rows_to_recode <- tri_rows[recode_needed]
+      } else {
+        rows_to_recode <- integer(0)
       }
-      df[[ix_FMT]] <- fmt
+
+      for (jjj in sample_cols_idx) {
+        colv <- df[[jjj]]
+        colv[is.na(colv)] <- "."
+        gt <- sub("^([^:]+).*", "\\1", colv, perl = TRUE)
+        gt[gt == "" | gt == "."] <- "./."
+        gt <- gsub("\\|", "/", gt)
+        gt[gt == "0"] <- "0/0"; gt[gt == "1"] <- "0/1"; gt[gt == "2"] <- "1/1"
+
+        # apply biallelic swap (only to GT)
+        if (length(swap_rows)) {
+          tmp <- gt
+          tmp[swap_rows] <- swap_biallelic_gt_vec(tmp[swap_rows])
+          gt <- tmp
+        }
+        # apply tri+ recode where REF changed
+        if (length(rows_to_recode)) {
+          for (rr in rows_to_recode) {
+            idx_map <- idx_map_by_row[[as.character(rr)]]
+            if (!is.null(idx_map)) gt[rr] <- recode_gt_vec(gt[rr], idx_map)
+          }
+        }
+
+        # compose final GT:NU:DU (NU=0, DU='.')
+        df[[jjj]] <- paste0(gt, ":0:.")
+      }
     }
 
-    # write chunk
-    data.table::fwrite(df, file = Outputfilename, sep = "\t",
-                       append = TRUE, col.names = FALSE, quote = FALSE)
+    # write out
+    dt_fwrite(df, file = Outputfilename, append = TRUE, col.names = FALSE)
 
     rm(df); gc(FALSE)
   }
 
   message(sprintf("Wrote: %s", Outputfilename))
 }
+
 
 
 
