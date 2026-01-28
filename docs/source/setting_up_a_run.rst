@@ -29,7 +29,8 @@ Options:
 
 #. ``--vcfin`` — your VCF file
 #. ``--refgenome`` — the reference genome to extract flanking sequence from
-#. ``--fragmentsize`` — size of the fragment around the SNP to return (e.g. 75 bp upstream + 75 bp downstream = 150)
+#. ``--left`` — size of the fragment to the left (upstream) of the SNP to return (e.g. 50 bp upstream of SNP). Value can be 0
+#. ``--right`` — size of the fragment to the right (downstream) of the SNP to return (e.g. 50 bp downstream of SNP) Value can be 0
 #. ``--chrommapping`` — pairwise chromosome-name mapping file (use if the VCF chrom names differ from the reference)
 
 .. code-block:: console
@@ -38,7 +39,8 @@ Options:
    bash run_convert_vcf_to_brioche_input.sh \
    --vcfin file.vcf.gz \
    --refgenome genome1.fa \
-   --fragmentsize 150 \
+   --left 50 \
+   --right 2 \
    --chrommapping chrom_mapping.tsv \
    --outdir ./brioche_out
 
