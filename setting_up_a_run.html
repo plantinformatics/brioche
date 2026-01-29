@@ -53,14 +53,16 @@
 <ol class="arabic simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">--vcfin</span></code> — your VCF file</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--refgenome</span></code> — the reference genome to extract flanking sequence from</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--fragmentsize</span></code> — size of the fragment around the SNP to return (e.g. 75 bp upstream + 75 bp downstream = 150)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--left</span></code> — size of the fragment to the left (upstream) of the SNP to return (e.g. 50 bp upstream of SNP). Value can be 0</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--right</span></code> — size of the fragment to the right (downstream) of the SNP to return (e.g. 50 bp downstream of SNP) Value can be 0</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--chrommapping</span></code> — pairwise chromosome-name mapping file (use if the VCF chrom names differ from the reference)</p></li>
 </ol>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">cd Additional_funtions/</span>
 <span class="go">bash run_convert_vcf_to_brioche_input.sh \</span>
 <span class="go">--vcfin file.vcf.gz \</span>
 <span class="go">--refgenome genome1.fa \</span>
-<span class="go">--fragmentsize 150 \</span>
+<span class="go">--left 50 \</span>
+<span class="go">--right 2 \</span>
 <span class="go">--chrommapping chrom_mapping.tsv \</span>
 <span class="go">--outdir ./brioche_out</span>
 </pre></div>
