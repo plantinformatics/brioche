@@ -45,9 +45,9 @@ Options:
    --outdir ./brioche_out
 
 
-Or if you have a DArT report (1 row format). This requires R +v4.0.0 to either be installed as a module or for the user to install through conda. It also requires the installation of the R package "stringi" which occurs inside the script
+Or if you have a DArT report in 1 row format (1 marker per row and 1 row per marker). This requires R +v4.0.0 to either be installed as a module or for the user to install through conda. It also requires the installation of the R package "stringi" which occurs inside the script. The user can either install R directly or install the brioche-vcf conda environment and activate it before running this script (see the Installation section for build_brioche-vcf_env.sh).
 
-Note: this will extract the AlleleSequence from the DArT report, the TrimmedSequence can be used instead if preferred by changing 2 lines in the script (Ln 93,101 See Usage documentation inside the script)
+Note: this script extracts based on the presence first of the column header AlleleSequence from the DArT report followed by common variants (AlleleSequenceRef etc), the TrimmedSequence (plus variants) can be used instead if preferred by changing the list of columns at to preference in the R script (Ln 93).
 
 Options:
 
@@ -62,7 +62,6 @@ Options:
    --dartfile "dart_testing_build_briochefiles.csv" \
    --targetmarker "D"
   
-
 
 
 Parameters file:
