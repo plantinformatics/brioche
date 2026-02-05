@@ -250,31 +250,31 @@ DoStrictfiltering <-
     headerinfo <- attributes(blast.out)
     mappings.out <- read.table(mappings.file,sep="\t",header = TRUE)
     dupmapinter.in <- read.table(dupmapinter.file,sep="\t",header = TRUE)
- 
-
-
+    
+    
+    
     blast.out$bitscore <- as.numeric(blast.out$bitscore)
     
     saveRDS(blast.out, "blastout.RDS")
     saveRDS(mappings.out, "mappingsout.RDS")
-
+    
     # Create a new tracking for what markers are actually being removed and what are being 
     # saved by different priors files.
     strictmarkernames <- as.data.frame(matrix(nrow=(length(unique(blast.out$qaccver))),ncol=7))
     colnames(strictmarkernames) <- c("qaccver","Trueunique","Chrommarkermap","proximatemarkermap","linkagemarkermap","geneticmapmarkermap","Duplicate_region")
     strictmarkernames$qaccver <- unique(blast.out$qaccver)
-      # I do have to run the fairly intense dplyr function again for this though
-      uniqonly <- blast.out |>
-        dplyr::add_count(qaccver, name = "n") |>
-        dplyr::filter(n == 1) |>
-        dplyr::select(-n)
-
+    # I do have to run the fairly intense dplyr function again for this though
+    uniqonly <- blast.out |>
+      dplyr::add_count(qaccver, name = "n") |>
+      dplyr::filter(n == 1) |>
+      dplyr::select(-n)
+    
     strictmarkernames$Trueunique <- ifelse(
       strictmarkernames$qaccver %in% uniqonly$qaccver,
       "True",
       NA_character_
     )
-
+    
     if (!dir.exists(output.path))
       dir.create(output.path, recursive = T)
     
@@ -294,10 +294,10 @@ DoStrictfiltering <-
       
       remove_names <- setdiff(blast.out$Alternate_SNP_ID, top_hits$Alternate_SNP_ID)
       remove_namescombined <- append(remove_namescombined,remove_names)
-
+      
       keep_names <- intersect(top_hits$Alternate_SNP_ID, blast.out$Alternate_SNP_ID)
       keep_namescombined <- append(keep_namescombined, keep_names)
-
+      
       
       
     }
@@ -396,7 +396,7 @@ DoStrictfiltering <-
       #2. If multiple hits are present for a marker but only one is on the target chromosome, keep that marker hit only
       #3. If multiple hits are present for a marker on the target chromosome, drop that marker
       #4. If multiple hits are present and no target chrom info is avaliable, drop that marker. 
-
+      
       lkp <- knowntargetchroms |>
         dplyr::transmute(qaccver = MarkerID, target_chr = newChrom)
       
@@ -442,125 +442,125 @@ DoStrictfiltering <-
       
       remove_nameschromchrom <- setdiff(blast.out$Alternate_SNP_ID, top_hits$Alternate_SNP_ID)
       remove_namescombined <- append(remove_namescombined,remove_nameschromchrom)
-
+      
       keep_nameschromchrom <- intersect(top_hits$Alternate_SNP_ID, blast.out$Alternate_SNP_ID)
       keep_namescombined <- append(keep_namescombined, keep_nameschromchrom)
-
-    
+      
+      
       strictmarkernames$Chrommarkermap <- ifelse(
         strictmarkernames$qaccver %in% top_hits_knowntargetchroms_strict$qaccver,
         "True",
         NA_character_
-    )
-
-
-  
+      )
+      
+      
+      
     }
     
- 
-
-if (dogeneticmap == "Yes") {
-
-  # Read inputs
-  gmap <- read.table(geneticmap.file, sep = ",", header = TRUE,
-                     stringsAsFactors = FALSE, check.names = FALSE)
-  chromcomparisontable <- read.table(chrom.comp, sep = ",", header = TRUE,
-                                     stringsAsFactors = FALSE, check.names = FALSE)
-
-  chr_cols <- paste0("ChrmapNo", 1:5)
-
- saveRDS(gmap , "gmap.RDS")
- saveRDS(blast.out , "blastout.RDS")
- saveRDS(chromcomparisontable, "chromchrom.RDS")
-
-  # Count mapped chromosomes; prefer provided column
-  nmapped <- if ("Chromosomes_mapped" %in% names(gmap)) {
-    suppressWarnings(as.numeric(gmap$Chromosomes_mapped))
-  } else {
-    rowSums(!is.na(gmap[chr_cols]))
-  }
-  nmapped[is.na(nmapped)] <- 0
-
-  # Remove priors with >=2 mapped chromosomes (ambiguous as priors)
-  gmap_slim <- gmap[nmapped < 2, , drop = FALSE]
-
-  # Partition IDs
-  zero_ids <- gmap$MarkerName[nmapped == 0]  # no chromosome in gmap
-  one_ids  <- gmap$MarkerName[nmapped == 1]  # exactly one chromosome in gmap
-
-  # For one_ids: pick the single non-NA ChrmapNo* (old ref)
-  chosen_chr_oldref <- rep(NA_character_, length(one_ids))
-  if (length(one_ids) > 0) {
-    chr_sub <- gmap[gmap$MarkerName %in% one_ids, chr_cols, drop = FALSE]
-    chosen_chr_oldref <- apply(chr_sub, 1, function(r) {
-      r <- as.character(r); r <- trimws(r)
-      r[which(!is.na(r) & r != "")[1]]
-    })
-  }
-
-  # Map old -> new reference (needed only for multi-hit markers in one_ids)
-  lkp <- setNames(chromcomparisontable$New_reference_chromosome,
-                  chromcomparisontable$Original_reference_chromsome)
-  mapped_chr_new <- unname(lkp[chosen_chr_oldref])
-
-  prior_gmap <- data.frame(
-    qaccver = one_ids,
-    geneticmap_chr = mapped_chr_new,
-    stringsAsFactors = FALSE, check.names = FALSE
-  )
-  prior_gmap <- prior_gmap[!is.na(prior_gmap$geneticmap_chr), , drop = FALSE]
-
-  # Total BLAST hit counts per marker
-  tgt_counts <- blast.out |>
-    dplyr::count(qaccver, name = "total_hits")
-
-  # 1) Single-hit markers: keep regardless of gmap (covers zero_ids, one_ids, or no gmap row)
-  winners_single <- blast.out |>
-    dplyr::left_join(tgt_counts, by = "qaccver") |>
-    dplyr::filter(total_hits == 1L) |>
-    dplyr::group_by(qaccver) |>
-    dplyr::slice(1) |>
-    dplyr::ungroup()
-
-  # 2) Multi-hit markers with exactly one gmap chromosome:
-  #    keep ONLY if exactly one BLAST hit lies on the mapped chromosome
-  multi_with_prior <- blast.out |>
-    dplyr::left_join(tgt_counts, by = "qaccver") |>
-    dplyr::filter(total_hits > 1L) |>
-    dplyr::inner_join(prior_gmap, by = "qaccver") |>
-    dplyr::filter(saccver == geneticmap_chr)
-
-  winners_multi <- multi_with_prior |>
-    dplyr::group_by(qaccver) |>
-    dplyr::filter(dplyr::n() == 1L) |>
-    dplyr::ungroup()
-
-  # Note: multi-hit markers in zero_ids (Chromosomes_mapped==0) have no prior_gmap,
-  #       so they are NOT in winners_multi and are therefore dropped.
-
-  # 3) Combine winners ? one row per kept marker
-  top_hits_gmap_strict <- dplyr::bind_rows(winners_single, winners_multi) |>
-    dplyr::distinct(qaccver, .keep_all = TRUE)
-
-  # 4) Update keep/remove name collections
-  keep_names_gmap   <- intersect(top_hits_gmap_strict$Alternate_SNP_ID, blast.out$Alternate_SNP_ID)
-  remove_names_gmap <- setdiff(blast.out$Alternate_SNP_ID, keep_names_gmap)
-
-  keep_namescombined   <- append(keep_namescombined,   keep_names_gmap)
-  remove_namescombined <- append(remove_namescombined, remove_names_gmap)
-
-
-  strictmarkernames$geneticmapmarkermap <- ifelse(
-    strictmarkernames$qaccver %in% top_hits_gmap_strict$qaccver,
-    "True",
-    NA_character_
-  )
-
-
-
-
-}
-
+    
+    
+    if (dogeneticmap == "Yes") {
+      
+      # Read inputs
+      gmap <- read.table(geneticmap.file, sep = ",", header = TRUE,
+                         stringsAsFactors = FALSE, check.names = FALSE)
+      chromcomparisontable <- read.table(chrom.comp, sep = ",", header = TRUE,
+                                         stringsAsFactors = FALSE, check.names = FALSE)
+      
+      chr_cols <- paste0("ChrmapNo", 1:5)
+      
+      saveRDS(gmap , "gmap.RDS")
+      saveRDS(blast.out , "blastout.RDS")
+      saveRDS(chromcomparisontable, "chromchrom.RDS")
+      
+      # Count mapped chromosomes; prefer provided column
+      nmapped <- if ("Chromosomes_mapped" %in% names(gmap)) {
+        suppressWarnings(as.numeric(gmap$Chromosomes_mapped))
+      } else {
+        rowSums(!is.na(gmap[chr_cols]))
+      }
+      nmapped[is.na(nmapped)] <- 0
+      
+      # Remove priors with >=2 mapped chromosomes (ambiguous as priors)
+      gmap_slim <- gmap[nmapped < 2, , drop = FALSE]
+      
+      # Partition IDs
+      zero_ids <- gmap$MarkerName[nmapped == 0]  # no chromosome in gmap
+      one_ids  <- gmap$MarkerName[nmapped == 1]  # exactly one chromosome in gmap
+      
+      # For one_ids: pick the single non-NA ChrmapNo* (old ref)
+      chosen_chr_oldref <- rep(NA_character_, length(one_ids))
+      if (length(one_ids) > 0) {
+        chr_sub <- gmap[gmap$MarkerName %in% one_ids, chr_cols, drop = FALSE]
+        chosen_chr_oldref <- apply(chr_sub, 1, function(r) {
+          r <- as.character(r); r <- trimws(r)
+          r[which(!is.na(r) & r != "")[1]]
+        })
+      }
+      
+      # Map old -> new reference (needed only for multi-hit markers in one_ids)
+      lkp <- setNames(chromcomparisontable$New_reference_chromosome,
+                      chromcomparisontable$Original_reference_chromsome)
+      mapped_chr_new <- unname(lkp[chosen_chr_oldref])
+      
+      prior_gmap <- data.frame(
+        qaccver = one_ids,
+        geneticmap_chr = mapped_chr_new,
+        stringsAsFactors = FALSE, check.names = FALSE
+      )
+      prior_gmap <- prior_gmap[!is.na(prior_gmap$geneticmap_chr), , drop = FALSE]
+      
+      # Total BLAST hit counts per marker
+      tgt_counts <- blast.out |>
+        dplyr::count(qaccver, name = "total_hits")
+      
+      # 1) Single-hit markers: keep regardless of gmap (covers zero_ids, one_ids, or no gmap row)
+      winners_single <- blast.out |>
+        dplyr::left_join(tgt_counts, by = "qaccver") |>
+        dplyr::filter(total_hits == 1L) |>
+        dplyr::group_by(qaccver) |>
+        dplyr::slice(1) |>
+        dplyr::ungroup()
+      
+      # 2) Multi-hit markers with exactly one gmap chromosome:
+      #    keep ONLY if exactly one BLAST hit lies on the mapped chromosome
+      multi_with_prior <- blast.out |>
+        dplyr::left_join(tgt_counts, by = "qaccver") |>
+        dplyr::filter(total_hits > 1L) |>
+        dplyr::inner_join(prior_gmap, by = "qaccver") |>
+        dplyr::filter(saccver == geneticmap_chr)
+      
+      winners_multi <- multi_with_prior |>
+        dplyr::group_by(qaccver) |>
+        dplyr::filter(dplyr::n() == 1L) |>
+        dplyr::ungroup()
+      
+      # Note: multi-hit markers in zero_ids (Chromosomes_mapped==0) have no prior_gmap,
+      #       so they are NOT in winners_multi and are therefore dropped.
+      
+      # 3) Combine winners ? one row per kept marker
+      top_hits_gmap_strict <- dplyr::bind_rows(winners_single, winners_multi) |>
+        dplyr::distinct(qaccver, .keep_all = TRUE)
+      
+      # 4) Update keep/remove name collections
+      keep_names_gmap   <- intersect(top_hits_gmap_strict$Alternate_SNP_ID, blast.out$Alternate_SNP_ID)
+      remove_names_gmap <- setdiff(blast.out$Alternate_SNP_ID, keep_names_gmap)
+      
+      keep_namescombined   <- append(keep_namescombined,   keep_names_gmap)
+      remove_namescombined <- append(remove_namescombined, remove_names_gmap)
+      
+      
+      strictmarkernames$geneticmapmarkermap <- ifelse(
+        strictmarkernames$qaccver %in% top_hits_gmap_strict$qaccver,
+        "True",
+        NA_character_
+      )
+      
+      
+      
+      
+    }
+    
     
     if(domapmarkers=="Yes") {
       
@@ -659,26 +659,26 @@ if (dogeneticmap == "Yes") {
       ) |>
         dplyr::distinct(qaccver, .keep_all = TRUE) |>
         dplyr::select(-total_hits, -prior_chr, -prior_bp, -on_prior_chr)
-     
+      
       remove_namessimmarkers <- setdiff(blast.out$Alternate_SNP_ID, top_hits$Alternate_SNP_ID)
       remove_namescombined <- append(remove_namescombined,remove_namessimmarkers)      
-       
-
+      
+      
       keep_namessimmarkers <- intersect(top_hits$Alternate_SNP_ID, blast.out$Alternate_SNP_ID)
       keep_namescombined <- append(keep_namescombined, keep_namessimmarkers)
-
-    
+      
+      
       strictmarkernames$proximatemarkermap<- ifelse(
-      strictmarkernames$qaccver %in% filteredtop_hits_neighbour_strict$qaccver,
-      "True",
-      NA_character_
+        strictmarkernames$qaccver %in% filteredtop_hits_neighbour_strict$qaccver,
+        "True",
+        NA_character_
       )
-
-
+      
+      
     }
     
-
-
+    
+    
     if(doldedge=="Yes") {
       
       ## 1) Build prior: for each SNP_A, pick the most frequent chromosome of its SNP_B partners (note less meningful relationships have been prefiltered already)
@@ -691,121 +691,121 @@ if (dogeneticmap == "Yes") {
       targetLDmarkers <- unique(intersect(blast.out$qaccver,pwldmappings$SNP_A))
       
       if(nrow(ld_hits) >=1) {
-  for ( i in c(1:3)) {
-	pwld_link <- pwldmappings |>
-	  dplyr::transmute(
-	    SNP_A,
-	    SNP_B,
-	    w = .data[[score_col]]  # use chosen score column (R2 or R)
-	  ) |>
-	  dplyr::filter(
-	    !base::is.na(SNP_A),
-	    !base::is.na(SNP_B),
-	    !base::is.na(w)
-	  )         
-        ## Keep only neighbours (SNP_B) that map to a single BLAST site
-        b_counts <- blast.out |>
-          dplyr::count(qaccver, name = "n_hits")
-        
-        single_b <- b_counts |>
-          dplyr::filter(n_hits == 1L) |>
-          dplyr::select(qaccver)
-        
-
-         
-        ## SNP_B (chr, bp) for single-hit neighbours
-        b_hits <- blast.out |>
-          dplyr::semi_join(single_b, by = "qaccver") |>
-          dplyr::select(qaccver, saccver, SNPpos)
+        for ( i in c(1:3)) {
+          pwld_link <- pwldmappings |>
+            dplyr::transmute(
+              SNP_A,
+              SNP_B,
+              w = .data[[score_col]]  # use chosen score column (R2 or R)
+            ) |>
+            dplyr::filter(
+              !base::is.na(SNP_A),
+              !base::is.na(SNP_B),
+              !base::is.na(w)
+            )         
+          ## Keep only neighbours (SNP_B) that map to a single BLAST site
+          b_counts <- blast.out |>
+            dplyr::count(qaccver, name = "n_hits")
+          
+          single_b <- b_counts |>
+            dplyr::filter(n_hits == 1L) |>
+            dplyr::select(qaccver)
+          
+          
+          
+          ## SNP_B (chr, bp) for single-hit neighbours
+          b_hits <- blast.out |>
+            dplyr::semi_join(single_b, by = "qaccver") |>
+            dplyr::select(qaccver, saccver, SNPpos)
           ## insert the single b add here for iterative loop. Apply end added markers into single_b and then deduplicate. simple statement check if iter is >1 and if it is add markers identified as newly unique to SNP b allowed for next iter 
-        if (i>1) {
-          b_hits_add_prioritr <- as.data.frame(multi_with_prior[,1:3])
-          b_hits <- rbind(b_hits,b_hits_add_prioritr)
-
+          if (i>1) {
+            b_hits_add_prioritr <- as.data.frame(multi_with_prior[,1:3])
+            b_hits <- rbind(b_hits,b_hits_add_prioritr)
+            
+          }
+          
+          ## Link SNP_A with its usable neighbours (SNP_B single-hit),
+          ## keep top 10 by weight per SNP_A (in intermediate I used 5 but here it is 10 incase of threat of translocation issues)
+          neigh10 <- pwld_link |>
+            dplyr::inner_join(b_hits, by = c("SNP_B" = "qaccver")) |>
+            dplyr::rename(neigh_chr = saccver, neigh_bp = SNPpos) |>
+            dplyr::group_by(SNP_A) |>
+            dplyr::arrange(dplyr::desc(w), .by_group = TRUE) |>
+            dplyr::slice_head(n = 10) |>
+            dplyr::ungroup()
+          
+          prior_chr <- neigh10 |>
+            dplyr::group_by(SNP_A, neigh_chr) |>
+            dplyr::summarise(
+              w_sum = base::sum(w, na.rm = TRUE),
+              n     = dplyr::n(),
+              .groups = "drop_last"
+            ) |>
+            dplyr::arrange(dplyr::desc(w_sum), dplyr::desc(n), neigh_chr, .by_group = TRUE) |>
+            dplyr::slice(1) |>
+            dplyr::ungroup() |>
+            dplyr::transmute(qaccver = SNP_A, prior_chr = neigh_chr)
+          
+          # For distance weighting, we only need neighbour (bp, weight) on the chosen prior chr
+          neigh_on_prior <- neigh10 |>
+            dplyr::inner_join(prior_chr, by = c("SNP_A" = "qaccver", "neigh_chr" = "prior_chr")) |>
+            dplyr::select(qaccver = SNP_A, neigh_bp, w)
+          
+          ## Per-target BLAST counts
+          t_counts <- blast.out |>
+            dplyr::count(qaccver, name = "total_hits")
+          
+          ## Attach counts and prior chr to target hits
+          tmp <- blast.out |>
+            dplyr::left_join(t_counts, by = "qaccver") |>
+            dplyr::left_join(prior_chr, by = "qaccver")
+          
+          ## Rule 1 & 6: markers with a single BLAST hit are kept outright
+          winners_single <- tmp |>
+            dplyr::filter(total_hits == 1L) |>
+            dplyr::group_by(qaccver) |>
+            dplyr::slice(1) |>
+            dplyr::ungroup()
+          
+          # For markers with multiple hits AND a prior chr:
+          # if zero hits on that chr  drop
+          #  if one hit on that chr  keep it
+          #  if >1 on that chr  compute weighted mean distance to neighbours on prior chr
+          #                         dist = sum_i w_i * |SNPpos_hit - neigh_bp_i| / sum_i w_i
+          #                         pick the hit with MIN dist; tie higher bitscore
+          multi_with_prior <- tmp |>
+            dplyr::filter(total_hits > 1L, !base::is.na(prior_chr)) |>
+            dplyr::filter(saccver == prior_chr) |>
+            dplyr::inner_join(neigh_on_prior, by = "qaccver") |>
+            dplyr::mutate(d = w * base::abs(SNPpos - neigh_bp)) |>
+            dplyr::group_by(qaccver, saccver, SNPpos, bitscore) |>
+            dplyr::summarise(
+              dist_wmean = base::sum(d, na.rm = TRUE) / base::sum(w, na.rm = TRUE),
+              .groups = "drop_last"
+            ) |>
+            dplyr::ungroup() |>
+            dplyr::group_by(qaccver) |>
+            dplyr::arrange(dist_wmean, dplyr::desc(dplyr::coalesce(bitscore, -Inf))) |>
+            dplyr::slice(1) |>
+            dplyr::ungroup()
+          
+          ## Combine winners:
+          ## - single-hit targets (regardless of neighbour info)
+          ## - multi-hit targets with prior-chr winner as above
+          ## (Markers with multiple hits and no prior chr are dropped.)
+          top_hits <- linkage_strict_hits <- dplyr::bind_rows(
+            winners_single |>
+              dplyr::select(qaccver, saccver, SNPpos, bitscore, dplyr::everything()),
+            multi_with_prior |>
+              dplyr::left_join(
+                tmp |> dplyr::select(qaccver, saccver, SNPpos, bitscore, dplyr::everything()),
+                by = c("qaccver", "saccver", "SNPpos", "bitscore")
+              )
+          ) |>
+            dplyr::distinct(qaccver, .keep_all = TRUE)
+          
+          
         }
-
-        ## Link SNP_A with its usable neighbours (SNP_B single-hit),
-        ## keep top 10 by weight per SNP_A (in intermediate I used 5 but here it is 10 incase of threat of translocation issues)
-        neigh10 <- pwld_link |>
-          dplyr::inner_join(b_hits, by = c("SNP_B" = "qaccver")) |>
-          dplyr::rename(neigh_chr = saccver, neigh_bp = SNPpos) |>
-          dplyr::group_by(SNP_A) |>
-          dplyr::arrange(dplyr::desc(w), .by_group = TRUE) |>
-          dplyr::slice_head(n = 10) |>
-          dplyr::ungroup()
-
-        prior_chr <- neigh10 |>
-          dplyr::group_by(SNP_A, neigh_chr) |>
-          dplyr::summarise(
-            w_sum = base::sum(w, na.rm = TRUE),
-            n     = dplyr::n(),
-            .groups = "drop_last"
-          ) |>
-          dplyr::arrange(dplyr::desc(w_sum), dplyr::desc(n), neigh_chr, .by_group = TRUE) |>
-          dplyr::slice(1) |>
-          dplyr::ungroup() |>
-          dplyr::transmute(qaccver = SNP_A, prior_chr = neigh_chr)
-        
-        # For distance weighting, we only need neighbour (bp, weight) on the chosen prior chr
-        neigh_on_prior <- neigh10 |>
-          dplyr::inner_join(prior_chr, by = c("SNP_A" = "qaccver", "neigh_chr" = "prior_chr")) |>
-          dplyr::select(qaccver = SNP_A, neigh_bp, w)
-
-        ## Per-target BLAST counts
-        t_counts <- blast.out |>
-          dplyr::count(qaccver, name = "total_hits")
-        
-        ## Attach counts and prior chr to target hits
-        tmp <- blast.out |>
-          dplyr::left_join(t_counts, by = "qaccver") |>
-          dplyr::left_join(prior_chr, by = "qaccver")
-        
-        ## Rule 1 & 6: markers with a single BLAST hit are kept outright
-        winners_single <- tmp |>
-          dplyr::filter(total_hits == 1L) |>
-          dplyr::group_by(qaccver) |>
-          dplyr::slice(1) |>
-          dplyr::ungroup()
-        
-        # For markers with multiple hits AND a prior chr:
-        # if zero hits on that chr  drop
-        #  if one hit on that chr  keep it
-        #  if >1 on that chr  compute weighted mean distance to neighbours on prior chr
-        #                         dist = sum_i w_i * |SNPpos_hit - neigh_bp_i| / sum_i w_i
-        #                         pick the hit with MIN dist; tie higher bitscore
-        multi_with_prior <- tmp |>
-          dplyr::filter(total_hits > 1L, !base::is.na(prior_chr)) |>
-          dplyr::filter(saccver == prior_chr) |>
-          dplyr::inner_join(neigh_on_prior, by = "qaccver") |>
-          dplyr::mutate(d = w * base::abs(SNPpos - neigh_bp)) |>
-          dplyr::group_by(qaccver, saccver, SNPpos, bitscore) |>
-          dplyr::summarise(
-            dist_wmean = base::sum(d, na.rm = TRUE) / base::sum(w, na.rm = TRUE),
-            .groups = "drop_last"
-          ) |>
-          dplyr::ungroup() |>
-          dplyr::group_by(qaccver) |>
-          dplyr::arrange(dist_wmean, dplyr::desc(dplyr::coalesce(bitscore, -Inf))) |>
-          dplyr::slice(1) |>
-          dplyr::ungroup()
-        
-        ## Combine winners:
-        ## - single-hit targets (regardless of neighbour info)
-        ## - multi-hit targets with prior-chr winner as above
-        ## (Markers with multiple hits and no prior chr are dropped.)
-        top_hits <- linkage_strict_hits <- dplyr::bind_rows(
-          winners_single |>
-            dplyr::select(qaccver, saccver, SNPpos, bitscore, dplyr::everything()),
-          multi_with_prior |>
-            dplyr::left_join(
-              tmp |> dplyr::select(qaccver, saccver, SNPpos, bitscore, dplyr::everything()),
-              by = c("qaccver", "saccver", "SNPpos", "bitscore")
-            )
-        ) |>
-          dplyr::distinct(qaccver, .keep_all = TRUE)
-        
-        
-      }
       }
       else{
         
@@ -817,102 +817,160 @@ if (dogeneticmap == "Yes") {
       
       remove_namesld <- setdiff(blast.out$Alternate_SNP_ID, top_hits$Alternate_SNP_ID)
       remove_namescombined <- append(remove_namescombined,remove_namesld)
-
+      
       keep_namesld <- intersect(top_hits$Alternate_SNP_ID, blast.out$Alternate_SNP_ID)
       keep_namescombined <- append(keep_namescombined, keep_namesld)
-
+      
       strictmarkernames$linkagemarkermap<- ifelse(
-      strictmarkernames$qaccver %in% top_hits$qaccver,
-      "True",
-      NA_character_
+        strictmarkernames$qaccver %in% top_hits$qaccver,
+        "True",
+        NA_character_
       )
-
-
-
+      
+      
+      
     }
     
     # Here is where the intermitten deviates from the strict. Intermittent was a filter keep, here we want a remove all so we will tally all the names of failed markers
     # apply them, and take out of the dataframe completely. 
     
     keep_namescombined <- unique(keep_namescombined)
+    
 
-       
+    
     #failed_reads <- blast.out |>
-     # dplyr::filter((qaccver %in% remove_namescombined))
+    # dplyr::filter((qaccver %in% remove_namescombined))
     
     #blast_unique <- blast.out |>
-     # dplyr::filter(!(qaccver %in% remove_namescombined))
+    # dplyr::filter(!(qaccver %in% remove_namescombined))
     
-
+    
     failed_reads <- blast.out |>
       dplyr::filter(!(Alternate_SNP_ID %in% keep_namescombined ))
     
     blast_unique <- blast.out |>
       dplyr::filter((Alternate_SNP_ID %in% keep_namescombined))
-
-# Add in markers which were assigned as keep duplicates.
-missing_q <- setdiff(
-  unique(
-    dplyr::pull(
-      dplyr::filter(dupmapinter.in, keep == "yes"),
-      qaccver
-    )
-  ),
-  unique(blast_unique$qaccver)
-)
-
-
-locdups <- subset(dupmapinter.in, !is.na(copy_number) & copy_number > 1)
-
-extra_rows <- dplyr::select(
-  dplyr::ungroup(
-    dplyr::slice(
-      dplyr::group_by(
-        dplyr::arrange(
-          dplyr::filter(
-            dplyr::mutate(blast.out, .row_id = dplyr::row_number()),
-            qaccver %in% missing_q
-          ),
-          qaccver, sstart, .row_id
-        ),
-        qaccver
+    
+    # Add in markers which were assigned as keep duplicates.
+    missing_q <- setdiff(
+      unique(
+        dplyr::pull(
+          dplyr::filter(dupmapinter.in, keep == "yes"),
+          qaccver
+        )
       ),
-      1
+      unique(blast_unique$qaccver)
     )
-  ),
-  -.row_id
-)
-
+    
+    
+    locdups <- subset(dupmapinter.in, !is.na(copy_number) & copy_number > 1)
+    
+    extra_rows <- dplyr::select(
+      dplyr::ungroup(
+        dplyr::slice(
+          dplyr::group_by(
+            dplyr::arrange(
+              dplyr::filter(
+                dplyr::mutate(blast.out, .row_id = dplyr::row_number()),
+                qaccver %in% missing_q
+              ),
+              qaccver, sstart, .row_id
+            ),
+            qaccver
+          ),
+          1
+        )
+      ),
+      -.row_id
+    )
+    
     # Final dataframe pt 1
     blast_unique1 <- dplyr::bind_rows(blast_unique, extra_rows)
-
-      strictmarkernames$Duplicate_region<- ifelse(
+    
+    strictmarkernames$Duplicate_region<- ifelse(
       strictmarkernames$qaccver %in% locdups$qaccver,
       "True",
       NA_character_
+    )
+    
+    
+    # It is possible that local dups fails the consensus detection but the priors/ racre circumstances in intermediate lead to a single marker passing into the strict. We now want to remove any markers where the consensus sequence
+    ## is FALSE. 
+    
+    q_to_remove <- unique(
+      dplyr::pull(
+        dplyr::filter(dupmapinter.in, consensusbase == "false"),
+        qaccver
       )
-
-
-# It is possible that local dups fails the consensus detection but the priors/ racre circumstances in intermediate lead to a single marker passing into the strict. We now want to remove any markers where the consensus sequence
-## is FALSE. 
-
-q_to_remove <- unique(
-  dplyr::pull(
-    dplyr::filter(dupmapinter.in, consensusbase == "false"),
-    qaccver
-  )
-)
-
-q_to_remove <- intersect(q_to_remove, unique(blast_unique1$qaccver))
-
-# Final dataframe pt 2 
-blast_unique2 <- dplyr::filter(
-  blast_unique1,
-  !(blast_unique1$qaccver %in% q_to_remove)
-)
-
-
-
+    )
+    
+    q_to_remove <- intersect(q_to_remove, unique(blast_unique1$qaccver))
+    
+    # Final dataframe pt 2 
+    blast_unique2 <- dplyr::filter(
+      blast_unique1,
+      !(blast_unique1$qaccver %in% q_to_remove)
+    )
+    
+    # Noted bug when every prior file is used and they disagree the strict can report multiple hits per marker! Need to fix. Two possible methods outlined below. Selected conservative method to remove all
+ 
+    ##### Interpretation for heirarchy of preferences ############
+    # I also need a disagreements section and ordering 
+    # If done here the iteration = all combinations = like 12 layered if statements which is terrible. If I take the blast_unique then take the ones with dups and
+    # Using the results of strictmarkernames we can see which ones were informed by what. So the code then becomes order files at chrom. linked nam, linkage, genetic
+    # Then the code will say detect best, best linked = keep_namesld This means that Alternate_SNP_ID is known for that qaccver and then we remove the other Alternate_SNP_ID(s)
+    # so we just create the two order dfs and have the comparisons 
+    #linkage= keep_namesld
+    # linkedmarker names= keep_namessimmarkers
+    #genetic map names =top_hits_gmap_strict
+    # Knowntarget chrom=top_hits_knowntargetchroms_strict
+    
+    ##### End of logic ##########
+    
+    # Interpretation for logic to remove dups in any circumstances
+    # While Quantitative measures like LD and genetic mapping are likely to be more reliable in general, there are ways they can be wrong, e.g., mismatched 
+    # to the data being run on. 
+    # The conservative option is to just remove duplicate qaccver data. This seems like the more prudent approach for Brioche. 
+    # For this.
+    # 1. Just take the blast_unique2 then remove any rows where blast_unique2$qaccver is a duplicate. This includes the dup row and the original (remove the qaccver altogether)
+    # 2. Then update the strictmarkernames to have removed the qaccver which has been removed by this end logic step. (double checked later summary step and this output is meant to only contain strict mappings so straight reduction is in line with final outputs and robust to not having all markers present)
+    
+    ##### End of logic #### 
+    # add count
+    blast_unique_wcount <- dplyr::add_count(blast_unique2, qaccver, name = "._n_qaccver")
+    
+    # create remove list 
+    removed_qaccver <- dplyr::pull(
+      dplyr::distinct(
+        dplyr::filter(blast_unique_wcount, ._n_qaccver > 1),
+        qaccver
+      ),
+      qaccver
+    )
+    
+    # Shouldn't be any NA but remove just in case
+    removed_qaccver <- removed_qaccver[!is.na(removed_qaccver)]
+    
+    # subset through removelist
+    blast_unique_filtered <- dplyr::select(
+      dplyr::filter(blast_unique_wcount, ._n_qaccver == 1),
+      -._n_qaccver
+    )
+    
+    # Removing now defunct markers from the priors informed file 
+    strictmarkernames_filtered <- dplyr::filter(
+      strictmarkernames,
+      is.na(qaccver) | !(qaccver %in% removed_qaccver)
+    )
+    
+  # saving updated objects to original name so that they work for next steps 
+    blast_unique2 <- blast_unique_filtered
+    strictmarkernames <- strictmarkernames_filtered
+    
+    
+    
+       
+    
     # Filter to have only SNPs present in blast_unique present in the mappings file
     filtered_mappings <- mappings.out |>
       dplyr::filter(Alternate_SNP_ID %in% blast_unique2$Alternate_SNP_ID)
@@ -925,7 +983,7 @@ blast_unique2 <- dplyr::filter(
     attributes(filtered_mappings)$raw_header_lines <- headerinfo$raw_header_lines
     filtered_mappings_clean <- sanitize_rectangular(filtered_mappings)
     
-  
+    
     
     hits.outpath <- file.path(paste0(probe.name, "_with_", genome.name, "_strict_filtering_hits.csv"))
     
@@ -942,10 +1000,10 @@ blast_unique2 <- dplyr::filter(
     
     
     markerfiltextra.outpath <- file.path(paste0(probe.name, "_with_", genome.name, "_priors_informed_strictmapping.tsv"))
-
+    
     write.table(x = strictmarkernames, file = markerfiltextra.outpath, sep= "\t",quote=FALSE,row.names=FALSE)
-
-
+    
+    
     cat("\nNumber of rows in final filtering results blast table:", nrow(blast_unique_clean), "\n")
     
   }
