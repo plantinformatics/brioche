@@ -64,7 +64,7 @@ module load git
 
 
     nextflow run "${briochemain}" -profile 'slurm' \
-    --emailaddress james.o\'dwyer@agriculture.vic.gov.au \
+    --emailaddress user123@mail.mail \
     --genomefasta ${genomedir}/${fasta} \
     --genomename ${genome} \
     --probename ${chipname} \
