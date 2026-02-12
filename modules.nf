@@ -401,11 +401,13 @@ process ADD_MARKERINFO {
     rm -f "${allmappings}.sorted"
 
     # count hits per qaccver(not including hybridisation)
-    awk -F, -v col="\$snpcol_csv" -v mh=${params.maximumhits} '
+    awk -F, -v col="\$snpcol_csv" -v hybcol="\$hybcol_csv" -v mh=${params.maximumhits} '
         NR>1 {
             snp = \$col
+            hybrid = \$hybcol
             gsub("^[[:space:]]+|[[:space:]]+\$", "", snp)
-            if (snp != "") cnt[snp]++
+            gsub("^[[:space:]]+|[[:space:]]+\$", "", hybrid)
+            if (snp != "" && hybrid != "No") cnt[snp]++
         }
         END {
             for (k in cnt)
