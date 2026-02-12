@@ -19,9 +19,7 @@ DoStrictfiltering(
   mappings.file,
   dogeneticmap,
   geneticmap.file,
-  doorientation = "No",
-  orientation.file = NA,
-  project.dir = output.path
+  dupmapinter.file
 )
 }
 \arguments{
@@ -53,11 +51,7 @@ DoStrictfiltering(
 
 \item{geneticmap.file}{CSV path to genetic mapping prior (MarkerName, Chromosomes_mapped, etc)}
 
-\item{doorientation}{Whether to update marker orientation file ("Yes"/"No", case insensitive).}
-
-\item{orientation.file}{TSV file with columns ID, Orientation giving current marker orientation.}
-
-\item{project.dir}{Project directory where Updated_orientation_file.tsv will be written.}
+\item{dupmapinter.file}{file tracking the presence of local duplications of markers in each genome. multi column header tsv}
 }
 \value{
 Returns an object which has been filtered using given priors to remove/keep a maximum of 1 hit (the best) per marker

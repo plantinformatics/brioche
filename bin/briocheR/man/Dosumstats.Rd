@@ -7,16 +7,23 @@
 Dosumstats(
   probe.name,
   genome.name,
+  markers_priorsinformed.hits,
+  duplicationmap.hits,
   output.path,
   blast.hits,
   mappings.file,
-  target.file
+  target.file,
+  metadata = NULL
 )
 }
 \arguments{
 \item{probe.name}{Character. Name of the probe set (used in file names).}
 
 \item{genome.name}{Character. Name of the reference genome (used in file names).}
+
+\item{markers_priorsinformed.hits}{Table. Table tracking whether each marker was informed through priors and which priors did so}
+
+\item{duplicationmap.hits}{Table. Table tracking the number of duplications per marker which were present in the reference genome mapped to}
 
 \item{output.path}{Character. Directory where results are read/written (a \verb{Figs/} subdir is created).}
 

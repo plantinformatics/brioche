@@ -642,6 +642,10 @@ duphitsinfo <- dplyr::select(
       failed_full[,   names(template), drop = FALSE]
     )
     
+all_markers_1to1_subset <- dplyr::select(all_markers_1to1,qaccver, saccver, SNPpos,Ref,ALT,sstrand)
+
+
+
 out_1to1 <- file.path(
   output.path,
   paste0(probe.name, "_with_", genome.name, "Brioche_all_markers1to1stagingforvcf.csv")
@@ -668,7 +672,7 @@ con <- file(out_1to1, open = "wt")
 on.exit(try(close(con), silent = TRUE), add = TRUE)
 writeLines(meta_lines, con = con)
 utils::write.table(
-  all_markers_1to1,
+  all_markers_1to1_subset,
   file      = con,
   sep       = ",",
   quote     = FALSE,

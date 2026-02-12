@@ -18,7 +18,9 @@ DoIntermediatefiltering(
   blast.hits,
   mappings.file,
   dogeneticmap,
-  geneticmap.file
+  geneticmap.file,
+  dup.dist,
+  keeplocalduppos
 )
 }
 \arguments{
@@ -49,6 +51,10 @@ DoIntermediatefiltering(
 \item{dogeneticmap}{whether to use genetic mapping prior}
 
 \item{geneticmap.file}{CSV path to genetic mapping prior (MarkerName, Chromosomes_mapped, etc)}
+
+\item{dup.dist}{distance for detection of local duplications}
+
+\item{keeplocalduppos}{yes or no for whether to keep markers which contain local duplications if there are no other hits and all hits show a consensus variant site}
 }
 \value{
 Returns an object which has been filtered using given priors to remove/keep best hits per marker
