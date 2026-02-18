@@ -21,7 +21,6 @@ set -euo pipefail
 
 infile="${1:-/dev/stdin}"
 tsv="${2:-/dev/null}"
-
 awk -v HAVE_TSV="$( [ -s "${tsv}" ] && echo 1 || echo 0 )" '
   BEGIN{
     FS = "\t"; OFS = "\t"
@@ -40,34 +39,56 @@ awk -v HAVE_TSV="$( [ -s "${tsv}" ] && echo 1 || echo 0 )" '
 
   ## TSV
   HAVE_TSV && FNR==NR {
-    # Expect header at first line; flexible column order
+
+    # split current TSV record on TAB explicitly
+    n = split($0, f, "\t")
+
+    # header
     if (FNR==1) {
-      for (i=1; i<=NF; i++){
-        k=tolower($i)
-        if (k=="qaccver") qi=i
-        else if (k=="copy_number") ci=i
-        else if (k=="nulcall") ni=i
+      qi=ci=ni=0
+      for (i=1; i<=n; i++){
+        k = tolower(f[i])
+        gsub(/\r/,"",k)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
+
+        if      (k=="qaccver")      qi=i
+        else if (k=="copy_number")  ci=i
+        else if (k=="nulcall")      ni=i
       }
       next
     }
-    id = (qi ? $qi : "")
-    if (id=="") next
-    # store nulcall flag (Yes/True/1 => 1; else 0)
-    raw = (ni ? $ni : "")
-    gsub(/\r/,"",raw)
-    l = tolower(raw)
-    nul_by_id[id] = (l=="yes" || l=="true" || l=="1") ? 1 : 0
 
-    # store copy_number (as integer if possible)
-    cn = (ci ? $ci : "")
+    id = (qi ? f[qi] : "")
+    gsub(/\r/,"",id)
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", id)
+    if (id=="") next
+
+    # --- nulcall: Yes => 1; NA/empty => 0; anything else => 0
+    raw = (ni ? f[ni] : "")
+    gsub(/\r/,"",raw)
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", raw)
+
+    l = tolower(raw)
+    if (l=="" || l=="na" || l=="." || l=="null") {
+      nul_by_id[id] = 0
+    } else if (l=="yes" || l=="true" || l=="1") {
+      nul_by_id[id] = 1
+    } else {
+      nul_by_id[id] = 0
+    }
+
+    # --- copy_number
+    cn = (ci ? f[ci] : "")
     gsub(/\r/,"",cn)
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", cn)
+
     if (cn ~ /^[0-9]+([.][0-9]+)?$/) {
-      # integerize; only accept >=1 for DU (we subtract 1 later)
       val = int(cn+0)
       copy_by_id[id] = val
     } else {
-      copy_by_id[id] = ""  # unknown / NA
+      copy_by_id[id] = ""   # unknown / NA
     }
+
     next
   }
 
@@ -135,32 +156,38 @@ awk -v HAVE_TSV="$( [ -s "${tsv}" ] && echo 1 || echo 0 )" '
     for (i=1; i<=nf; i++) {
       tag = F[i]
       v = "."
-      if (bad) {
-        if      (tag == "GT") v = "./."
-        else if (tag == "NU") v = "1"
-        else if (tag == "DU") v = "."
-        else                  v = "."
-      } else {
-        if      (tag == "GT")    v = "0/0"
-        else if (tag == "NU") {
-          # default 0; override to 1 if TSV says nulcall Yes
-          v = "0"
-          if (id in nul_by_id && nul_by_id[id] == 1) v = "1"
-        }
-        else if (tag == "DU") {
-          # default "."; if copy_number >=1 then DU = copy_number - 1
-          if (id in copy_by_id) {
-            cn = copy_by_id[id]
-            if (cn ~ /^[0-9]+$/ && cn+0 >= 1) v = (cn-1)
-            else v = "."
-          } else v = "."
-        }
-        else if (tag in numeric) v = "0"
-        else                     v = "."
+
+      if (tag == "GT") {
+        v = (bad ? "./." : "0/0")
       }
+      else if (tag == "NU") {
+        v = "0"
+        if (id in nul_by_id && nul_by_id[id] == 1) v = "1"
+        # If you instead want NU missing on bad rows, uncomment:
+        # if (bad) v = "."
+      }
+      else if (tag == "DU") {
+        if (bad) v = "."
+        else if (id in copy_by_id) {
+          cn = copy_by_id[id]
+          if (cn ~ /^[0-9]+$/ && cn+0 >= 1) v = (cn-1)
+          else v = "."
+        } else v = "."
+      }
+      else if (bad) {
+        v = "."
+      }
+      else if (tag in numeric) {
+        v = "0"
+      }
+      else {
+        v = "."
+      }
+      # -----------------------------------------------
+
       sampleval = (i==1 ? v : sampleval ":" v)
     }
 
     print $0, sampleval
   }
-' "${tsv}" "${infile}"
+' "${tsv}" "${infile}" 
