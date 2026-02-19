@@ -1688,7 +1688,135 @@ if (is_vcfraws) {
 
 
 # DArT pathway (raw DArT table -> VCF; record PriorORIENT from sstrand)
+# DArT pathway (raw DArT table -> VCF; record PriorORIENT from sstrand)
 if (isDArTfile) {
+
+  # ----------------------------
+  # DArT helpers
+  # ----------------------------
+  detect_dart_layout_base <- function(path, max_scan = 400L, n_sample = 25L, geno_prop = 0.80) {
+
+    .open_text_con_local <- function(p) {
+      if (grepl("\\.gz$", p, ignore.case = TRUE)) gzfile(p, open = "rt") else file(p, open = "rt")
+    }
+
+    con <- .open_text_con_local(path)
+    on.exit(try(close(con), silent = TRUE), add = TRUE)
+
+    lines <- readLines(con, n = max_scan, warn = FALSE)
+    if (!length(lines)) stop(sprintf("DArT file appears empty: %s", path))
+    lines <- sub("^\ufeff", "", lines, perl = TRUE)
+
+    # Header line must contain an AlleleID token (SNP may or may not exist)
+    has_alleleid_token <- function(ln) {
+      grepl("(^|[,\t])\\s*allele[_ ]?id\\s*([,\t]|$)", ln, ignore.case = TRUE, perl = TRUE)
+    }
+    hdr_i <- which(vapply(lines, has_alleleid_token, logical(1)))[1]
+    if (is.na(hdr_i)) {
+      stop("Could not find a DArT header line containing column AlleleID (case-insensitive).")
+    }
+
+    header_line <- lines[hdr_i]
+
+    # delimiter guess from header line
+    n_tab <- lengths(regmatches(header_line, gregexpr("\t", header_line, fixed = TRUE)))
+    n_com <- lengths(regmatches(header_line, gregexpr(",",  header_line, fixed = TRUE)))
+    delim <- if (n_tab >= n_com && n_tab > 0) "\t" else if (n_com > 0) "," else "\t"
+
+    # parse column names
+    cn <- strsplit(header_line, delim, fixed = TRUE)[[1]]
+    cn <- gsub('^"|"$', "", trimws(cn))
+
+    # canonicalize only *exact* names (hard match; do NOT match SNPsomething)
+    cn_trim_lc <- tolower(trimws(cn))
+    cn[cn_trim_lc %in% c("alleleid", "allele_id", "allele id")] <- "AlleleID"
+    cn[cn_trim_lc == "snp"] <- "SNP"
+
+    # read a few data lines after header to infer where genotype columns start
+    data_lines <- lines[(hdr_i + 1L):length(lines)]
+    data_lines <- data_lines[nzchar(data_lines) & !grepl("^\\s*$", data_lines)]
+    if (!length(data_lines)) stop("DArT file has a header but no data rows.")
+    data_lines <- utils::head(data_lines, n_sample)
+
+    split_row <- function(ln) {
+      v <- strsplit(ln, delim, fixed = TRUE)[[1]]
+      v <- gsub('^"|"$', "", trimws(v))
+      if (length(v) < length(cn)) v <- c(v, rep("", length(cn) - length(v)))
+      if (length(v) > length(cn)) v <- v[seq_len(length(cn))]
+      v
+    }
+
+    mat <- do.call(rbind, lapply(data_lines, split_row))
+    matU <- toupper(trimws(mat))
+
+    is_geno_like <- function(x) {
+      x <- toupper(trimws(x))
+      x == "" | x %in% c(".", "./.", "NA", "N", "NC", "-") |
+        grepl("^[0-3]$", x, perl = TRUE) |
+        grepl("^[0-3][\\/|][0-3]$", x, perl = TRUE)
+    }
+
+    props <- vapply(seq_len(ncol(matU)), function(j) mean(is_geno_like(matU[, j])), numeric(1))
+
+    j <- length(props)
+    while (j >= 1L && is.finite(props[j]) && props[j] >= geno_prop) j <- j - 1L
+    g_start <- j + 1L
+
+    # fallback: if heuristic fails, start right after SNP if present, else after AlleleID
+    if (g_start > length(cn)) {
+      idx_snp    <- match("SNP", cn)        # exact only
+      idx_allele <- match("AlleleID", cn)
+      if (!is.na(idx_snp)) {
+        g_start <- idx_snp + 1L
+      } else if (!is.na(idx_allele)) {
+        g_start <- idx_allele + 1L
+      } else {
+        stop("Header parsing failed to find AlleleID column.")
+      }
+    }
+
+    lastmetric_idx <- g_start - 1L
+    if (lastmetric_idx < 1L) lastmetric_idx <- 1L
+
+    list(
+      cn = cn,
+      topskip = hdr_i - 1L,
+      lastmetric_idx = lastmetric_idx,
+      delim = delim
+    )
+  }
+
+  # Extract REF/ALT from:
+  #  1) SNP column format:  position:REF>ALT  (uses last ':' before REF)
+  #  2) If SNP column absent OR row doesn't parse: AlleleID suffix :REF>ALT$
+  dart_extract_ref_alt <- function(snp_vec, allele_vec) {
+    snp_vec    <- as.character(snp_vec);    snp_vec[is.na(snp_vec)] <- ""
+    allele_vec <- as.character(allele_vec); allele_vec[is.na(allele_vec)] <- ""
+
+    # position:REF>ALT  (hard anchor at end)
+    m_snp <- stringr::str_match(toupper(trimws(snp_vec)), ".*:([A-Z]+)>([A-Z]+)$")
+    ref_s <- m_snp[, 2]
+    alt_s <- m_snp[, 3]
+
+    ok_snp <- !is.na(ref_s) & !is.na(alt_s) & nzchar(ref_s) & nzchar(alt_s)
+
+    # AlleleID suffix :REF>ALT$
+    m_id  <- stringr::str_match(toupper(trimws(allele_vec)), ".*:([A-Z]+)>([A-Z]+)$")
+    ref_i <- m_id[, 2]
+    alt_i <- m_id[, 3]
+    ok_id <- !is.na(ref_i) & !is.na(alt_i) & nzchar(ref_i) & nzchar(alt_i)
+
+    ref <- ifelse(ok_snp, ref_s, ifelse(ok_id, ref_i, NA_character_))
+    alt <- ifelse(ok_snp, alt_s, ifelse(ok_id, alt_i, NA_character_))
+
+    list(REF = ref, ALT = alt)
+  }
+
+  dart_is_minus <- function(x) {
+    z <- tolower(trimws(as.character(x)))
+    z[is.na(z)] <- ""
+    z == "-" | startsWith(z, "m") | z %in% c("minus", "neg", "negative", "reverse", "rev")
+  }
 
   strand_to_word <- function(x) {
     z <- tolower(trimws(as.character(x)))
@@ -1698,28 +1826,27 @@ if (isDArTfile) {
   }
   is_blank <- function(x) is.na(x) | x == "" | x == "."
 
-  # ---- MAPPRIORS lookups (optional) ----
-  pri_flag_by_id <- logical(0)     # named logical: qaccver -> TRUE when qualifies for "Unique_mapping_with_priors_information"
-  dup_label_by_id <- character(0)  # named char:   qaccver -> "LocallyDuplicatedRegion" | "SingleCopy"
+  # ----------------------------
+  # MAPPRIORS lookups (optional)
+  # ----------------------------
+  pri_flag_by_id  <- logical(0)
+  dup_label_by_id <- character(0)
 
   if (is.data.frame(MAPPRIORS)) {
     n  <- nrow(MAPPRIORS)
     tp <- MAPPRIORS
     key <- as.character(tp$qaccver)
 
-    # normalize to vector length n, even if column is NULL/absent
     is_true_chr <- function(v) tolower(trimws(as.character(v))) == "true"
     norm_true   <- function(col) if (is.null(col)) rep(FALSE, n) else rep_len(is_true_chr(col), n)
     norm_is_na  <- function(col) if (is.null(col)) rep(TRUE,  n) else rep_len(is.na(col),        n)
 
-    # prior-based uniqueness flag: Trueunique is NA AND any prior* == "true"
     tu_na <- norm_is_na(tp$Trueunique)
     any_prior_true <- norm_true(tp$Chrommarkermap) |
                       norm_true(tp$proximatemarkermap) |
                       norm_true(tp$linkagemarkermap) |
                       norm_true(tp$geneticmapmarkermap)
 
-    # safe setNames helper (no mismatch crashes)
     safe_set_names <- function(x, nm) {
       lx <- length(x); ln <- length(nm)
       if (!lx || !ln) return(x)
@@ -1729,50 +1856,51 @@ if (isDArTfile) {
     }
 
     pri_flag_by_id  <- safe_set_names(tu_na & any_prior_true, key)
-
-    # duplication label
     dup_is_true     <- norm_true(tp$Duplicate_region)
-    dup_label_by_id <- safe_set_names(
-      ifelse(dup_is_true, "LocallyDuplicatedRegion", "SingleCopy"),
-      key
-    )
+    dup_label_by_id <- safe_set_names(ifelse(dup_is_true, "LocallyDuplicatedRegion", "SingleCopy"), key)
   }
 
-
-
-  # ---- detect DArT layout (existing helpers assumed present) ----
+  # ----------------------------
+  # detect DArT layout
+  # ----------------------------
   lay <- detect_dart_layout_base(raw_path)
   cn  <- lay$cn
+
+  # hard match AlleleID and SNP (exact), and Strand* (prefix match)
   idx_allele <- match("AlleleID", cn)
-  idx_snp    <- match("SNP",      cn)
-  if (is.na(idx_allele) || is.na(idx_snp))
-    stop("DArT header must include AlleleID and SNP.")
+  idx_snp    <- match("SNP", cn)  # exact only; may be NA
+  idx_strand <- {
+    j <- which(grepl("^Strand", cn, ignore.case = TRUE))
+    if (length(j)) j[1] else NA_integer_
+  }
+
+  if (is.na(idx_allele))
+    stop("DArT header must include AlleleID (exact after trimming/canonicalization).")
 
   g_start  <- lay$lastmetric_idx + 1L
   geno_idx <- g_start:length(cn)
 
-  fileDate     <- format(Sys.Date(), "%Y%m%d")
-  VCFchroms    <- unique(c(order_contigs(Finalmappings$saccver), "chrUnk"))
+  fileDate  <- format(Sys.Date(), "%Y%m%d")
+  VCFchroms <- unique(c(order_contigs(Finalmappings$saccver), "chrUnk"))
 
-  # contigs/meta already computed earlier:
-  #   - extra_meta
-  #   - contig_lines
-
+  # ----------------------------
+  # header scaffold (STANDARDISED)
+  # ----------------------------
   header_lines <- c(
     "##fileformat=VCFv4.2",
     sprintf("##fileDate=%s", fileDate),
     "##source=Brioche-VCF-build",
-    paste0("##",Metadata[1]),
-    paste0("##",Metadata[2]),
-    paste0("##",Metadata[3]),
-    paste0("##Brioche_filtering_",Metadata[4]),
-    paste0("##Brioche_filtering_",Metadata[5]),
-    paste0("##Brioche_filtering_",Metadata[6]),
-    paste0("##Brioche_priors_files:",Metadata[7]),
-    paste0("##Brioche_priors_files:",Metadata[8]),
-    paste0("##Brioche_priors_files:",Metadata[9]),
-    paste0("##Brioche_priors_files:",Metadata[10]),
-    paste0("##Brioche_",Metadata[11]),
+    paste0("##", Metadata[1]),
+    paste0("##", Metadata[2]),
+    paste0("##", Metadata[3]),
+    paste0("##Brioche_filtering_", Metadata[4]),
+    paste0("##Brioche_filtering_", Metadata[5]),
+    paste0("##Brioche_filtering_", Metadata[6]),
+    paste0("##Brioche_priors_files:", Metadata[7]),
+    paste0("##Brioche_priors_files:", Metadata[8]),
+    paste0("##Brioche_priors_files:", Metadata[9]),
+    paste0("##Brioche_priors_files:", Metadata[10]),
+    paste0("##Brioche_", Metadata[11]),
     extra_meta,
     '##FILTER=<ID=LowQual,Description="Low quality or ambiguous mapping">',
     '##INFO=<ID=MAPSTATUS,Number=1,Type=String,Description="Unique_mapping|Unique_mapping_with_priors_information|Failed_to_map_uniquely">',
@@ -1782,6 +1910,7 @@ if (isDArTfile) {
     '##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count per ALT">',
     '##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">',
     '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
+    '##FORMAT=<ID=NU,Number=1,Type=Integer,Description="Null allele flag from SNP chip (1= Null allele; 0=otherwise)">',
     '##FORMAT=<ID=DU,Number=1,Type=Integer,Description="Number of local duplications of marker detected (0= Marker is single copy; 1+=copies, .=Unknown)">',
     contig_lines
   )
@@ -1796,14 +1925,16 @@ if (isDArTfile) {
   vcf_header <- c("#CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT", sample_ids)
   write_header_row(vcf_header, Outputfilename)
 
-  # Mapping frame (include sstrand)
+  # ----------------------------
+  # mapping frame (include sstrand)
+  # ----------------------------
   fm <- Finalmappings %>%
     dplyr::transmute(
       Name      = qaccver,
       CHROM_map = saccver,
       POS_map   = SNPpos,
       REF_map   = toupper(Ref),
-      ALT_map   = normalize_alt(ALT),  # single ALT will be enforced
+      ALT_map   = normalize_alt(ALT),
       STRAND    = sstrand
     )
   fm_hits <- Finalmappings %>% dplyr::count(qaccver, name = "MAP_HITS")
@@ -1812,9 +1943,12 @@ if (isDArTfile) {
     dplyr::mutate(MAP_HITS = ifelse(is.na(MAP_HITS), 0L, MAP_HITS))
   fm_Name <- fm$Name
 
-  # ---- stream input ----
+  # ----------------------------
+  # stream input
+  # ----------------------------
   chunk_size <- 1500L
-  delim <- if (grepl("\\.(tsv|txt)$", raw_path, ignore.case = TRUE)) "\t" else ","
+  delim <- lay$delim
+
   con_dart <- if (grepl("\\.gz$", raw_path, ignore.case = TRUE)) gzfile(raw_path, "rt") else file(raw_path, "rt")
   on.exit(try(close(con_dart), silent = TRUE), add = TRUE)
   invisible(readLines(con_dart, n = lay$topskip + 1L, warn = FALSE))  # skip preamble+header
@@ -1823,24 +1957,48 @@ if (isDArTfile) {
     raw_lines <- readLines(con_dart, n = chunk_size, warn = FALSE)
     if (!length(raw_lines)) break
 
-    df_all <- utils::read.table(text = raw_lines, sep = delim, header = FALSE,
-                                quote = "", comment.char = "", stringsAsFactors = FALSE,
-                                check.names = FALSE, col.names = cn_fixed, fill = TRUE)
-    df <- df_all[, c(idx_allele, idx_snp, geno_idx), drop = FALSE]
+    raw_lines <- raw_lines[nzchar(raw_lines) & !grepl("^\\s*$", raw_lines)]
+    if (!length(raw_lines)) next
 
-    Name <- df[[1L]]  # qaccver
+    df_all <- utils::read.table(
+      text = raw_lines, sep = delim, header = FALSE,
+      quote = "", comment.char = "", stringsAsFactors = FALSE,
+      check.names = FALSE, col.names = cn_fixed, fill = TRUE
+    )
+    if (!NROW(df_all)) next
+
+    Name <- df_all[[idx_allele]]  # qaccver / AlleleID
     force_drop <- if (length(DROP_IDS)) Name %in_drop% DROP_IDS else rep(FALSE, length(Name))
-    SNP  <- df[[2L]]
-    geno <- as.matrix(df[, -(1:2), drop = FALSE])
 
-    pa       <- parse_snp_ref_alt(SNP)        # existing helper
-    REF_old  <- toupper(pa$REF)
-    ALT_old  <- toupper(pa$ALT)               # single ALT
+    SNP <- if (!is.na(idx_snp)) df_all[[idx_snp]] else rep(NA_character_, nrow(df_all))
+
+    # DArT "Strand*" column (optional)
+    dart_strand <- if (!is.na(idx_strand)) df_all[[idx_strand]] else rep(NA_character_, nrow(df_all))
+
+    geno <- as.matrix(df_all[, geno_idx, drop = FALSE])
+
+    # ---- NEW: parse REF/ALT from SNP (position:REF>ALT) OR AlleleID suffix :REF>ALT$ ----
+    pa      <- dart_extract_ref_alt(SNP, Name)
+    REF_old <- toupper(pa$REF)
+    ALT_old <- toupper(pa$ALT)
+
+    # ---- NEW: if Strand is Minus, reverse complement REF/ALT before comparing/reanchoring ----
+    if (!is.na(idx_strand)) {
+      is_min <- dart_is_minus(dart_strand)
+      if (any(is_min, na.rm = TRUE)) {
+        REF_old[is_min] <- revcomp_iupac(REF_old[is_min])
+        ALT_old[is_min] <- revcomp_iupac(ALT_old[is_min])
+      }
+    }
+
+    # enforce single ALT
+    ALT_old <- sub(",.*$", "", ALT_old)
+    ALT_old[is.na(ALT_old) | ALT_old == ""] <- "."
 
     idx   <- match(Name, fm_Name)
     has_m <- !is.na(idx)
-    hits   <- ifelse(has_m, fm$MAP_HITS[idx], 0L)
-    u_map  <- has_m & hits == 1L & !force_drop
+    hits  <- ifelse(has_m, fm$MAP_HITS[idx], 0L)
+    u_map <- has_m & hits == 1L & !force_drop
 
     CHROM <- ifelse(u_map, fm$CHROM_map[idx], "chrUnk")
     POS   <- ifelse(u_map, fm$POS_map[idx],   0L)
@@ -1861,7 +2019,8 @@ if (isDArTfile) {
 
     REF_out <- ifelse(oriented_now, BriocheREF, REF_old)
     ALT_out <- ifelse(oriented_now, BriocheALT, ALT_old)
-    ALT_out <- sub(",.*$", "", ALT_out); ALT_out[is.na(ALT_out) | ALT_out == ""] <- "."
+    ALT_out <- sub(",.*$", "", ALT_out)
+    ALT_out[is.na(ALT_out) | ALT_out == ""] <- "."
 
     pos_int     <- suppressWarnings(as.integer(POS))
     coord_bad   <- is.na(pos_int) | pos_int <= 0L | is_blank(CHROM)
@@ -1870,16 +2029,16 @@ if (isDArTfile) {
     QUAL   <- ifelse(unknown_now, 0L, 100L)
     FILTER <- ifelse(unknown_now, "LowQual", "PASS")
 
-    # PriorORIENT from current sstrand when uniquely mapped; else 'none'
+    # PriorORIENT from Brioche sstrand when uniquely mapped; else 'none'
     cur_strand <- ifelse(u_map, strand_to_word(fm$STRAND[idx]), "none")
 
-    # MAPSTATUS with priors, DUP from priors table (default SingleCopy)
     status_val <- ifelse(unknown_now, "Failed_to_map_uniquely", "Unique_mapping")
     if (length(pri_flag_by_id)) {
       pri_flag <- unname(pri_flag_by_id[Name])
       pri_flag[is.na(pri_flag)] <- FALSE
       status_val[u_map & pri_flag] <- "Unique_mapping_with_priors_information"
     }
+
     dup_lab <- if (length(dup_label_by_id)) {
       out <- unname(dup_label_by_id[Name]); out[is.na(out)] <- "SingleCopy"; out
     } else {
@@ -1899,8 +2058,7 @@ if (isDArTfile) {
     dbl <- grepl("^[012]{2}$", geno, perl = TRUE)
     if (any(dbl)) geno[dbl] <- sub("^([012])([012])$", "\\1/\\2", geno[dbl], perl = TRUE)
 
-    rsame <- ifelse(is.na(ident | ident_rc), FALSE, (ident | ident_rc))
-    rswap <- ifelse(is.na(swap  | swap_rc ), FALSE, (swap  | swap_rc ))
+    rswap <- ifelse(is.na(swap | swap_rc), FALSE, (swap | swap_rc))
     if (any(rswap)) {
       M_swap <- matrix(rep(rswap, times = ncol(geno)), nrow = nrow(geno), ncol = ncol(geno))
       g <- geno
@@ -1913,7 +2071,7 @@ if (isDArTfile) {
     i1 <- geno == "1"; if (any(i1)) geno[i1] <- "0/1"
     i2 <- geno == "2"; if (any(i2)) geno[i2] <- "1/1"
 
-    # AC/AN/MAF
+    # AC/AN/MAF (biallelic)
     nr <- nrow(geno); ac1 <- integer(nr); an <- integer(nr)
     for (j in seq_len(ncol(geno))) {
       x <- geno[, j]
@@ -1928,11 +2086,15 @@ if (isDArTfile) {
     MAF_str <- sprintf("%.6g", AF1)
     INFO <- paste0(INFO, ";MAF=", MAF_str, ";AC=", AC_str, ";AN=", an)
 
-    # Append DU subfield to FORMAT and samples (unknown for DArT => '.')
-    FORMAT <- "GT:DU"
+    # STANDARDISED FORMAT: GT:NU:DU
+    # DArT has no chip-derived null allele flag => NU=0 always; DU unknown => '.'
+    FORMAT <- "GT:NU:DU"
+    NU_chr <- matrix("0", nrow = nrow(geno), ncol = ncol(geno))
+    DU_chr <- matrix(".", nrow = nrow(geno), ncol = ncol(geno))
+
     geno_df <- as.data.frame(geno, stringsAsFactors = FALSE, check.names = FALSE)
     for (jj in seq_len(ncol(geno_df))) {
-      geno_df[[jj]] <- paste0(geno_df[[jj]], ":.")
+      geno_df[[jj]] <- paste0(geno_df[[jj]], ":", NU_chr[, jj], ":", DU_chr[, jj])
     }
 
     body <- data.frame(
@@ -1944,7 +2106,7 @@ if (isDArTfile) {
 
     dt_fwrite(body, file = Outputfilename, append = TRUE, col.names = FALSE)
 
-    rm(df_all, df, geno, geno_df, body, ac1, an); gc(FALSE)
+    rm(df_all, geno, geno_df, body, ac1, an, NU_chr, DU_chr); gc(FALSE)
   }
 
   message(sprintf("Wrote: %s", Outputfilename))
