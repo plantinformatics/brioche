@@ -1550,6 +1550,9 @@ if (is_vcfraws) {
       df[[ix_ALT]] <- ALT_cur
     }
 
+    prior_eff <- prior
+    prior_eff[need_flip] <- s_now[need_flip]
+
     # FIRST mapping: treat as biallelic initial orientation when prior == none
     ALT_curU       <- toupper(as.character(df[[ix_ALT]]))
     old_alt_single <- !grepl(",", ALT_curU, fixed = TRUE) & nzchar_safe(ALT_curU)
@@ -1580,7 +1583,7 @@ if (is_vcfraws) {
     }
 
     # SUBSEQUENT mapping (same orientation) — allow tri+ remapping
-    tri_rows <- which(mapped_now & prior != "none" & !is.na(s_now) & (prior == s_now) & nzchar(BriocheREF))
+   tri_rows <- which(mapped_now & prior_eff != "none" & !is.na(s_now) & (prior_eff == s_now) & nzchar(BriocheREF))
     idx_map_by_row <- vector("list", length(tri_rows))
     names(idx_map_by_row) <- as.character(tri_rows)
     recode_needed  <- logical(length(tri_rows))
@@ -1629,7 +1632,7 @@ if (is_vcfraws) {
     if (!is.na(ix_INFO)) {
       df[[ix_INFO]] <- paste0(
         "MAPSTATUS=", status_val,
-        ";PriorORIENT=", ifelse(is.na(s_now), prior, s_now),
+        ";PriorORIENT=", ifelse(is.na(s_now), prior_eff, s_now),
         ";DUP=", dup_lab
       )
     }
@@ -1682,6 +1685,9 @@ if (is_vcfraws) {
 
   message(sprintf("Wrote: %s", Outputfilename))
 }
+
+
+
 
 
 
