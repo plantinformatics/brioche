@@ -1639,11 +1639,35 @@ if (is_vcfraws) {
 
     #- Normalize FORMAT to exactly "GT:NU:DU" and rebuild samples 
     if (!is.na(ix_FMT) && length(sample_cols_idx)) {
-      # force FORMAT for all rows
+
+      # Cache incoming FORMAT before overwriting it
+      fmt_in <- as.character(df[[ix_FMT]])
+      fmt_in[is.na(fmt_in) | fmt_in == ""] <- "GT"
+
+      # For speed: if FORMAT is constant across this chunk, compute positions once.
+      # Otherwise compute per-row positions (still correct).
+      fmt_unique <- unique(fmt_in)
+
+      if (length(fmt_unique) == 1L) {
+        fields <- strsplit(fmt_unique, ":", fixed = TRUE)[[1]]
+        pos_NU_const <- match("NU", fields)
+        pos_DU_const <- match("DU", fields)
+        pos_GT_const <- match("GT", fields); if (is.na(pos_GT_const)) pos_GT_const <- 1L
+
+        pos_NU_by_row <- rep(pos_NU_const, nrow(df))
+        pos_DU_by_row <- rep(pos_DU_const, nrow(df))
+        pos_GT_by_row <- rep(pos_GT_const, nrow(df))
+      } else {
+        split_fields <- strsplit(fmt_in, ":", fixed = TRUE)
+        pos_NU_by_row <- vapply(split_fields, function(x) match("NU", x), integer(1))
+        pos_DU_by_row <- vapply(split_fields, function(x) match("DU", x), integer(1))
+        pos_GT_by_row <- vapply(split_fields, function(x) { p <- match("GT", x); if (is.na(p)) 1L else p }, integer(1))
+      }
+
+      # We will output a standard FORMAT for all rows
       df[[ix_FMT]] <- "GT:NU:DU"
 
-      # for each sample: extract GT, normalize, apply swaps/recode, then write GT:NU:DU
-      # default NU=0 (VCF input has no chip-based null flag); DU unknown '.'
+      # rows to recode (same as your logic)
       if (length(swap_rows) || length(tri_rows)) {
         rows_to_recode <- tri_rows[recode_needed]
       } else {
@@ -1651,8 +1675,45 @@ if (is_vcfraws) {
       }
 
       for (jjj in sample_cols_idx) {
+
         colv <- df[[jjj]]
         colv[is.na(colv)] <- "."
+
+        # Split existing sample field once (fast C implementation)
+        # returns an N x K matrix (K = max fields present in this sample column)
+        parts <- stringi::stri_split_fixed(colv, ":", simplify = TRUE)
+
+        # Helper to pull a field by (possibly variable) position per row
+        pull_by_pos <- function(parts_mat, pos_vec) {
+          out <- rep(NA_character_, nrow(parts_mat))
+          ok <- !is.na(pos_vec) & pos_vec >= 1L & pos_vec <= ncol(parts_mat)
+          if (any(ok)) {
+            ii <- which(ok)
+            out[ii] <- parts_mat[cbind(ii, pos_vec[ii])]
+          }
+          out[out == ""] <- NA_character_
+          out
+        }
+
+        # Extract existing NU/DU if present in the incoming FORMAT
+        nu_old <- pull_by_pos(parts, pos_NU_by_row)
+        du_old <- pull_by_pos(parts, pos_DU_by_row)
+
+        # Default only when NU/DU truly absent from FORMAT
+        # (if NU/DU present but missing in a cell, we treat as 0 / . respectively)
+        if (all(is.na(pos_NU_by_row))) {
+          nu_out <- rep("0", nrow(df))
+        } else {
+          nu_out <- ifelse(is.na(nu_old) | nu_old == ".", "0", nu_old)
+        }
+
+        if (all(is.na(pos_DU_by_row))) {
+          du_out <- rep(".", nrow(df))
+        } else {
+          du_out <- ifelse(is.na(du_old) | du_old == "", ".", du_old)
+        }
+
+        # --- Build GT exactly like you already do ---
         gt <- sub("^([^:]+).*", "\\1", colv, perl = TRUE)
         gt[gt == "" | gt == "."] <- "./."
         gt <- gsub("\\|", "/", gt)
@@ -1664,6 +1725,7 @@ if (is_vcfraws) {
           tmp[swap_rows] <- swap_biallelic_gt_vec(tmp[swap_rows])
           gt <- tmp
         }
+
         # apply tri+ recode where REF changed
         if (length(rows_to_recode)) {
           for (rr in rows_to_recode) {
@@ -1672,11 +1734,10 @@ if (is_vcfraws) {
           }
         }
 
-        # compose final GT:NU:DU (NU=0, DU='.')
-        df[[jjj]] <- paste0(gt, ":0:.")
+        # compose final GT:NU:DU (preserving NU/DU)
+        df[[jjj]] <- paste0(gt, ":", nu_out, ":", du_out)
       }
     }
-
     # write out
     dt_fwrite(df, file = Outputfilename, append = TRUE, col.names = FALSE)
 
