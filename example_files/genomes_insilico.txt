@@ -1,9 +1,9 @@
-/filepath/IWGSC_RefSeq_v2.1/IWGSC_RefSeq_v2.1.fasta
-/filepath/Refgenome1.fasta.gz
-/filepath/Refgenome2.fasta.gz
-/filepath/Refgenome3.fasta.gz
-/filepath/Refgenome4.fasta.gz
-/filepath/Refgenome5.fasta.gz
-/filepath/Refgenome6.fasta.gz
-/filepath/Refgenome7.fasta.gz
-/filepath/Refgenome8.fasta.gz
+/filepath/IWGSC_RefSeq_v2.1/IWGSC_RefSeq_v2.1.fasta filepath/IWGSC_RefSeq_v2.1/IWGSC_chromchrommatch.csv ACC_XYZ
+/filepath/Refgenome1.fasta.gz filepath/refgenome1.csv ACC_XYZ
+/filepath/Refgenome2.fasta.gz filepath/refgenome2.csv ACC_XYZ
+/filepath/Refgenome3.fasta.gz filepath/refgenome3.csv ACC_XYZ
+/filepath/Refgenome4.fasta.gz filepath/refgenome4.csv ACC_XYZ
+/filepath/Refgenome5.fasta.gz filepath/refgenome5.csv ACC_XYZ
+/filepath/Refgenome6.fasta.gz filepath/refgenome6.csv ACC_XYZ
+/filepath/Refgenome7.fasta.gz filepath/refgenome7.csv ACC_XYZ
+/filepath/Refgenome8.fasta.gz filepath/refgenome8.csv ACC_XYZ

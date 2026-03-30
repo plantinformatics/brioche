@@ -12,9 +12,11 @@ Requirements
 
 1. Brioche targets file
 
-2. The genotype data file you have is in one of the following three forms:
+2. Either:
 
-   a) Raw genotypes in the format below (tab-separated). ``REF``/``ALT`` are defined as ACGT/ACGT, samples are columns, markers are rows, genotypes are coded as ``0``, ``1``, ``2``, ``NC`` as missing data, and ``N`` as null alleles.
+   a) The genotype data file you have is in one of the following three forms:
+
+      i) Raw genotypes in the format below (tab-separated). ``REF``/``ALT`` are defined as ACGT/ACGT, samples are columns, markers are rows, genotypes are coded as ``0``, ``1``, ``2``, ``NC`` as missing data, and ``N`` as null alleles.
 
       .. code-block:: text
 
@@ -23,15 +25,19 @@ Requirements
          Marker2 T    G    0        N
          Marker3 A    C    NC       1
 
-   b) A VCF file (any VCF-compatible format).
+      ii) A VCF file (any VCF-compatible format).
 
-   c) A DArTseq report (1-row format).
+      iii) A DArTseq report (1-row format).
+
+   b) If you just want to generate insilico genotypes without samples, set the following variable (line ~69 of ``Additional_functions/Run_insilico_add.sh`` ) Performreferencegenotypingonly="yes"
 
 3. Reference genome FASTA
 
 4. An updated ``params.config`` file ready to run Brioche
 
-5. A list of full paths/filenames to reference genomes to in silico genotype (see ``example_files/genomes_insilico.txt``)
+5. A list of full paths/filenames to reference genomes to in silico genotype (see ``example_files/genomes_insilico.txt``) This needs to be in the 
+file format genomepath chromosomematching file and the genome NCBI refseq accession number (GCF_XYX or if none is available leave as "" as the value will be ignored by Brioche if not a valid REFseq code) ) separated by single spaces. The chromosomematching file can be provided for each reference genome so that a target chrom matching file can be used. If not 
+needed, provide a link to either a single file, or the example file (see `` example_files/Chromesome-chromosome_mappings.csv``) or a pathway to an empty file with the same headers in the example file
 
 6. Installation of Nextflow, conda, git, and R
 
@@ -49,11 +55,11 @@ Additional instructions are provided in the script but the main components to ch
 
    b) Output folder name (line 62, 1 setting). This setting describes where all in silico results should be saved.
 
-   c) Anchoring settings (lines 66-82, 6 settings). These settings point to the anchoring script and define the initial genotype format (e.g., ``isvcf`` or ``isdart`` or ``issnp``).
+   c) Anchoring settings (lines 66-84, 7 settings). These settings point to the anchoring script and define the initial genotype format (e.g., ``isvcf`` or ``isdart`` or ``issnp``).
 
-   d) Final Brioche settings (lines 84-95, 4 settings). These settings specify the final reference genome and what final VCF the genotypes will be anchored against.
+   d) Final Brioche settings (lines 86-97, 4 settings). These settings specify the final reference genome and what final VCF the genotypes will be anchored against.
 
-   e) Update the method for calling the required software (Nextflow, conda, git, and R) (lines 97-105). These are currently written as ``module load`` statements.
+   e) Update the method for calling the required software (Nextflow, conda, git, and R) (lines 99-107). These are currently written as ``module load`` statements.
 
 
 .. image:: ../Images/Brioche_insilico_variables.png

@@ -865,21 +865,77 @@ build_contig_lines <- function(ids, meta, override_species = NULL) {
 }
 
 # Main reader: base R, works for plain/gz, tsv/csv/txt + delimiter sniffing
+# Updated delimiter detection to not rely on any file extension including zipped status (note, it searches whitespace vs tab as delimiter. Anything else may stuff up from sample names e.g., inclusion of | 
+## so we needs to be in simple formats. 
+
+
 read_genotypes_auto <- function(path) {
-  sep <- .infer_sep(path)
-  con <- .open_text_con(path)
+
+  # Open connection (gz or plain text)
+  con <- if (grepl("\\.gz$", path)) {
+    gzfile(path, open = "rt")
+  } else {
+    file(path, open = "rt")
+  }
   on.exit(close(con), add = TRUE)
 
-  read.table(
-    con,
-    header = TRUE,
-    sep = sep,
-    check.names = FALSE,
-    quote = "",
-    comment.char = "",
-    stringsAsFactors = FALSE
+  # Read first non-empty line for delimiter inference
+  first_line <- ""
+  while (first_line == "") {
+    first_line <- readLines(con, n = 1)
+    if (length(first_line) == 0) {
+      stop("Input file appears to be empty: ", path)
+    }
+  }
+
+  # Reset connection after peeking
+  seek(con, 0)
+
+  # Only allow tab or whitespace
+  candidates <- list(
+    tab = "\t",
+    whitespace = ""
   )
+
+  # Count fields per delimiter
+  field_counts <- sapply(candidates, function(sep) {
+    length(strsplit(first_line, sep, perl = TRUE)[[1]])
+  })
+
+  sep <- candidates[[which.max(field_counts)]]
+
+  # Sanity check
+  if (max(field_counts) < 2) {
+    stop(
+      "Unable to infer delimiter (expected tab or whitespace) for file: ", path,
+      "\nHeader line: ", first_line
+    )
+  }
+
+  # Read data
+  dat <- tryCatch(
+    read.table(
+      con,
+      header = TRUE,
+      sep = sep,
+      check.names = FALSE,
+      quote = "",
+      comment.char = "",
+      stringsAsFactors = FALSE
+    ),
+    error = function(e) {
+      stop(
+        "Failed to parse genotype file: ", path,
+        "\nInferred delimiter: ",
+        ifelse(sep == "\t", "TAB", "WHITESPACE"),
+        "\nOriginal error: ", e$message
+      )
+    }
+  )
+
+  return(dat)
 }
+
 
 # If raw genotypes input is not a vcf file
 if (!is_vcfraws & !isDArTfile) {
@@ -1204,7 +1260,7 @@ if (!is_vcfraws & is_snpchip) {
     INFO <- paste0(INFO, ";MAF=", MAF_str, ";AC=", AC_str, ";AN=", an)
 
     ## Write
-    NU_chr <- matrix(as.character(NU), nrow = nrow(NU), ncol = ncol(NU)); NU_chr[is.na(NU_chr)] <- "0"
+    NU_chr <- matrix(as.character(NU), nrow = nrow(geno), ncol = ncol(geno)); NU_chr[is.na(NU_chr)] <- "0"
     DU_chr <- matrix(".", nrow = nrow(geno), ncol = ncol(geno))  # unknown duplication count per-sample for now
 
     geno_df <- as.data.frame(geno, stringsAsFactors = FALSE, check.names = FALSE)

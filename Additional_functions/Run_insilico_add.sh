@@ -65,8 +65,11 @@ outputmasterfolder="/filepath/brioche/resultsinsilicobrioche"
 
 ##################### Anchoring settings #############
 
+# Set to yes if you are anchoring references without your own sample dataset. Brioche will return only the insilico reference genome genotypes
+Performreferencegenotypingonly="yes"
+
 # Absolute path to the location of the raw genotypes file you want anchored with the brioche results. Note, make sure you update the below boolean variables for what this file is. e.g., is it a Dart genotypes file, a vcf file, or the SNPchipgenotypes file 
-Genotypesfile="/filepath/Rawgenotypes.tsv"
+Genotypesfile=""
 
 
 # Absolute path to anchor Anchoring script (R) and scondary bash script to add reference col
@@ -93,6 +96,15 @@ finalgenomeACC="GCF_0000001234.1"
 
 
 ################### End final Brioche settings ###############
+
+################ bcftools downstream settings################
+
+# Numeric to chrom mapping file for conversion and sorting of file. not necessary
+ChromChrommappingfile=""
+
+################### End bcftools downstream settings ###############
+
+
 
 ################### Modules ##################
 
@@ -180,15 +192,50 @@ echo "[INFO] Collecting mapping CSVs in genome-list order…"
 
 declare -a anchorfiles        # ordered CSV paths for anchoring
 declare -a anchor_genomes     # matching genomename per CSV
+declare -a anchor_accessions  # Accession codes for each reference genome
 idx=0
 
-while IFS= read -r row || [[ -n "${row:-}" ]]; do
-  # skip blanks and comments
-  [[ -z "${row// }" ]] && continue
-  [[ "${row:0:1}" == "#" ]] && continue
 
-  fullgenomename="$(basename "$row")"
-  genomename="$(strip_ext "$fullgenomename")"
+if [ "$Performreferencegenotypingonly" = 'yes' ]; then
+
+    dummy_genotypes_tsv="dummy_genotypes.tsv"
+
+    awk 'BEGIN{FS=OFS="\t"}
+         NR==1 {
+             print "Name","REF","ALT","dummy1","dummy2"
+             next
+         }
+         {
+             marker=$1
+             refalt=$4
+             gsub(/\[/, "", refalt)
+             gsub(/\]/, "", refalt)
+             split(refalt, a, "/")
+             print marker, a[1], a[2], 0, 1
+         }' "$target" > "$dummy_genotypes_tsv"
+
+
+Genotypesfile="$dummy_genotypes_tsv"
+isvcf=false
+issnp=true
+isdart=false
+
+
+
+fi
+
+
+ 
+
+
+
+while read -r genomepath chromchrom accession || [[ -n "${genomepath:-}" ]]; do
+    # skip blanks and comments
+    [[ -z "${genomepath// }" ]] && continue
+    [[ "${genomepath:0:1}" == "#" ]] && continue
+
+    fullgenomename="$(basename "$genomepath")"
+    genomename="$(strip_ext "$fullgenomename")"
 
   # the CSV produced by Brioche for this genome
   csv_src="$(find "${outputmasterfolder}/intermediate_brioche/${genomename}_insilico" \
@@ -220,6 +267,7 @@ while IFS= read -r row || [[ -n "${row:-}" ]]; do
   priorsfiles+=("$dst2")
   dupsfiles+=("$dst3")
   anchor_genomes+=("$genomename")
+  anchor_accessions+=("$accession")
 done < "$genomelist"
 
 if (( ${#anchorfiles[@]} == 0 )); then
@@ -267,6 +315,7 @@ for ((i=0; i<${#anchorfiles[@]}; i++)); do
   genomename="${anchor_genomes[$i]}"
   priorsfile="${priorsfiles[$i]}"
   dupfile="${dupsfiles[$i]}"
+  accession="${anchor_accessions[$i]}"
   ord=$(printf '%04d' $((i+1)))
   out_vcf="${outputmasterfolder}/anchoring/Building_insilico_${ord}_${genomename}.vcf"
 
@@ -282,6 +331,7 @@ for ((i=0; i<${#anchorfiles[@]}; i++)); do
       --isDArTfile "$isdart" \
       --Outputfilename "$out_vcf" \
       --genomename "$genomename" \
+      --Accession "$accession" \
       --mappriors "$priorsfile" 
 
     outvcfbasename="$(basename "$out_vcf")"
@@ -308,6 +358,7 @@ for ((i=0; i<${#anchorfiles[@]}; i++)); do
       --isDArTfile false \
       --Outputfilename "$out_vcf" \
       --genomename "$genomename" \
+      --Accession "$accession" \
       --mappriors "$priorsfile" \
       --droplist ""
 
@@ -341,10 +392,8 @@ echo "[INFO] Brioche on final reference: $finalgenomename"
       --resultsdir "${final_outdir}/" \
       --workdir "${final_outdir}" \
       --markercharacter "D" \
-      --coverage 80 \
-      --pident 95 \
-      --maximumhits 10 \
       --mode prod \
+      --chromchrommatch "$finalgenomechromchrommatch" \
       --keepduplicates false
 
 mapfile -t finalmappings < <(
@@ -404,29 +453,87 @@ Rscript "$ANCHOR_SCRIPT" \
 
 
 
+awk '
+BEGIN { OFS="\t"; unk=1 }
+/^##/ { print; next }
+/^#CHROM/ { print; next }
+{
+    if ($1 ~ /chrUnk/) {
+        $2 = unk++
+    }
+    print
+}
+' "$final_vcfseqs" > VCFseqs_addedpos.vcf
+
+
+awk '
+BEGIN { OFS="\t"; unk=1 }
+/^##/ { print; next }
+/^#CHROM/ { print; next }
+{
+    if ($1 ~ /chrUnk/) {
+        $2 = unk++
+    }
+    print
+}
+' "$final_vcfrefs" > VCFrefs_addedpos.vcf
+
+
+
 bcftools query -l "$final_vcfseqs" | sort -u > vcf_seq_samplenames.samples.txt
 bcftools query -l "$final_vcfrefs" | sort -u > vcf_ref_samplenames.samples.txt
 comm -12 vcf_seq_samplenames.samples.txt vcf_ref_samplenames.samples.txt > dup.samples.txt           # overlap
 comm -23 vcf_ref_samplenames.samples.txt dup.samples.txt > vcf_ref_samplenames.keep.samples.txt      # unique-to-vcf2
 
 # Keep samples from vcf_ref_samplenames.keep.samples.txt while dropping any other in vcf_ref_samplenames.samples.txt
-bcftools view -S vcf_ref_samplenames.keep.samples.txt  -Oz -o vcf2.nodupSamples.vcf.gz "$final_vcfrefs"
+bcftools view -S vcf_ref_samplenames.keep.samples.txt  -Oz -o vcf2.nodupSamples.vcf.gz VCFrefs_addedpos.vcf
 
 bcftools sort -O v -o vcf2.nodupSamples_srt.vcf.gz vcf2.nodupSamples.vcf.gz
-bcftools sort -O v -o vcfseqs_srt.vcf "$final_vcfseqs"
+bcftools sort -O v -o vcfseqs_srt.vcf "VCFseqs_addedpos.vcf"
 bcftools index -c vcf2.nodupSamples_srt.vcf.gz
 
 bgzip vcfseqs_srt.vcf
 bcftools index -c vcfseqs_srt.vcf.gz
 
 # Merge samples across identical sites
-bcftools merge -m none -Ov -o "$final_vcf".gz vcfseqs_srt.vcf.gz vcf2.nodupSamples_srt.vcf.gz
+bcftools merge -m none -Ov -o "$final_vcf"_prename.vcf vcfseqs_srt.vcf.gz vcf2.nodupSamples_srt.vcf.gz
+
+
+#gunzip "$final_vcf"_prename.vcf
+
+awk '
+BEGIN { OFS="\t" }
+/^##/ { print; next }
+/^#CHROM/ { print; next }
+{
+    if ($1 ~ /chrUnk/) {
+        $2 = 0
+    }
+    print
+}
+' "$final_vcf"_prename.vcf > "$final_vcf"
+
+
+
+
+if [ "$Performreferencegenotypingonly" = 'yes' ]; then
+#weird spacing issues, two approaches to fix. first sed remove 
+# second, force samples and provide sample with space name to
+sed -i 's/\r//' "$final_vcf"
+
+bgzip "$final_vcf"
+
+bcftools index -c "$final_vcf".gz
+
+bcftools view -s "^dummy1,dummy2,dummy2 ," "$final_vcf".gz -Ov -o nodummies.vcf.gz --force-samples
+
+mv nodummies.vcf.gz "$final_vcf".gz
 
 gunzip "$final_vcf".gz
 
-# Remove excess files 
+fi
 
-rm vcf_seq_samplenames.samples.txt vcf_ref_samplenames.samples.txt dup.samples.txt vcf_ref_samplenames.keep.samples.txt vcf2.nodupSamples.vcf.gz vcf2.nodupSamples_srt.vcf.gz vcfseqs_srt.vcf.gz vcfseqs_srt.vcf.gz.csi vcf2.nodupSamples_srt.vcf.gz.csi
+
 
 echo "[DONE] Final VCF: $final_vcf"
 
@@ -648,6 +755,26 @@ bcftools sort -O v -o "${outputmasterfolder}/final/anchored_results/${final_vcfb
   awk '
     /^#/ { print; next }
     /MAPSTATUS=Failed_to_map_uniquely/ { print }
-  ' "$final_vcfrefs" > "${outputmasterfolder}/final/anchored_results/${final_vcfbasename}_failedtomap.vcf"
+  ' "$final_vcf" > "${outputmasterfolder}/final/anchored_results/${final_vcfbasename}_failedtomap.vcf"
   cut -f 3 "${outputmasterfolder}/final/anchored_results/${final_vcfbasename}_failedtomap.vcf" > "${outputmasterfolder}/final/anchored_results/unmapped_markers.tsv"
+  awk '
+    /^#/ { print; next }
+    !/MAPSTATUS=Failed_to_map_uniquely/ { print }
+  ' "${outputmasterfolder}/final/anchored_results/${final_vcfbasename}_sorted.vcf" > "${outputmasterfolder}/final/anchored_results/${final_vcfbasename}_sorted_uniquelymappedmarkers.vcf"
 
+# Finally, go back and change vcfrefs to remove initial samples so it is just a refs vcf (only required if Performreferencegenotypingonly is no as the yes would already trigger above.
+if [ "$Performreferencegenotypingonly" = 'no' ]; then
+
+mv vcf2.nodupSamples.vcf.gz "$final_vcfrefs".gz
+rm "$final_vcfrefs"
+gunzip "$final_vcfrefs".gz
+
+fi
+
+rm vcf_seq_samplenames.samples.txt vcf_ref_samplenames.samples.txt dup.samples.txt vcf_ref_samplenames.keep.samples.txt vcf2.nodupSamples_srt.vcf.gz vcfseqs_srt.vcf.gz vcfseqs_srt.vcf.gz.csi vcf2.nodupSamples_srt.vcf.gz.csi "$final_vcf"_prename VCFrefs_addedpos.vcf VCFseqs_addedpos.vcf "$final_vcf".gz.csi
+
+if [ "$Performreferencegenotypingonly" = 'yes' ]; then
+
+rm vcf2.nodupSamples.vcf.gz
+
+fi
