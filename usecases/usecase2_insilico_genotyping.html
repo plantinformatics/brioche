@@ -42,23 +42,33 @@
 <h2>Requirements<a class="headerlink" href="#requirements" title="Link to this heading">¶</a></h2>
 <ol class="arabic">
 <li><p>Brioche targets file</p></li>
-<li><p>The genotype data file you have is in one of the following three forms:</p>
+<li><p>Either:</p>
 <ol class="loweralpha">
-<li><p>Raw genotypes in the format below (tab-separated). <code class="docutils literal notranslate"><span class="pre">REF</span></code>/<code class="docutils literal notranslate"><span class="pre">ALT</span></code> are defined as ACGT/ACGT, samples are columns, markers are rows, genotypes are coded as <code class="docutils literal notranslate"><span class="pre">0</span></code>, <code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">2</span></code>, <code class="docutils literal notranslate"><span class="pre">NC</span></code> as missing data, and <code class="docutils literal notranslate"><span class="pre">N</span></code> as null alleles.</p>
+<li><p>The genotype data file you have is in one of the following three forms:</p>
+<ol class="lowerroman simple">
+<li><p>Raw genotypes in the format below (tab-separated). <code class="docutils literal notranslate"><span class="pre">REF</span></code>/<code class="docutils literal notranslate"><span class="pre">ALT</span></code> are defined as ACGT/ACGT, samples are columns, markers are rows, genotypes are coded as <code class="docutils literal notranslate"><span class="pre">0</span></code>, <code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">2</span></code>, <code class="docutils literal notranslate"><span class="pre">NC</span></code> as missing data, and <code class="docutils literal notranslate"><span class="pre">N</span></code> as null alleles.</p></li>
+</ol>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Name    REF  ALT  Sample1  Sample2  etc
 Marker1 T    C    2        1
 Marker2 T    G    0        N
 Marker3 A    C    NC       1
 </pre></div>
 </div>
-</li>
+<ol class="lowerroman simple" start="2">
 <li><p>A VCF file (any VCF-compatible format).</p></li>
 <li><p>A DArTseq report (1-row format).</p></li>
 </ol>
 </li>
+<li><p>If you just want to generate insilico genotypes without samples, set the following variable (line ~69 of <code class="docutils literal notranslate"><span class="pre">Additional_functions/Run_insilico_add.sh</span></code> ) Performreferencegenotypingonly=”yes”</p></li>
+</ol>
+</li>
 <li><p>Reference genome FASTA</p></li>
 <li><p>An updated <code class="docutils literal notranslate"><span class="pre">params.config</span></code> file ready to run Brioche</p></li>
-<li><p>A list of full paths/filenames to reference genomes to in silico genotype (see <code class="docutils literal notranslate"><span class="pre">example_files/genomes_insilico.txt</span></code>)</p></li>
+</ol>
+<p>5. A list of full paths/filenames to reference genomes to in silico genotype (see <code class="docutils literal notranslate"><span class="pre">example_files/genomes_insilico.txt</span></code>) This needs to be in the
+file format genomepath chromosomematching file and the genome NCBI refseq accession number (GCF_XYX or if none is available leave as “” as the value will be ignored by Brioche if not a valid REFseq code) ) separated by single spaces. The chromosomematching file can be provided for each reference genome so that a target chrom matching file can be used. If not
+needed, provide a link to either a single file, or the example file (see `` example_files/Chromesome-chromosome_mappings.csv``) or a pathway to an empty file with the same headers in the example file</p>
+<ol class="arabic simple" start="6">
 <li><p>Installation of Nextflow, conda, git, and R</p></li>
 </ol>
 </section>
@@ -72,9 +82,9 @@ Additional instructions are provided in the script but the main components to ch
 <ol class="loweralpha simple">
 <li><p>Brioche settings (lines 33-58, 7 settings). These settings require the user to update the paths to where Brioche was downloaded and where the targets file is located.</p></li>
 <li><p>Output folder name (line 62, 1 setting). This setting describes where all in silico results should be saved.</p></li>
-<li><p>Anchoring settings (lines 66-82, 6 settings). These settings point to the anchoring script and define the initial genotype format (e.g., <code class="docutils literal notranslate"><span class="pre">isvcf</span></code> or <code class="docutils literal notranslate"><span class="pre">isdart</span></code> or <code class="docutils literal notranslate"><span class="pre">issnp</span></code>).</p></li>
-<li><p>Final Brioche settings (lines 84-95, 4 settings). These settings specify the final reference genome and what final VCF the genotypes will be anchored against.</p></li>
-<li><p>Update the method for calling the required software (Nextflow, conda, git, and R) (lines 97-105). These are currently written as <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">load</span></code> statements.</p></li>
+<li><p>Anchoring settings (lines 66-84, 7 settings). These settings point to the anchoring script and define the initial genotype format (e.g., <code class="docutils literal notranslate"><span class="pre">isvcf</span></code> or <code class="docutils literal notranslate"><span class="pre">isdart</span></code> or <code class="docutils literal notranslate"><span class="pre">issnp</span></code>).</p></li>
+<li><p>Final Brioche settings (lines 86-97, 4 settings). These settings specify the final reference genome and what final VCF the genotypes will be anchored against.</p></li>
+<li><p>Update the method for calling the required software (Nextflow, conda, git, and R) (lines 99-107). These are currently written as <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">load</span></code> statements.</p></li>
 </ol>
 </li>
 </ol>
