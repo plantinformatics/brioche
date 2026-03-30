@@ -16,7 +16,7 @@ Requirements
 
    a) The genotype data file you have is in one of the following three forms:
 
-      i) Raw genotypes in the format below (tab-separated). ``REF``/``ALT`` are defined as ACGT/ACGT, samples are columns, markers are rows, genotypes are coded as ``0``, ``1``, ``2``, ``NC`` as missing data, and ``N`` as null alleles.
+      i. Raw genotypes in the format below (tab-separated). ``REF``/``ALT`` are defined as ACGT/ACGT, samples are columns, markers are rows, genotypes are coded as ``0``, ``1``, ``2``, ``NC`` as missing data, and ``N`` as null alleles.
 
       .. code-block:: text
 
@@ -25,9 +25,9 @@ Requirements
          Marker2 T    G    0        N
          Marker3 A    C    NC       1
 
-      ii) A VCF file (any VCF-compatible format).
+      ii. A VCF file (any VCF-compatible format).
 
-      iii) A DArTseq report (1-row format).
+      iii. A DArTseq report (1-row format).
 
    b) If you just want to generate insilico genotypes without samples, set the following variable (line ~69 of ``Additional_functions/Run_insilico_add.sh`` ) Performreferencegenotypingonly="yes"
 
