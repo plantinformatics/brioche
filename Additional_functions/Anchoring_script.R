@@ -880,51 +880,62 @@ build_contig_lines <- function(ids, meta, override_species = NULL) {
 
 read_genotypes_auto <- function(path) {
 
-  # Open connection (gz or plain text)
-  con <- if (grepl("\\.gz$", path)) {
-    gzfile(path, open = "rt")
-  } else {
-    file(path, open = "rt")
-  }
-  on.exit(close(con), add = TRUE)
-
-  # Read first non-empty line for delimiter inference
-  first_line <- ""
-  while (first_line == "") {
-    first_line <- readLines(con, n = 1)
-    if (length(first_line) == 0) {
-      stop("Input file appears to be empty: ", path)
+  # Helper to open either gzipped or plain-text file
+  open_connection <- function(path) {
+    if (grepl("\\.gz$", path, ignore.case = TRUE)) {
+      gzfile(path, open = "rt")
+    } else {
+      file(path, open = "rt")
     }
   }
 
-  # Reset connection after peeking
-  seek(con, 0)
+  # -----------------------------
+  # Step 1: Peek first non-empty line
+  # -----------------------------
+  con_peek <- open_connection(path)
 
-  # Only allow tab or whitespace
-  candidates <- list(
-    tab = "\t",
-    whitespace = ""
-  )
+  first_line <- ""
+  repeat {
+    line <- readLines(con_peek, n = 1, warn = FALSE)
 
-  # Count fields per delimiter
-  field_counts <- sapply(candidates, function(sep) {
-    length(strsplit(first_line, sep, perl = TRUE)[[1]])
-  })
+    if (length(line) == 0) {
+      close(con_peek)
+      stop("Input file appears to be empty: ", path)
+    }
 
-  sep <- candidates[[which.max(field_counts)]]
+    if (nzchar(trimws(line))) {
+      first_line <- line
+      break
+    }
+  }
 
-  # Sanity check
-  if (max(field_counts) < 2) {
+  close(con_peek)
+
+  # -----------------------------
+  # Step 2: Infer delimiter
+  # -----------------------------
+  if (grepl("\t", first_line)) {
+    sep <- "\t"
+    delim_name <- "TAB"
+  } else if (grepl("\\s+", first_line)) {
+    sep <- ""
+    delim_name <- "WHITESPACE"
+  } else {
     stop(
       "Unable to infer delimiter (expected tab or whitespace) for file: ", path,
       "\nHeader line: ", first_line
     )
   }
 
-  # Read data
+  # -----------------------------
+  # Step 3: Reopen and read data
+  # -----------------------------
+  con_read <- open_connection(path)
+  on.exit(try(close(con_read), silent = TRUE), add = FALSE)
+
   dat <- tryCatch(
     read.table(
-      con,
+      con_read,
       header = TRUE,
       sep = sep,
       check.names = FALSE,
@@ -935,8 +946,7 @@ read_genotypes_auto <- function(path) {
     error = function(e) {
       stop(
         "Failed to parse genotype file: ", path,
-        "\nInferred delimiter: ",
-        ifelse(sep == "\t", "TAB", "WHITESPACE"),
+        "\nInferred delimiter: ", delim_name,
         "\nOriginal error: ", e$message
       )
     }
@@ -944,6 +954,7 @@ read_genotypes_auto <- function(path) {
 
   return(dat)
 }
+
 
 
 # If raw genotypes input is not a vcf file
