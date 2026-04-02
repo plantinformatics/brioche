@@ -33,6 +33,15 @@
 #       
 
 
+
+conda_lib <- Sys.getenv("CONDA_PREFIX")
+if (nzchar(conda_lib)) {
+  conda_r_lib <- file.path(conda_lib, "lib", "R", "library")
+  .libPaths(c(conda_r_lib, .libPaths()))
+}
+
+
+
 # install packages if they are missing
 if (!requireNamespace("dplyr", quietly = TRUE)) {
   suppressWarnings(suppressMessages(install.packages("dplyr", repos = "https://cloud.r-project.org", quiet = TRUE)))
