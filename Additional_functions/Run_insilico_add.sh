@@ -42,7 +42,7 @@ projectpath=/filepath/brioche/
 # Shortname of targets file and its function e.g., is it the targets of a SNPchip, WGS etc
 chipname="probename"
 
-# list of the absolute path to genomes to apply insilico as a single column txt file to e.g., /path/genome1.fasta  (can be gz or not) 
+# list of the absolute path to genomes to apply insilico as a three column txt (whitespace delimited) file to e.g., /path/genome1.fasta First column is genome path and name, second is a chromchrom matching file if needed because of a provided targets chromosome file, and third column is the Accession of that genome if avaliable
 genomelist="/filepath/genomes_insilico.txt"
 
 # Path to main.nf in Brioche folder (points to main.nf located in the landing folder of the brioche git 
@@ -146,7 +146,6 @@ strip_ext() {
 ########################### Create folders ###############
 
 mkdir -p "${outputmasterfolder}"/{intermediate_brioche,anchoring,final/brioche,final/anchored_results}
-
 
 
 #################### Step 1 brioche mapping per reference genome #######################

@@ -82,7 +82,6 @@ suppressPackageStartupMessages({
   library(getopt)
   library(dplyr)
   library(stringr)
-  library(vcfR)
   library(rentrez)
   library(readr)
   # DO NOT: library(data.table)

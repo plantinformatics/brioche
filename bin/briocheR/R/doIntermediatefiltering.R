@@ -353,17 +353,37 @@ DoIntermediatefiltering <-
     if(dotargetfilt=="Yes") { 
       
       # Read in Chromosome comparison file
-      chromcomparisontable <- read.table(chrom.comp,header=TRUE,sep=",")
+
+      chromcomparisontable <- read.table(chrom.comp, header = TRUE, sep = ",")
+
       # Remove excess empty rows
-      chromcomparisontable[chromcomparisontable == ""] <- NA               # treat "" as missing (character cols)
-      chromcomparisontable <- chromcomparisontable[rowSums(is.na(chromcomparisontable)) != ncol(chromcomparisontable), ]
-      
-      # Read in list of markers with a known chromosome to preference. 
-      knowntargetchroms <- read.table(target.data,header=TRUE,sep=",")
-      # Remove excess empty rows
-      knowntargetchroms[knowntargetchroms == ""] <- NA               # treat "" as missing (character cols)
-      knowntargetchroms <- knowntargetchroms[rowSums(is.na(knowntargetchroms)) != ncol(knowntargetchroms), ]
-      #convert old chrom to new chrom data for knowntargetchroms
+      chromcomparisontable[chromcomparisontable == ""] <- NA
+      chromcomparisontable <- chromcomparisontable[
+        rowSums(is.na(chromcomparisontable)) != ncol(chromcomparisontable),
+      ]
+
+
+      cn <- colnames(chromcomparisontable)
+
+
+      orig_idx <- grep("original", cn, ignore.case = TRUE)
+      new_idx  <- grep("new", cn, ignore.case = TRUE)
+
+
+      if (length(orig_idx) == 0 || length(new_idx) == 0) {
+        orig_idx <- 1
+        new_idx  <- 2
+      }
+
+      orig_idx <- orig_idx[1]
+      new_idx  <- new_idx[1]
+
+
+      cn[orig_idx] <- "Original_reference_chromsome"
+      cn[new_idx]  <- "New_reference_chromosome"
+      colnames(chromcomparisontable) <- cn
+
+
       lkp <- setNames(chromcomparisontable$New_reference_chromosome,
                       chromcomparisontable$Original_reference_chromsome)
       
@@ -704,8 +724,35 @@ if (dogeneticmap == "Yes") {
   chosen_chr_oldref <- chr_mat[cbind(seq_len(nrow(chr_mat)), best_ix)]
 
   # 3) Map old->new chromosomes via chrom.comp (CSV with commas, header)
-  chromcomparisontable <- read.table(chrom.comp, sep = ",", header = TRUE,
-                                     stringsAsFactors = FALSE, check.names = FALSE)
+
+
+      chromcomparisontable <- read.table(chrom.comp, header = TRUE, sep = ",")
+
+      # Remove excess empty rows
+      chromcomparisontable[chromcomparisontable == ""] <- NA
+      chromcomparisontable <- chromcomparisontable[
+        rowSums(is.na(chromcomparisontable)) != ncol(chromcomparisontable),
+      ]
+
+      cn <- colnames(chromcomparisontable)
+
+
+      orig_idx <- grep("original", cn, ignore.case = TRUE)
+      new_idx  <- grep("new", cn, ignore.case = TRUE)
+
+      if (length(orig_idx) == 0 || length(new_idx) == 0) {
+        orig_idx <- 1
+        new_idx  <- 2
+      }
+
+      # If multiple hits, take the first match
+      orig_idx <- orig_idx[1]
+      new_idx  <- new_idx[1]
+
+      cn[orig_idx] <- "Original_reference_chromsome"
+      cn[new_idx]  <- "New_reference_chromosome"
+      colnames(chromcomparisontable) <- cn
+
   lkp <- setNames(chromcomparisontable$New_reference_chromosome,
                   chromcomparisontable$Original_reference_chromsome)
   chosen_chr_newref <- unname(lkp[chosen_chr_oldref])
