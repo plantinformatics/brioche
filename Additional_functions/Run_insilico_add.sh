@@ -151,12 +151,12 @@ mkdir -p "${outputmasterfolder}"/{intermediate_brioche,anchoring,final/brioche,f
 
 #################### Step 1 brioche mapping per reference genome #######################
 
-  while IFS= read -r row || [[ -n "${row:-}" ]]; do
+  while read -r genomepath chromchrom accession || [[ -n "${genomepath:-}" ]]; do
     # skip blanks and comments
-    [[ -z "${row// }" ]] && continue
-    [[ "${row:0:1}" == "#" ]] && continue
+    [[ -z "${genomepath// }" ]] && continue
+    [[ "${genomepath:0:1}" == "#" ]] && continue
 
-    fullgenomename="$(basename "$row")"
+    fullgenomename="$(basename "$genomepath")"
     genomename="$(strip_ext "$fullgenomename")"
 
     outdir="${outputmasterfolder}/intermediate_brioche/${genomename}_insilico"
@@ -167,7 +167,7 @@ mkdir -p "${outputmasterfolder}"/{intermediate_brioche,anchoring,final/brioche,f
     echo "[INFO] Brioche: ${genomename}"
     nextflow run "$nextflowpath" -profile slurm \
       --emailaddress "$emailaddress" \
-      --genomefasta "$row" \
+      --genomefasta "$genomepath" \
       --genomename "$genomename" \
       --probename "$chipname" \
       --targetdesign "$target" \
@@ -176,12 +176,11 @@ mkdir -p "${outputmasterfolder}"/{intermediate_brioche,anchoring,final/brioche,f
       --resultsdir "${outdir}/" \
       --workdir "${outdir}" \
       --markercharacter "D" \
-      --maximumhits 10 \
+      --chromchrommatch "$chromchrom" \
       --mode prod \
       --keepduplicates false
 
   done < "$genomelist"
-
 
 
 
