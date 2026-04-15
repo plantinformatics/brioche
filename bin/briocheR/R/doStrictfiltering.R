@@ -334,6 +334,13 @@ DoStrictfiltering <-
       cn[new_idx]  <- "New_reference_chromosome"
       colnames(chromcomparisontable) <- cn
 
+
+      knowntargetchroms <- read.table(target.data,header=TRUE,sep=",")
+      # Remove excess empty rows
+      knowntargetchroms[knowntargetchroms == ""] <- NA               # treat "" as missing (character cols)
+      knowntargetchroms <- knowntargetchroms[rowSums(is.na(knowntargetchroms)) != ncol(knowntargetchroms), ]
+
+
       #convert old chrom to new chrom data for knowntargetchroms
       lkp <- setNames(chromcomparisontable$New_reference_chromosome,
                       chromcomparisontable$Original_reference_chromsome)

@@ -387,6 +387,12 @@ DoIntermediatefiltering <-
       lkp <- setNames(chromcomparisontable$New_reference_chromosome,
                       chromcomparisontable$Original_reference_chromsome)
       
+      knowntargetchroms <- read.table(target.data,header=TRUE,sep=",")
+      # Remove excess empty rows
+      knowntargetchroms[knowntargetchroms == ""] <- NA               # treat "" as missing (character cols)
+      knowntargetchroms <- knowntargetchroms[rowSums(is.na(knowntargetchroms)) != ncol(knowntargetchroms), ]
+
+
       # map; unmatched stay NA
       knowntargetchroms$newChrom <- unname(lkp[knowntargetchroms$Chrom])
 
