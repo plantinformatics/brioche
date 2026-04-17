@@ -816,7 +816,7 @@ process ADVANCED_FILTERING {
         val  ldmapp
         val  usegeneticmap
         val  geneticmap
-
+        val dupdist
     output:
         tuple path("${strictmappedcsv}"),
               path("${strictmappedctsv}"),
@@ -845,7 +845,8 @@ process ADVANCED_FILTERING {
             mappings.file='${intermediatefilteredmap}',
             dogeneticmap='${usegeneticmap}',
             geneticmap.file='${geneticmap}',
-            dupmapinter.file='${dupmapinter}')"
+            dupmapinter.file='${dupmapinter}',
+            dup.dist='${dupdist}')"
     #mv "name of intermediate mapping blasts" filteredmappretzelcsv 
     #mv "name of intermediate mapping maps" intermediatefilteredmap
     #Generate pretzel files

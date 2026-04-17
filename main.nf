@@ -291,6 +291,7 @@ workflow {
             params.ldedgemap,
             params.usegeneticmap,
             params.geneticmap,
+            params.localdupdist
           )
           ADVANCED_FILTERING.out.map{ it -> it[0] }.set { strictmappedcsv }
           ADVANCED_FILTERING.out.map{ it -> it[1] }.set { strictmappedtsv }

@@ -223,6 +223,7 @@ sanitize_rectangular <- function(x) {
 #' @param dogeneticmap whether to use genetic mapping prior
 #' @param geneticmap.file CSV path to genetic mapping prior (MarkerName, Chromosomes_mapped, etc)
 #' @param dupmapinter.file file tracking the presence of local duplications of markers in each genome. multi column header tsv
+#' @param dup.dist Variable for local duplication distance threshold
 #' @keywords genome, filter blast strict
 #' @export
 #'
@@ -243,7 +244,8 @@ DoStrictfiltering <-
            mappings.file,
            dogeneticmap,
            geneticmap.file,
-           dupmapinter.file)
+           dupmapinter.file,
+           dup.dist)
   {    
     # Remember that the header Lines will be stored as an attribute for reattaching later
     blast.out <- read_mixed_csv_base(blast.hits)
@@ -907,17 +909,36 @@ DoStrictfiltering <-
     blast_unique <- blast.out |>
       dplyr::filter((Alternate_SNP_ID %in% keep_namescombined))
     
-    # Add in markers which were assigned as keep duplicates.
-    missing_q <- setdiff(
-      unique(
-        dplyr::pull(
-          dplyr::filter(dupmapinter.in, keep == "yes"),
-          qaccver
-        )
-      ),
-      unique(blast_unique$qaccver)
+dup.dist <- as.numeric(dup.dist)
+
+# Initial missing_q calculation (unchanged)
+missing_q <- setdiff(
+  unique(
+    dplyr::pull(
+      dplyr::filter(dupmapinter.in, keep == "yes"),
+      qaccver
     )
-    
+  ),
+  unique(blast_unique$qaccver)
+)
+
+# Refine missing_q based on sstart distances in blast.out
+missing_q <- missing_q[
+  sapply(missing_q, function(q) {
+
+    hits <- blast.out %>%
+      filter(qaccver == q) %>%
+      pull(sstart)
+
+    # If there are no hits, be conservative and drop
+    if (length(hits) == 0) {
+      return(FALSE)
+    }
+
+    # Check whether all hits are within dup.dist
+    (max(hits) - min(hits)) <= dup.dist
+  })
+]    
     
     locdups <- subset(dupmapinter.in, !is.na(copy_number) & copy_number > 1)
     
@@ -943,8 +964,10 @@ DoStrictfiltering <-
     # Final dataframe pt 1
     blast_unique1 <- dplyr::bind_rows(blast_unique, extra_rows)
     
-    strictmarkernames$Duplicate_region<- ifelse(
-      strictmarkernames$qaccver %in% locdups$qaccver,
+
+    strictmarkernames$Duplicate_region <- ifelse(
+      strictmarkernames$qaccver %in%
+        intersect(locdups$qaccver, blast_unique1$qaccver),
       "True",
       NA_character_
     )
@@ -1014,9 +1037,10 @@ DoStrictfiltering <-
     )
     
     # Removing now defunct markers from the priors informed file 
+
     strictmarkernames_filtered <- dplyr::filter(
       strictmarkernames,
-      is.na(qaccver) | !(qaccver %in% removed_qaccver)
+      is.na(qaccver) | qaccver %in% blast_unique_filtered$qaccver
     )
     
   # saving updated objects to original name so that they work for next steps 
@@ -1061,5 +1085,5 @@ DoStrictfiltering <-
     
     
     cat("\nNumber of rows in final filtering results blast table:", nrow(blast_unique_clean), "\n")
-    
-  }
+}
+

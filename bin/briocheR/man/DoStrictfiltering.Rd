@@ -19,7 +19,8 @@ DoStrictfiltering(
   mappings.file,
   dogeneticmap,
   geneticmap.file,
-  dupmapinter.file
+  dupmapinter.file,
+  dup.dist
 )
 }
 \arguments{
@@ -52,6 +53,8 @@ DoStrictfiltering(
 \item{geneticmap.file}{CSV path to genetic mapping prior (MarkerName, Chromosomes_mapped, etc)}
 
 \item{dupmapinter.file}{file tracking the presence of local duplications of markers in each genome. multi column header tsv}
+
+\item{dup.dist}{Variable for local duplication distance threshold}
 }
 \value{
 Returns an object which has been filtered using given priors to remove/keep a maximum of 1 hit (the best) per marker
