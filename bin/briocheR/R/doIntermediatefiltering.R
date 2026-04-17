@@ -970,7 +970,7 @@ duplications <- dplyr::select(
 if (keeplocalduppos == "yes") {
   duplications$keep <- ifelse(
     !is.na(duplications$copy_number) &
-      duplications$copy_number > 0 &
+      duplications$copy_number > 1 &
       duplications$consensusbase == "true",
     "yes",
     "no"
