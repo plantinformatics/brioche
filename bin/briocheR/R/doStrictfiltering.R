@@ -923,22 +923,24 @@ missing_q <- setdiff(
 )
 
 # Refine missing_q based on sstart distances in blast.out
-missing_q <- missing_q[
-  sapply(missing_q, function(q) {
 
-    hits <- blast.out %>%
-      filter(qaccver == q) %>%
-      pull(sstart)
+  missing_q <- missing_q[
+    sapply(missing_q, function(q) {
 
-    # If there are no hits, be conservative and drop
-    if (length(hits) == 0) {
-      return(FALSE)
-    }
+      hits <- dplyr::pull(
+        dplyr::filter(blast.out, qaccver == q),
+        sstart
+      )
 
-    # Check whether all hits are within dup.dist
-    (max(hits) - min(hits)) <= dup.dist
-  })
-]    
+      # If there are no hits, be conservative and drop
+      if (length(hits) == 0) {
+        return(FALSE)
+      }
+
+      # Check whether all hits are within dup.dist
+      (max(hits) - min(hits)) <= dup.dist
+    })
+  ]
     
     locdups <- subset(dupmapinter.in, !is.na(copy_number) & copy_number > 1)
     
