@@ -75,6 +75,7 @@ Genotypesfile=""
 # Absolute path to anchor Anchoring script (R) and scondary bash script to add reference col
 ANCHOR_SCRIPT="/filepath/brioche/Additional_functions/Anchoring_script.R"
 ADD_REF_COL_SCRIPT="/filepath/brioche/Additional_functions/add_reference_sample_from_header.sh"
+STANDARDISE_CHRUNK_SCRIPT="/group/sequencing/assembly/James/Brioche_Barley_revised_localdups_2026_04_17/brioche/Additional_functions/transform_chrUnk_base_to_insilico.R"
 
 # Booleans for first anchoring stage (R script flags)
 # Use lowercase true/false strings
@@ -453,6 +454,16 @@ Rscript "$ANCHOR_SCRIPT" \
   --droplist ""
 
 
+# Need to bring the seqs up to the marker state of the insilico for chrUnk values. 
+#This will convert all ChrUnk biallelic where the marker was anchored not in the first or last genome but was at some point in the 
+#intermediate insilico genomes
+Rscript "$STANDARDISE_CHRUNK_SCRIPT" \
+  --insilico_vcf "$final_vcfrefs" \
+  --base_vcf "$final_vcfseqs" \
+  --Outputfilename "VCFseqs_transformed.vcf"
+
+
+
 
 awk '
 BEGIN { OFS="\t"; unk=1 }
@@ -464,7 +475,7 @@ BEGIN { OFS="\t"; unk=1 }
     }
     print
 }
-' "$final_vcfseqs" > VCFseqs_addedpos.vcf
+' "VCFseqs_transformed.vcf" > VCFseqs_addedpos.vcf
 
 
 awk '
@@ -772,7 +783,7 @@ gunzip "$final_vcfrefs".gz
 
 fi
 
-rm vcf_seq_samplenames.samples.txt vcf_ref_samplenames.samples.txt dup.samples.txt vcf_ref_samplenames.keep.samples.txt vcf2.nodupSamples_srt.vcf.gz vcfseqs_srt.vcf.gz vcfseqs_srt.vcf.gz.csi vcf2.nodupSamples_srt.vcf.gz.csi "$final_vcf"_prename VCFrefs_addedpos.vcf VCFseqs_addedpos.vcf "$final_vcf".gz.csi
+rm vcf_seq_samplenames.samples.txt vcf_ref_samplenames.samples.txt dup.samples.txt vcf_ref_samplenames.keep.samples.txt vcf2.nodupSamples_srt.vcf.gz vcfseqs_srt.vcf.gz vcfseqs_srt.vcf.gz.csi vcf2.nodupSamples_srt.vcf.gz.csi  VCFrefs_addedpos.vcf VCFseqs_addedpos.vcf VCFseqs_transformed.vcf "$final_vcf"_prename.vcf
 
 if [ "$Performreferencegenotypingonly" = 'yes' ]; then
 

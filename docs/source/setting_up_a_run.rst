@@ -175,7 +175,7 @@ Other specific goals and scenarios can be seen in the example of different useca
 - :doc:`Usecase2: In silico genotyping of reference genomes <usecases/usecase2_insilico_genotyping>`
 - :doc:`Usecase3: Testing redundancy/accuracy in marker datasets <usecases/usecase3_redundancy_accuracy>`
 - :doc:`Usecase5: Merge datasets <usecases/usecase4_merge_datasets>`
-
+- :doc:`Usecase5: Combining VCF files of different samples anchored against the same reference <usecases/usecase5_merging_multiple_brioche_built_vcfs>`
 
 
 Simple runs 

@@ -27,3 +27,4 @@ Landing page
    usecases/usecase2_insilico_genotyping
    usecases/usecase3_redundancy_accuracy
    usecases/usecase4_merge_datasets
+   usecases/usecase5_merging_multiple_brioche_built_vcfs
