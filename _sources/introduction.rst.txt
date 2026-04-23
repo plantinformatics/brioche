@@ -31,7 +31,7 @@ Key features:
 Key use cases:
 --------------
 
-Brioche is designed for five main usecases briefly highlighted below (see tabs for more indepth descriptions)
+Brioche is designed for six main usecases briefly highlighted below (see tabs for more indepth descriptions)
 
 *1*. Easy remapping of markers across any distinct reference genome and the reanchoring of genotypes to the new reference genome 
 :doc:`Usecase1: Remapping data across reference genomes <usecases/usecase1_remapping>`
@@ -51,6 +51,10 @@ Brioche is designed for five main usecases briefly highlighted below (see tabs f
 
 *5*. The mapping of multiple different datasets to a unified reference genome allowing for merging across shared loci and other downstream applications (e.g., imputations)
 :doc:`Usecase4: Merge datasets <usecases/usecase4_merge_datasets>`
+
+
+*6*. The merging of two VCF files mapped to the same reference genome and preserving the unique brioche chrUnk unmapped states Brioche uses to carry 
+:doc:`Usecase5: Combining VCF files of different samples anchored against the same reference <usecases/usecase5_merging_multiple_brioche_built_vcfs>`
 
 
 

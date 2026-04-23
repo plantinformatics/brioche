@@ -123,4 +123,8 @@ If you are interested in other usecases see.
 :doc:`Usecase4: Merge datasets <usecase4_merge_datasets>`
 
 
+6. If you are interested in merging two VCF files mapped to the same reference genome and preserving the unique brioche chrUnk unmapped states go to
+:doc:`Usecase5: Combining VCF files of different samples anchored against the same reference <usecase5_merging_multiple_brioche_built_vcfs>`
+
+
 otherwise, to return to the Introduction page go to :doc:`Introduction <../introduction>`

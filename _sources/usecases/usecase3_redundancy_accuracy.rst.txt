@@ -63,11 +63,17 @@ If you are interested in other usecases see.
 1. If you are interested in easy remapping of markers across any distinct reference genome and the reanchoring of genotypes to the new reference genome 
 :doc:`Usecase1: Remapping data across reference genomes <usecase1_remapping>`
 
+
 2. If you are interested in extracting genotype calls from one or multiple reference genomes and adding them to your population genomics study go to 
 :doc:`Usecase2: In silico genotyping of reference genomes <usecase2_insilico_genotyping>`
 
+
 5. If you are interested in the mapping of multiple different datasets to a unified reference genome allowing for merging across shared loci and other downstream applications (e.g., imputations)
 :doc:`Usecase4: Merge datasets <usecase4_merge_datasets>`
+
+
+6. If you are interested in merging two VCF files mapped to the same reference genome and preserving the unique brioche chrUnk unmapped states go to
+:doc:`Usecase5: Combining VCF files of different samples anchored against the same reference <usecase5_merging_multiple_brioche_built_vcfs>`
 
 
 otherwise, to return to the Introduction page go to :doc:`Introduction <../introduction>`

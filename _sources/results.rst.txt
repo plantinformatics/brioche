@@ -163,7 +163,6 @@ Brioche usecases
 Now that the basic results structure is understood, we can show how these results can be used to achieve any of the usescases described for brioche.
 
 
-
 1. If you are interested in producing a VCF file of your results mapped to the new reference genome with reanchored genotype calls go to
 :doc:`Usecase1: Remapping data across reference genomes <usecases/usecase1_remapping>`
 
@@ -184,8 +183,8 @@ Now that the basic results structure is understood, we can show how these result
 :doc:`Usecase4: Merge datasets <usecases/usecase4_merge_datasets>`
 
 
-
-
+6. If you are interested in merging two VCF files mapped to the same reference genome and preserving the unique brioche chrUnk unmapped states go to
+:doc:`Usecase5: Combining VCF files of different samples anchored against the same reference <usecases/usecase5_merging_multiple_brioche_built_vcfs>`
 
 
 Alternatively, to return to how to set up a run: go to :doc:`Setting up a run <setting_up_a_run>`
