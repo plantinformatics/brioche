@@ -93,7 +93,7 @@ finalgenomepath="/filepathgenome/"
 finalgenome="genome_1.fasta"
 finalgenomename="genome_1"
 finalgenomeACC="GCF_0000001234.1"
-
+finalgenomechromchrommatch=""
 
 
 ################### End final Brioche settings ###############
@@ -187,7 +187,7 @@ mkdir -p "${outputmasterfolder}"/{intermediate_brioche,anchoring,final/brioche,f
 ############################
 # 2 Collect mapping CSVs IN GENOME ORDER (from $genomelist)
 ############################
-echo "[INFO] Collecting mapping CSVs in genome-list order…"
+echo "[INFO] Collecting mapping CSVs in genome-list orderâ€¦"
 
 declare -a anchorfiles        # ordered CSV paths for anchoring
 declare -a anchor_genomes     # matching genomename per CSV
@@ -655,7 +655,7 @@ if [[ $used_user_map -eq 0 ]]; then
         next
       }
 
-      # Autosome-like: 0–999 + optional suffix letters ONLY
+      # Autosome-like: 0â€“999 + optional suffix letters ONLY
       if (s ~ /^0*[0-9]{1,3}[a-z]*$/) {
         tmp=s
         sub(/^0+/, "", tmp); if (tmp=="") tmp="0"
