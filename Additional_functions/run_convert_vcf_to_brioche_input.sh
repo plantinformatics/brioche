@@ -249,7 +249,7 @@ awk -v C="$CENTER" '{print C}' "$SEQ_D_TXT" > "$TARGET_BASE"
 # -------------------
 OUT_TSV="${OUTPUTDIR}/results/Brioche_inputfile.tsv"
 echo -e "ID\tSequence\tTarget.bp\tTarget.base" > "$OUT_TSV"
-paste "$IDS_TXT" "$SEQ_D_TXT" "$TARGET_BP" "$TARGET_BASE" >> "$OUT_TSV"
+paste "$IDS_TXT" "$SEQ_D_TXT" "$TARGET_BASE" "$TARGET_BP" >> "$OUT_TSV"
 
 echo "[OK] Wrote: $OUT_TSV"
 
