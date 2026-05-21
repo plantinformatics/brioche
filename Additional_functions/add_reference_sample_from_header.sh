@@ -16,11 +16,11 @@ set -euo pipefail
 #         * If DU present in FORMAT: set DU to (copy_number-1) when copy_number >=1; else '.'
 #       If DU is NOT present in FORMAT, we append ':DU' to FORMAT and add ':.' to ALL existing
 #       sample fields on the line so the row stays valid; then we set DU for the reference sample.
-#       Populating for the missing Genotype formats is probably excessive given this is an internal script though so will potentially strip down later.
 #
 
 infile="${1:-/dev/stdin}"
 tsv="${2:-/dev/null}"
+
 awk -v HAVE_TSV="$( [ -s "${tsv}" ] && echo 1 || echo 0 )" '
   BEGIN{
     FS = "\t"; OFS = "\t"
@@ -136,7 +136,7 @@ awk -v HAVE_TSV="$( [ -s "${tsv}" ] && echo 1 || echo 0 )" '
       next
     }
 
-    # Ensure DU tag exists if we have a TSV and wish to record copy_number
+    # Ensure DU tag exists
     has_DU = (fmt ~ /(^|:)DU($|:)/) ? 1 : 0
     if (!has_DU) {
       # Extend FORMAT and all existing sample columns with a placeholder for DU
@@ -153,12 +153,15 @@ awk -v HAVE_TSV="$( [ -s "${tsv}" ] && echo 1 || echo 0 )" '
 
     # Build the reference sample value
     sampleval = ""
+    gt_val = ""   # track GT for strict DU rule regardless of FORMAT order
+
     for (i=1; i<=nf; i++) {
       tag = F[i]
       v = "."
 
       if (tag == "GT") {
         v = (bad ? "./." : "0/0")
+        gt_val = v
       }
       else if (tag == "NU") {
         v = "0"
@@ -173,6 +176,12 @@ awk -v HAVE_TSV="$( [ -s "${tsv}" ] && echo 1 || echo 0 )" '
           if (cn ~ /^[0-9]+$/ && cn+0 >= 1) v = (cn-1)
           else v = "."
         } else v = "."
+
+        # Any situation where DU is "." should become 0 if GT is non-missing (GT != "./.") and row is not bad. This happens because of the interaction
+        # Between the tsv file and the final calls in the brioche pipeline itself when a marker is kept due to priors files exclusively so need to circumvent this edge case.
+        if (v == "." && !bad && gt_val != "" && gt_val != "./.") {
+          v = "0"
+        }
       }
       else if (bad) {
         v = "."
@@ -183,11 +192,10 @@ awk -v HAVE_TSV="$( [ -s "${tsv}" ] && echo 1 || echo 0 )" '
       else {
         v = "."
       }
-      # -----------------------------------------------
 
       sampleval = (i==1 ? v : sampleval ":" v)
     }
 
     print $0, sampleval
   }
-' "${tsv}" "${infile}" 
+' "${tsv}" "${infile}"

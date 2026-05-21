@@ -2606,21 +2606,24 @@ if (is_vcfraws) {
   chunk_size <- getOption("ANCHOR_VCF_CHUNK", 5000L)
 
   read_chunk_df <- function(n) {
-    lines <- readLines(con, n = n, warn = FALSE)
-    if (!length(lines)) return(NULL)
-    txt <- paste(lines, collapse = "\n")
-    utils::read.table(
-      text         = txt,
-      sep          = "\t",
-      header       = FALSE,
-      col.names    = colnames_vcf,
-      colClasses   = "character",
-      quote        = "",
-      comment.char = "",
-      stringsAsFactors = FALSE,
-      check.names  = FALSE,
-      fill         = TRUE
-    )
+  lines <- readLines(con, n = n, warn = FALSE)
+  if (!length(lines)) return(NULL)
+
+  tc <- textConnection(lines, open = "r", local = TRUE)
+  on.exit(close(tc), add = TRUE)
+
+  utils::read.table(
+    file         = tc,
+    sep          = "\t",
+    header       = FALSE,
+    col.names    = colnames_vcf,
+    colClasses   = "character",
+    quote        = "",
+    comment.char = "",
+    stringsAsFactors = FALSE,
+    check.names  = FALSE,
+    fill         = TRUE
+  )
   }
 
   repeat {
