@@ -2322,8 +2322,9 @@ if (!is_vcfraws & is_snpchip) {
     }
     AC_str  <- as.character(ac1)
     AF1     <- ifelse(an > 0L, ac1 / an, NA_real_)
-    MAF_str <- sprintf("%.6g", AF1)
-    INFO <- paste0(INFO, ";MAF=", MAF_str, ";AC=", AC_str, ";AN=", an)
+    MAF     <- ifelse(!is.na(AF1), pmin(AF1, 1 - AF1), NA_real_)
+    MAF_str <- sprintf("%.6g", MAF)
+    INFO    <- paste0(INFO, ";MAF=", MAF_str, ";AC=", AC_str, ";AN=", an)
 
     ## Write
     NU_chr <- matrix(as.character(NU), nrow = nrow(geno), ncol = ncol(geno)); NU_chr[is.na(NU_chr)] <- "0"
@@ -3275,8 +3276,9 @@ if (isDArTfile) {
     }
     AC_str  <- as.character(ac1)
     AF1     <- ifelse(an > 0L, ac1 / an, NA_real_)
-    MAF_str <- sprintf("%.6g", AF1)
-    INFO <- paste0(INFO, ";MAF=", MAF_str, ";AC=", AC_str, ";AN=", an)
+    MAF     <- ifelse(!is.na(AF1), pmin(AF1, 1 - AF1), NA_real_)
+    MAF_str <- sprintf("%.6g", MAF)
+    INFO    <- paste0(INFO, ";MAF=", MAF_str, ";AC=", AC_str, ";AN=", an)
 
     # STANDARDISED FORMAT: GT:NU:DU
     # DArT has no chip-derived null allele flag => NU=0 always; DU unknown => '.'
