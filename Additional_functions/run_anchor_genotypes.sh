@@ -17,7 +17,7 @@
 #SBATCH --cpus-per-task=2
 
 # The total amount of memory in megabytes in the job:
-#SBATCH --mem=60GB
+#SBATCH --mem=30GB
 
 # Send yourself an email when the job:
 # aborts abnormally (fails)
@@ -91,6 +91,23 @@ fi
 conda activate brioche-vcf
 export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
 echo $CONDA_DEFAULT_ENV
+
+
+file_path="$Rawgenotypesfile"
+# gzip check to then unzip. File needs to be uncompressed as R tries to stream in data
+if [[ "$file_path" == *.gz ]]; then
+
+    unzipped_file="${file_path%.gz}"
+    
+    # Unzip into that file
+    gzip -dc "$file_path" > "$unzipped_file"
+    
+    # Update variables to point to unzipped file
+    Rawgenotypesfile="$unzipped_file"
+    file_path="$unzipped_file"
+
+fi
+
 
 date
 

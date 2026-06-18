@@ -72,6 +72,7 @@ Performreferencegenotypingonly="yes"
 Genotypesfile=""
 
 
+
 # Absolute path to anchor Anchoring script (R) and scondary bash script to add reference col
 ANCHOR_SCRIPT="/filepath/brioche/Additional_functions/Anchoring_script.R"
 ADD_REF_COL_SCRIPT="/filepath/brioche/Additional_functions/add_reference_sample_from_header.sh"
@@ -280,7 +281,26 @@ echo "[INFO] Prepared ${#anchorfiles[@]} mapping files (order preserved)."
 #######################
 # 3) Iterative anchoring (preserve order)
 #######################
+
+# Precheck to make sure file is not gzip 
+
+file_path="$Genotypesfile"
+# gzip check to then unzip. File needs to be uncompressed as R tries to stream in data
+if [[ "$file_path" == *.gz ]]; then
+
+    unzipped_file="${file_path%.gz}"
+    
+    # Unzip into that file
+    gzip -dc "$file_path" > "$unzipped_file"
+    
+    # Update variables to point to unzipped file
+    Genotypesfile="$unzipped_file"
+
+fi
+
+
 prev_vcf="$Genotypesfile"
+
 
 
 ### In case first time running, a new conda environment for the R anchoring scripts is required. env yaml in same directory as this file
