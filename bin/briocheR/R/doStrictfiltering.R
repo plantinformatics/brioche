@@ -911,19 +911,25 @@ DoStrictfiltering <-
     
 dup.dist <- as.numeric(dup.dist)
 
-# Initial missing_q calculation (unchanged)
-missing_q <- setdiff(
-  unique(
-    dplyr::pull(
-      dplyr::filter(dupmapinter.in, keep == "yes"),
-      qaccver
-    )
-  ),
-  unique(blast_unique$qaccver)
-)
+# Revised dup interpreter so now if no markers are kept it won't error out (before it was trying to apply to an empty list causing error out in these curcumstances
+if (!any(dupmapinter.in$keep == "yes", na.rm = TRUE)) {
+  # No "yes" values ? no candidates
+  missing_q <- character(0)
 
-# Refine missing_q based on sstart distances in blast.out
+} else {
 
+  # Initial missing_q calculation
+  missing_q <- setdiff(
+    unique(
+      dplyr::pull(
+        dplyr::filter(dupmapinter.in, keep == "yes"),
+        qaccver
+      )
+    ),
+    unique(blast_unique$qaccver)
+  )
+
+  # Refine missing_q based on sstart distances in blast.out
   missing_q <- missing_q[
     sapply(missing_q, function(q) {
 
@@ -941,7 +947,7 @@ missing_q <- setdiff(
       (max(hits) - min(hits)) <= dup.dist
     })
   ]
-    
+}    
     locdups <- subset(dupmapinter.in, !is.na(copy_number) & copy_number > 1)
     
     extra_rows <- dplyr::select(
