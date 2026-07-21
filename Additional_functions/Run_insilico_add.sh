@@ -736,8 +736,10 @@ if [[ $used_user_map -eq 0 ]]; then
         t=norm(name)
 
         # Same unknown rule (broad)
-        if (t ~ /^(chr|chrom|chromosome)?_?(un|unk|unknown|na|nan|unplaced|unlocali[sz]ed|random)(_|$)/) {
+        if (t ~ /^(chr|chrom|chromosome)?_?(un|unknown|na|nan|unplaced|unlocali[sz]ed|random)(_|$)/) {
           print name, "Un"
+        } else if (t ~ /^(chr|chrom|chromosome)?_?(unk)(_|$)/) {
+          print name, "Unk"
         } else {
           i++
           print name, i
