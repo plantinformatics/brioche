@@ -70,7 +70,7 @@ For the additional functions which require the conda environment brioche-vcf bei
 <p>If you don’t have access to any of the preinstalled modules we recommend you begin by trying to install Miniconda following the instructions outlined in the installation section of this manual. After that, you can try and install R, Nextflow and Git into your
 conda base environment using conda install. From there, you will need to add in a few extra lines to each brioche launch script to make sure conda is being called before you begin e.g.,</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>conda<span class="w"> </span>shell.bash<span class="w"> </span>hook<span class="k">)</span><span class="s2">&quot;</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>conda<span class="w"> </span>shell.bash<span class="w"> </span>hook<span class="k">)</span><span class="s2">"</span>
 
 conda<span class="w"> </span>activate<span class="w"> </span>base
 </pre></div>

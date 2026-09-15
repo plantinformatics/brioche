@@ -77,8 +77,8 @@
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">cd Additional_funtions/</span>
 <span class="go">module load R4.4.0</span>
 <span class="go">Rscript DArT2Brioche_convert.R \</span>
-<span class="go">--dartfile &quot;dart_testing_build_briochefiles.csv&quot; \</span>
-<span class="go">--targetmarker &quot;D&quot;</span>
+<span class="go">--dartfile "dart_testing_build_briochefiles.csv" \</span>
+<span class="go">--targetmarker "D"</span>
 </pre></div>
 </div>
 </section>
@@ -191,13 +191,13 @@ number of uniquely mapping markers.</p>
 <span class="c1">#SBATCH --nodes=1</span>
 
 <span class="c1"># The name of the job:</span>
-<span class="c1">#SBATCH --job-name=&quot;example_slurmjob&quot;</span>
+<span class="c1">#SBATCH --job-name="example_slurmjob"</span>
 
 <span class="c1"># The project ID which this job should run under:</span>
-<span class="c1">#SBATCH --account=&quot;default&quot;</span>
+<span class="c1">#SBATCH --account="default"</span>
 
 <span class="c1"># The partition in which to submit the job:</span>
-<span class="c1">#SBATCH --partition=&quot;batch&quot;</span>
+<span class="c1">#SBATCH --partition="batch"</span>
 
 <span class="c1"># Maximum number of tasks/CPU cores used by the job:</span>
 <span class="c1">#SBATCH --ntasks=1</span>
@@ -221,32 +221,32 @@ number of uniquely mapping markers.</p>
 <span class="nv">target</span><span class="o">=</span>/filepath/briochetargetdesign.tsv
 
 <span class="c1"># Used in naming of results files</span>
-<span class="nv">chipname</span><span class="o">=</span><span class="s2">&quot;probename&quot;</span>
+<span class="nv">chipname</span><span class="o">=</span><span class="s2">"probename"</span>
 
 <span class="c1"># Directory of reference genome</span>
 <span class="nv">genomedir</span><span class="o">=</span>/filepathgenome/
 
 <span class="c1"># Genome name without extension</span>
-<span class="nv">genome</span><span class="o">=</span><span class="s2">&quot;genomename&quot;</span>
+<span class="nv">genome</span><span class="o">=</span><span class="s2">"genomename"</span>
 
 <span class="c1"># Genome name with extension</span>
-<span class="nv">fasta</span><span class="o">=</span><span class="s2">&quot;genomename.fa&quot;</span>
+<span class="nv">fasta</span><span class="o">=</span><span class="s2">"genomename.fa"</span>
 
 <span class="c1"># Param file can be set as anything, but if not set in the Nextflow command below,</span>
 <span class="c1"># it will default to the params.config in the same directory as main.nf</span>
-<span class="nv">params</span><span class="o">=</span><span class="s2">&quot;/filepath/brioche/params.config&quot;</span>
-<span class="nv">briochemain</span><span class="o">=</span><span class="s2">&quot;/filepath/brioche/main.nf&quot;</span>
+<span class="nv">params</span><span class="o">=</span><span class="s2">"/filepath/brioche/params.config"</span>
+<span class="nv">briochemain</span><span class="o">=</span><span class="s2">"/filepath/brioche/main.nf"</span>
 
 <span class="c1"># Required modules</span>
 module<span class="w"> </span>load<span class="w"> </span>Nextflow
 module<span class="w"> </span>load<span class="w"> </span>Miniconda3
 module<span class="w"> </span>load<span class="w"> </span>git
 
-<span class="nv">workdir</span><span class="o">=</span><span class="s2">&quot;/filepath/brioche/results/</span><span class="si">${</span><span class="nv">genome</span><span class="si">}</span><span class="s2">_</span><span class="si">${</span><span class="nv">chipname</span><span class="si">}</span><span class="s2">/&quot;</span>
-<span class="nv">resultsdir</span><span class="o">=</span><span class="s2">&quot;/filepath/brioche/results/</span><span class="si">${</span><span class="nv">genome</span><span class="si">}</span><span class="s2">_</span><span class="si">${</span><span class="nv">chipname</span><span class="si">}</span><span class="s2">/&quot;</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">resultsdir</span><span class="si">}</span><span class="s2">&quot;</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">workdir</span><span class="si">}</span><span class="s2">&quot;</span>
-<span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">workdir</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="nv">workdir</span><span class="o">=</span><span class="s2">"/filepath/brioche/results/</span><span class="si">${</span><span class="nv">genome</span><span class="si">}</span><span class="s2">_</span><span class="si">${</span><span class="nv">chipname</span><span class="si">}</span><span class="s2">/"</span>
+<span class="nv">resultsdir</span><span class="o">=</span><span class="s2">"/filepath/brioche/results/</span><span class="si">${</span><span class="nv">genome</span><span class="si">}</span><span class="s2">_</span><span class="si">${</span><span class="nv">chipname</span><span class="si">}</span><span class="s2">/"</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">resultsdir</span><span class="si">}</span><span class="s2">"</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">workdir</span><span class="si">}</span><span class="s2">"</span>
+<span class="nb">cd</span><span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">workdir</span><span class="si">}</span><span class="s2">"</span>
 </pre></div>
 </div>
 </li>
