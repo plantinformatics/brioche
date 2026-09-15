@@ -737,156 +737,505 @@ DoStrictfiltering <-
     
     
     
-    if(doldedge=="Yes") {
-      
-      ## 1) Build prior: for each SNP_A, pick the most frequent chromosome of its SNP_B partners (note less meningful relationships have been prefiltered already)
+    if (doldedge == "Yes") {
+
+      ## Build prior:
+      ## For each SNP_A, identify its SNP_B partners that have BLAST results.
+      ## Less meaningful relationships have already been prefiltered.
       ld_hits <- pwldmappings |>
         dplyr::select(SNP_A, SNP_B) |>
-        dplyr::filter(!base::is.na(SNP_A), !base::is.na(SNP_B)) |>
-        dplyr::inner_join(blast.out, by = c("SNP_B" = "qaccver"))   # brings in saccver, bitscore for SNP_Bs
-      
-      # Extract the number of unique markers that are present in the Brioche output from the other 
-      targetLDmarkers <- unique(intersect(blast.out$qaccver,pwldmappings$SNP_A))
-      
-      if(nrow(ld_hits) >=1) {
-        for ( i in c(1:3)) {
+        dplyr::filter(
+          !base::is.na(SNP_A),
+          !base::is.na(SNP_B)
+        ) |>
+        dplyr::inner_join(
+          blast.out,
+          by = c("SNP_B" = "qaccver")
+        )
+
+
+      ## Extract markers present as SNP_A in the LD output and in blast.out
+      targetLDmarkers <- base::unique(
+        base::intersect(
+          blast.out$qaccver,
+          pwldmappings$SNP_A
+        )
+      )
+
+
+      if (base::nrow(ld_hits) >= 1L) {
+
+        ## Holds multi-hit markers resolved in the preceding iteration.
+        ## These markers can be used as positioned SNP_B neighbours in
+        ## subsequent iterations.
+        multi_resolved_previous <- NULL
+
+
+        for (i in 1:3) {
+
           pwld_link <- pwldmappings |>
             dplyr::transmute(
               SNP_A,
               SNP_B,
-              w = .data[[score_col]]  # use chosen score column (R2 or R)
+              w = .data[[score_col]]
             ) |>
             dplyr::filter(
               !base::is.na(SNP_A),
               !base::is.na(SNP_B),
               !base::is.na(w)
-            )         
-          ## Keep only neighbours (SNP_B) that map to a single BLAST site
+            )
+
+
+          ## Keep only neighbours SNP_B that map to a single BLAST site
           b_counts <- blast.out |>
-            dplyr::count(qaccver, name = "n_hits")
-          
+            dplyr::count(
+              qaccver,
+              name = "n_hits"
+            )
+
+
           single_b <- b_counts |>
             dplyr::filter(n_hits == 1L) |>
             dplyr::select(qaccver)
-          
-          
-          
-          ## SNP_B (chr, bp) for single-hit neighbours
+
+
+          ## SNP_B chromosome and position for original single-hit neighbours
           b_hits <- blast.out |>
-            dplyr::semi_join(single_b, by = "qaccver") |>
-            dplyr::select(qaccver, saccver, SNPpos)
-          ## insert the single b add here for iterative loop. Apply end added markers into single_b and then deduplicate. simple statement check if iter is >1 and if it is add markers identified as newly unique to SNP b allowed for next iter 
-          if (i>1) {
-            b_hits_add_prioritr <- as.data.frame(multi_with_prior[,1:3])
-            b_hits <- rbind(b_hits,b_hits_add_prioritr)
-            
+            dplyr::semi_join(
+              single_b,
+              by = "qaccver"
+            ) |>
+            dplyr::select(
+              qaccver,
+              saccver,
+              SNPpos
+            )
+
+
+          ## From iteration 2 onwards, add multi-hit markers that were
+          ## uniquely resolved during the preceding iteration.
+          if (
+            i > 1L &&
+            !base::is.null(multi_resolved_previous) &&
+            base::nrow(multi_resolved_previous) > 0L
+          ) {
+
+            b_hits_add_prioritr <- multi_resolved_previous |>
+              dplyr::select(
+                qaccver,
+                saccver,
+                SNPpos
+              )
+
+            b_hits <- dplyr::bind_rows(
+              b_hits,
+              b_hits_add_prioritr
+            ) |>
+              dplyr::distinct(
+                qaccver,
+                saccver,
+                SNPpos
+              )
           }
-          
-          ## Link SNP_A with its usable neighbours (SNP_B single-hit),
-          ## keep top 10 by weight per SNP_A (in intermediate I used 5 but here it is 10 incase of threat of translocation issues)
+
+
+          ## Link SNP_A with its usable SNP_B neighbours.
+          ## Keep the top 10 neighbours by LD weight for each SNP_A.
           neigh10 <- pwld_link |>
-            dplyr::inner_join(b_hits, by = c("SNP_B" = "qaccver")) |>
-            dplyr::rename(neigh_chr = saccver, neigh_bp = SNPpos) |>
+            dplyr::inner_join(
+              b_hits,
+              by = c("SNP_B" = "qaccver")
+            ) |>
+            dplyr::rename(
+              neigh_chr = saccver,
+              neigh_bp = SNPpos
+            ) |>
             dplyr::group_by(SNP_A) |>
-            dplyr::arrange(dplyr::desc(w), .by_group = TRUE) |>
-            dplyr::slice_head(n = 10) |>
+            dplyr::arrange(
+              dplyr::desc(w),
+              .by_group = TRUE
+            ) |>
+            dplyr::slice_head(n = 10L) |>
             dplyr::ungroup()
-          
+
+
+          ## Select the most strongly supported chromosome for each SNP_A.
           prior_chr <- neigh10 |>
-            dplyr::group_by(SNP_A, neigh_chr) |>
+            dplyr::group_by(
+              SNP_A,
+              neigh_chr
+            ) |>
             dplyr::summarise(
               w_sum = base::sum(w, na.rm = TRUE),
-              n     = dplyr::n(),
+              n = dplyr::n(),
               .groups = "drop_last"
             ) |>
-            dplyr::arrange(dplyr::desc(w_sum), dplyr::desc(n), neigh_chr, .by_group = TRUE) |>
-            dplyr::slice(1) |>
+            dplyr::arrange(
+              dplyr::desc(w_sum),
+              dplyr::desc(n),
+              neigh_chr,
+              .by_group = TRUE
+            ) |>
+            dplyr::slice_head(n = 1L) |>
             dplyr::ungroup() |>
-            dplyr::transmute(qaccver = SNP_A, prior_chr = neigh_chr)
-          
-          # For distance weighting, we only need neighbour (bp, weight) on the chosen prior chr
+            dplyr::transmute(
+              qaccver = SNP_A,
+              prior_chr = neigh_chr
+            )
+
+
+          ## For distance weighting, retain neighbour positions and weights
+          ## only on the selected prior chromosome.
           neigh_on_prior <- neigh10 |>
-            dplyr::inner_join(prior_chr, by = c("SNP_A" = "qaccver", "neigh_chr" = "prior_chr")) |>
-            dplyr::select(qaccver = SNP_A, neigh_bp, w)
-          
-          ## Per-target BLAST counts
+            dplyr::inner_join(
+              prior_chr,
+              by = c(
+                "SNP_A" = "qaccver",
+                "neigh_chr" = "prior_chr"
+              )
+            ) |>
+            dplyr::select(
+              qaccver = SNP_A,
+              neigh_bp,
+              w
+            )
+
+
+          ## Count BLAST hits per target marker
           t_counts <- blast.out |>
-            dplyr::count(qaccver, name = "total_hits")
-          
-          ## Attach counts and prior chr to target hits
+            dplyr::count(
+              qaccver,
+              name = "total_hits"
+            )
+
+
+          ## Attach BLAST-hit counts and the prior chromosome
           tmp <- blast.out |>
-            dplyr::left_join(t_counts, by = "qaccver") |>
-            dplyr::left_join(prior_chr, by = "qaccver")
-          
-          ## Rule 1 & 6: markers with a single BLAST hit are kept outright
+            dplyr::left_join(
+              t_counts,
+              by = "qaccver"
+            ) |>
+            dplyr::left_join(
+              prior_chr,
+              by = "qaccver"
+            )
+
+
+          ## Markers with a single BLAST hit are retained outright
           winners_single <- tmp |>
             dplyr::filter(total_hits == 1L) |>
             dplyr::group_by(qaccver) |>
-            dplyr::slice(1) |>
+            dplyr::slice_head(n = 1L) |>
             dplyr::ungroup()
-          
-          # For markers with multiple hits AND a prior chr:
-          # if zero hits on that chr  drop
-          #  if one hit on that chr  keep it
-          #  if >1 on that chr  compute weighted mean distance to neighbours on prior chr
-          #                         dist = sum_i w_i * |SNPpos_hit - neigh_bp_i| / sum_i w_i
-          #                         pick the hit with MIN dist; tie higher bitscore
-          multi_with_prior <- tmp |>
-            dplyr::filter(total_hits > 1L, !base::is.na(prior_chr)) |>
-            dplyr::filter(saccver == prior_chr) |>
-            dplyr::inner_join(neigh_on_prior, by = "qaccver") |>
-            dplyr::mutate(d = w * base::abs(SNPpos - neigh_bp)) |>
-            dplyr::group_by(qaccver, saccver, SNPpos, bitscore) |>
-            dplyr::summarise(
-              dist_wmean = base::sum(d, na.rm = TRUE) / base::sum(w, na.rm = TRUE),
-              .groups = "drop_last"
+
+
+          ## For markers with multiple BLAST hits, retain candidate hits
+          ## only on the LD-supported prior chromosome.
+          ##
+          ## Markers with no prior chromosome, or no hit on the prior
+          ## chromosome, are not positioned.
+          multi_candidates <- tmp |>
+            dplyr::filter(
+              total_hits > 1L,
+              !base::is.na(prior_chr),
+              !base::is.na(SNPpos),
+              saccver == prior_chr
+            )
+
+
+          ## Count the number of hits remaining on the prior chromosome
+          prior_chr_counts <- multi_candidates |>
+            dplyr::count(
+              qaccver,
+              name = "n_prior_hits"
+            )
+
+
+          ## If exactly one BLAST hit remains after restricting to the
+          ## prior chromosome, keep that hit directly.
+          winners_prior_single <- multi_candidates |>
+            dplyr::inner_join(
+              prior_chr_counts,
+              by = "qaccver"
             ) |>
-            dplyr::ungroup() |>
+            dplyr::filter(n_prior_hits == 1L) |>
+            dplyr::select(-n_prior_hits)
+
+
+          ## For markers with more than one hit on the prior chromosome,
+          ## calculate the span from the most upstream hit to the most
+          ## downstream hit.
+          candidate_spans <- multi_candidates |>
+            dplyr::inner_join(
+              prior_chr_counts,
+              by = "qaccver"
+            ) |>
+            dplyr::filter(n_prior_hits > 1L) |>
             dplyr::group_by(qaccver) |>
-            dplyr::arrange(dist_wmean, dplyr::desc(dplyr::coalesce(bitscore, -Inf))) |>
-            dplyr::slice(1) |>
+            dplyr::summarise(
+              hit_span = (
+                base::max(SNPpos, na.rm = TRUE) -
+                  base::min(SNPpos, na.rm = TRUE)
+              ),
+              .groups = "drop"
+            )
+
+
+          ## Identify markers whose candidate BLAST sites are all contained
+          ## within a 5-megabase interval.
+          close_hit_markers <- candidate_spans |>
+            dplyr::filter(hit_span <= 5000000)
+
+
+          ## For each close-hit marker, retain only candidates sharing the
+          ## maximum bitscore.
+          ##
+          ## NA bitscores are converted to -Inf. If all bitscores are NA,
+          ## all candidates remain tied and the marker will be excluded.
+          ### UPDATE logic to bring in line with how the local duplcation search works
+          ### Now marker will be kept if top bitscore markers in the 5Mbp range are calling the same ref call. (Note maybe require all markers in 5Mbp? Worth discussing with group)
+          close_hit_top_scores <- multi_candidates |>
+            dplyr::semi_join(
+              close_hit_markers,
+              by = "qaccver"
+            ) |>
+            dplyr::mutate(
+              bitscore_rank = dplyr::coalesce(
+                bitscore,
+                -Inf
+              )
+            ) |>
+            dplyr::group_by(qaccver) |>
+            dplyr::filter(
+              bitscore_rank == base::max(bitscore_rank)
+            ) |>
+            dplyr::mutate(
+              n_top_bitscore = dplyr::n(),
+
+              ## TRUE only when every top-bitscore hit has a Ref call (should be always but who knows after future QTL + INDEL functionality are incorporated into Brioche)
+              ## and all Ref calls are identical
+              same_top_ref = (
+                base::all(!base::is.na(Ref)) &&
+                  dplyr::n_distinct(Ref) == 1L
+              )
+            ) |>
             dplyr::ungroup()
-          
-          ## Combine winners:
-          ## - single-hit targets (regardless of neighbour info)
-          ## - multi-hit targets with prior-chr winner as above
-          ## (Markers with multiple hits and no prior chr are dropped.)
+
+          ## Keep the close-hit marker only if exactly one BLAST hit has
+          ## the highest bitscore.
+          winners_close_bitscore <- close_hit_top_scores |>
+            dplyr::filter(
+              n_top_bitscore == 1L |
+                (n_top_bitscore > 1L & same_top_ref)
+            ) |>
+            dplyr::group_by(qaccver) |>
+            dplyr::arrange(
+              SNPpos,
+              .by_group = TRUE
+            ) |>
+            dplyr::slice_head(n = 1L) |>
+            dplyr::ungroup() |>
+            dplyr::select(
+              -bitscore_rank,
+              -n_top_bitscore,
+              -same_top_ref
+            )
+
+
+          ## Record close-hit markers with tied highest bitscores.
+          ##
+          ## These markers are not included in top_hits and are therefore
+          ## not positioned uniquely.
+          ambiguous_close_hits <- close_hit_top_scores |>
+            dplyr::filter(
+              n_top_bitscore > 1L,
+              !same_top_ref
+            ) |>
+            dplyr::distinct(qaccver)
+
+
+          ## Send markers to LD-distance scoring only if:
+          ##
+          ## 1. they have multiple hits on the prior chromosome; and
+          ## 2. those hits span more than 5 Mbp.
+          ##
+          ## All close-hit markers are excluded from LD-distance scoring,
+          ## including markers with tied maximum bitscores.
+          multi_for_ld <- multi_candidates |>
+            dplyr::inner_join(
+              prior_chr_counts,
+              by = "qaccver"
+            ) |>
+            dplyr::filter(n_prior_hits > 1L) |>
+            dplyr::anti_join(
+              close_hit_markers,
+              by = "qaccver"
+            ) |>
+            dplyr::select(-n_prior_hits)
+
+
+          ## Calculate weighted mean distance to LD neighbours on the
+          ## selected prior chromosome.
+          ##
+          ## The candidate hit with the minimum weighted mean distance is
+          ## selected. A higher bitscore is used as a secondary criterion.
+          multi_with_prior <- multi_for_ld |>
+            dplyr::inner_join(
+              neigh_on_prior,
+              by = "qaccver"
+            ) |>
+            dplyr::mutate(
+              d = w * base::abs(SNPpos - neigh_bp)
+            ) |>
+            dplyr::group_by(
+              qaccver,
+              saccver,
+              SNPpos,
+              bitscore
+            ) |>
+            dplyr::summarise(
+              dist_wmean = (
+                base::sum(d, na.rm = TRUE) /
+                  base::sum(w, na.rm = TRUE)
+              ),
+              .groups = "drop"
+            ) |>
+            dplyr::filter(
+              base::is.finite(dist_wmean)
+            ) |>
+            dplyr::group_by(qaccver) |>
+            dplyr::arrange(
+              dist_wmean,
+              dplyr::desc(
+                dplyr::coalesce(bitscore, -Inf)
+              ),
+              .by_group = TRUE
+            ) |>
+            dplyr::slice_head(n = 1L) |>
+            dplyr::ungroup()
+
+
+          ## Join the LD-distance winners back to tmp to restore the
+          ## remaining columns from blast.out.
+          winners_ld <- multi_with_prior |>
+            dplyr::left_join(
+              tmp |>
+                dplyr::select(
+                  qaccver,
+                  saccver,
+                  SNPpos,
+                  bitscore,
+                  dplyr::everything()
+                ),
+              by = c(
+                "qaccver",
+                "saccver",
+                "SNPpos",
+                "bitscore"
+              )
+            )
+
+
+          ## Combine the resolved multi-hit markers.
+          ##
+          ## This object is also retained for use as positioned SNP_B
+          ## neighbours in the following iteration.
+          multi_resolved <- dplyr::bind_rows(
+            winners_prior_single |>
+              dplyr::select(
+                qaccver,
+                saccver,
+                SNPpos,
+                bitscore,
+                dplyr::everything()
+              ),
+            winners_close_bitscore |>
+              dplyr::select(
+                qaccver,
+                saccver,
+                SNPpos,
+                bitscore,
+                dplyr::everything()
+              ),
+            winners_ld
+          ) |>
+            dplyr::distinct(
+              qaccver,
+              .keep_all = TRUE
+            )
+
+
+          ## Combine all winners:
+          ##
+          ## - markers with one original BLAST hit
+          ## - markers with one hit remaining on the prior chromosome
+          ## - close-hit markers having a unique highest bitscore
+          ## - markers with a span greater than 1 Mb resolved by LD distance
+          ##
+          ## Close-hit markers with tied highest bitscores are omitted.
           top_hits <- linkage_strict_hits <- dplyr::bind_rows(
             winners_single |>
-              dplyr::select(qaccver, saccver, SNPpos, bitscore, dplyr::everything()),
-            multi_with_prior |>
-              dplyr::left_join(
-                tmp |> dplyr::select(qaccver, saccver, SNPpos, bitscore, dplyr::everything()),
-                by = c("qaccver", "saccver", "SNPpos", "bitscore")
-              )
+              dplyr::select(
+                qaccver,
+                saccver,
+                SNPpos,
+                bitscore,
+                dplyr::everything()
+              ),
+            multi_resolved
           ) |>
-            dplyr::distinct(qaccver, .keep_all = TRUE)
-          
-          
+            dplyr::distinct(
+              qaccver,
+              .keep_all = TRUE
+            )
+
+
+          ## Make newly resolved multi-hit markers available in the next
+          ## iteration.
+          multi_resolved_previous <- multi_resolved
         }
-      }
-      else{
-        
+
+      } else {
+
+        ## If no usable LD relationships are present, retain only markers
+        ## with exactly one BLAST hit.
         top_hits <- blast_unique <- blast.out |>
-          dplyr::add_count(qaccver, name = "n") |>
-          dplyr::filter(n == 1) |>
+          dplyr::add_count(
+            qaccver,
+            name = "n"
+          ) |>
+          dplyr::filter(n == 1L) |>
           dplyr::select(-n)
       }
-      
-      remove_namesld <- setdiff(blast.out$Alternate_SNP_ID, top_hits$Alternate_SNP_ID)
-      remove_namescombined <- append(remove_namescombined,remove_namesld)
-      
-      keep_namesld <- intersect(top_hits$Alternate_SNP_ID, blast.out$Alternate_SNP_ID)
-      keep_namescombined <- append(keep_namescombined, keep_namesld)
-      
-      strictmarkernames$linkagemarkermap<- ifelse(
+
+
+      remove_namesld <- base::setdiff(
+        blast.out$Alternate_SNP_ID,
+        top_hits$Alternate_SNP_ID
+      )
+
+      remove_namescombined <- base::append(
+        remove_namescombined,
+        remove_namesld
+      )
+
+
+      keep_namesld <- base::intersect(
+        top_hits$Alternate_SNP_ID,
+        blast.out$Alternate_SNP_ID
+      )
+
+      keep_namescombined <- base::append(
+        keep_namescombined,
+        keep_namesld
+      )
+
+
+      strictmarkernames$linkagemarkermap <- base::ifelse(
         strictmarkernames$qaccver %in% top_hits$qaccver,
         "True",
         NA_character_
       )
-      
-      
-      
     }
     
     # Here is where the intermitten deviates from the strict. Intermittent was a filter keep, here we want a remove all so we will tally all the names of failed markers
