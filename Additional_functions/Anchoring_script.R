@@ -3203,13 +3203,45 @@ if (isDArTfile) {
     genotypeREF <- REF_old
     genotypeALT <- ALT_old
 
-    ident    <- u_map & !is.na(BriocheREF)   & (BriocheREF   == genotypeREF)
-    ident_rc <- u_map & !is.na(BriocheREFRC) & (BriocheREFRC == genotypeREF)
-    swap     <- u_map & !is.na(BriocheREF)   & (BriocheREF   == genotypeALT)
-    swap_rc  <- u_map & !is.na(BriocheREFRC) & (BriocheREFRC == genotypeALT)
 
-    oriented_now <- ident | ident_rc | swap | swap_rc
+    ident_direct <- (
+      u_map &
+      !is.na(BriocheREF) &
+      !is.na(genotypeREF) &
+      BriocheREF == genotypeREF
+    )
 
+    swap_direct <- (
+      u_map &
+      !is.na(BriocheREF) &
+      !is.na(genotypeALT) &
+      BriocheREF == genotypeALT
+    )
+
+    direct_match <- ident_direct | swap_direct
+
+    ident_rc <- (
+      u_map &
+      !direct_match &
+      !is.na(BriocheREFRC) &
+      !is.na(genotypeREF) &
+      BriocheREFRC == genotypeREF
+    )
+
+    swap_rc <- (
+      u_map &
+      !direct_match &
+      !is.na(BriocheREFRC) &
+      !is.na(genotypeALT) &
+      BriocheREFRC == genotypeALT
+    )
+
+# preserve the variable names used later in the DArT pathway.
+    ident <- ident_direct
+    swap  <- swap_direct
+
+    oriented_now <- ident | swap | ident_rc | swap_rc
+    
     REF_out <- ifelse(oriented_now, BriocheREF, REF_old)
     ALT_out <- ifelse(oriented_now, BriocheALT, ALT_old)
     ALT_out <- sub(",.*$", "", ALT_out)
