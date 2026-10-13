@@ -40,7 +40,7 @@ process BUILD_TARGET {
 
         # Check if the second column contains a valid sequence
         seq1=\$(head "${targetdesign}" | tail -n1 | awk -F"\${format}" '{print \$2}')
-        nucleotides="ACTGUN${params.markercharacter}"
+        nucleotides="ACTGactgUNn${params.markercharacter}"
         if [[ ! "\${seq1}" =~ ^[\${nucleotides}]+\$ ]]; then  # Use ^ and \$ for exact match
             echo "Error! Second column in the target file is supposed to be the probe/marker sequence"
             exit 1
